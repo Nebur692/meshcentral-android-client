@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The design's mark: a screen with a node joined both ways. / La marca del diseño: una pantalla con un nodo unido a los dos lados. -->
+<!-- The mark of the Windows app: a monitor with three linked nodes, 56 dp wide inside the 66 dp safe zone.
+     La marca de la app de Windows: un monitor con tres nodos unidos, de 56 dp dentro de la zona segura de 66. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <group android:scaleX="2" android:scaleY="2" android:translateX="30" android:translateY="30">
-        <path android:strokeColor="#001D34" android:strokeWidth="1.8" android:strokeLineCap="round" android:strokeLineJoin="round"
-            android:pathData="M5,4L19,4A2,2 0,0 1,21 6L21,14A2,2 0,0 1,19 16L5,16A2,2 0,0 1,3 14L3,6A2,2 0,0 1,5 4Z M8,20L16,20 M12,16L12,20 M7,10L10,10 M14,10L17,10" />
-        <path android:strokeColor="#001D34" android:strokeWidth="1.8"
-            android:pathData="M12,8A2,2 0,1 1,12 12A2,2 0,1 1,12 8Z" />
+    <group android:scaleX="0.1497" android:scaleY="0.1497" android:translateX="15.82" android:translateY="16.12">
+        <path android:fillColor="#0153AB" android:pathData="M104,108H406A12,12 0,0 1,418 120V320A12,12 0,0 1,406 332H104A12,12 0,0 1,92 320V120A12,12 0,0 1,104 108Z" />
+        <path android:fillColor="#FFFFFF" android:fillType="evenOdd" android:pathData="M96,84H414A28,28 0,0 1,442 112V334A28,28 0,0 1,414 362H96A28,28 0,0 1,68 334V112A28,28 0,0 1,96 84Z M104,108H406A12,12 0,0 1,418 120V320A12,12 0,0 1,406 332H104A12,12 0,0 1,92 320V120A12,12 0,0 1,104 108Z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M222,362H290L298,394H214Z M166,392H346A14,14 0,0 1,360 406V408A14,14 0,0 1,346 422H166A14,14 0,0 1,152 408V406A14,14 0,0 1,166 392Z" />
+        <path android:strokeColor="#FFFFFF" android:strokeWidth="11" android:strokeLineCap="round" android:pathData="M168,172L344,176M168,172L272,284M272,284L344,176" />
+        <path android:fillColor="#FFFFFF" android:pathData="M134,172a34,34 0,1 0,68 0a34,34 0,1 0,-68 0Z M238,284a34,34 0,1 0,68 0a34,34 0,1 0,-68 0Z M306,176a38,38 0,1 0,76 0a38,38 0,1 0,-76 0Z" />
+        <path android:fillColor="#01D8F9" android:pathData="M314,176a30,30 0,1 0,60 0a30,30 0,1 0,-60 0Z" />
     </group>
 </vector>

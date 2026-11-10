@@ -1,6 +1,9 @@
 package io.github.nebur692.meshclient.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -14,6 +17,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -27,18 +31,21 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
@@ -55,16 +62,19 @@ import io.github.nebur692.meshclient.core.CertificateTrust
 fun LoginScreen(vm: AppViewModel) {
     val f = vm.form
     var showPassword by rememberSaveable { mutableStateOf(false) }
+    // Signing in closes the keyboard, and an error scrolls into view: otherwise it appears hidden under the keyboard.
+    // Entrar cierra el teclado y un error se desplaza a la vista: si no, sale escondido debajo del teclado.
+    val keyboard = LocalSoftwareKeyboardController.current
+    val errorView = remember { BringIntoViewRequester() }
+    val signIn = { keyboard?.hide(); vm.connect() }
+    LaunchedEffect(f.error) { if (f.error != null) errorView.bringIntoView() }
     Box(Modifier.fillMaxSize().safeDrawingPadding().imePadding(), contentAlignment = Alignment.TopCenter) {
         Column(
             Modifier.widthIn(max = 480.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(56.dp)) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(painterResource(R.drawable.ic_monitor), null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(30.dp))
-                }
-            }
+            // The same logo as the Windows app. / El mismo logo que la app de Windows.
+            Image(painterResource(R.drawable.ic_logo), null, Modifier.size(56.dp))
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium)
                 Text(stringResource(R.string.login_subtitle), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -117,17 +127,22 @@ fun LoginScreen(vm: AppViewModel) {
                 visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go),
-                keyboardActions = KeyboardActions(onGo = { if (!f.busy) vm.connect() }),
+                keyboardActions = KeyboardActions(onGo = { if (!f.busy) signIn() }),
                 shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth(),
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = f.remember, onCheckedChange = { v -> vm.edit { copy(remember = v) } })
+            // The whole row is the checkbox: a person taps the sentence, not the little square.
+            // Toda la fila es la casilla: una persona toca la frase, no el cuadradito.
+            Row(
+                Modifier.fillMaxWidth().toggleable(value = f.remember, role = Role.Checkbox, onValueChange = { v -> vm.edit { copy(remember = v) } }),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(checked = f.remember, onCheckedChange = null, modifier = Modifier.padding(12.dp))
                 Text(stringResource(R.string.remember_password), style = MaterialTheme.typography.bodyMedium)
             }
 
-            f.error?.let { ErrorCard(it) }
+            f.error?.let { Box(Modifier.bringIntoViewRequester(errorView)) { ErrorCard(it) } }
 
-            Button(onClick = vm::connect, enabled = !f.busy && f.server.isNotBlank(), modifier = Modifier.fillMaxWidth().height(52.dp)) {
+            Button(onClick = signIn, enabled = !f.busy && f.server.isNotBlank(), modifier = Modifier.fillMaxWidth().height(52.dp)) {
                 if (f.busy) {
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                     Text(stringResource(R.string.connecting), Modifier.padding(start = 12.dp))

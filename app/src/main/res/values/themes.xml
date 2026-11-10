@@ -3,7 +3,7 @@
     <!-- Only for the system splash; Compose draws everything after. / Solo para el arranque del sistema. -->
     <style name="Theme.MeshClient.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/splash_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
         <item name="postSplashScreenTheme">@style/Theme.MeshClient</item>
     </style>
     <style name="Theme.MeshClient" parent="android:Theme.Material.Light.NoActionBar" />

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app's logo, the same as the Windows app's. / El logo de la app, el mismo que el de la de Windows. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="56dp" android:height="56dp" android:viewportWidth="512" android:viewportHeight="512">
+    <path android:pathData="M108,14H404A96,96 0,0 1,500 110V398A96,96 0,0 1,404 494H108A96,96 0,0 1,12 398V110A96,96 0,0 1,108 14Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="12" android:startY="0" android:endX="500" android:endY="0">
+                <item android:offset="0" android:color="#FF0259CF" />
+                <item android:offset="1" android:color="#FF01BEC0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#0153AB" android:pathData="M104,108H406A12,12 0,0 1,418 120V320A12,12 0,0 1,406 332H104A12,12 0,0 1,92 320V120A12,12 0,0 1,104 108Z" />
+    <path android:fillColor="#FFFFFF" android:fillType="evenOdd" android:pathData="M96,84H414A28,28 0,0 1,442 112V334A28,28 0,0 1,414 362H96A28,28 0,0 1,68 334V112A28,28 0,0 1,96 84Z M104,108H406A12,12 0,0 1,418 120V320A12,12 0,0 1,406 332H104A12,12 0,0 1,92 320V120A12,12 0,0 1,104 108Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M222,362H290L298,394H214Z M166,392H346A14,14 0,0 1,360 406V408A14,14 0,0 1,346 422H166A14,14 0,0 1,152 408V406A14,14 0,0 1,166 392Z" />
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="11" android:strokeLineCap="round" android:pathData="M168,172L344,176M168,172L272,284M272,284L344,176" />
+    <path android:fillColor="#FFFFFF" android:pathData="M134,172a34,34 0,1 0,68 0a34,34 0,1 0,-68 0Z M238,284a34,34 0,1 0,68 0a34,34 0,1 0,-68 0Z M306,176a38,38 0,1 0,76 0a38,38 0,1 0,-76 0Z" />
+    <path android:fillColor="#01D8F9" android:pathData="M314,176a30,30 0,1 0,60 0a30,30 0,1 0,-60 0Z" />
+</vector>
