@@ -121,7 +121,8 @@ private fun DevicesPane(vm: AppViewModel) {
         }
         if (shown.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-                Text(stringResource(if (all.isEmpty()) R.string.no_devices else R.string.no_match),
+                // Without a search, it was the filter that left nothing. / Sin búsqueda, lo que no deja nada es el filtro.
+                Text(stringResource(when { all.isEmpty() -> R.string.no_devices; vm.query.isBlank() -> R.string.no_match_filter; else -> R.string.no_match }),
                     color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
             }
             return@Column

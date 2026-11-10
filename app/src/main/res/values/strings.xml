@@ -39,6 +39,7 @@
     <string name="offline">Offline</string>
     <string name="no_devices">There are no devices here yet.</string>
     <string name="no_match">No device matches the search.</string>
+    <string name="no_match_filter">No device in this filter.</string>
     <string name="tab_devices">Devices</string>
     <string name="tab_account">Account</string>
     <string name="connection_lost">The connection to the server was lost.</string>

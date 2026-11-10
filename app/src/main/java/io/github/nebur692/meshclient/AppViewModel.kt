@@ -86,6 +86,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun forget(server: SavedServer) {
         saved.forget(server.address)
         savedServers = saved.all()
+        // Forgetting the server on the form also takes its password off the screen. / Olvidar el servidor del formulario también quita su contraseña de la pantalla.
+        if (form.server == server.address) form = LoginForm()
     }
 
     fun connect() {

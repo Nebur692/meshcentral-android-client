@@ -40,6 +40,7 @@
     <string name="offline">Sin conexión</string>
     <string name="no_devices">Todavía no hay equipos aquí.</string>
     <string name="no_match">Ningún equipo coincide con la búsqueda.</string>
+    <string name="no_match_filter">Ningún equipo cumple este filtro.</string>
     <string name="tab_devices">Equipos</string>
     <string name="tab_account">Cuenta</string>
     <string name="connection_lost">Se ha perdido la conexión con el servidor.</string>

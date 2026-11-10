@@ -88,6 +88,21 @@ class DeviceTest {
         assertTrue(noDesk.canOpenTerminal)
     }
 
+    @Test fun `the system comes from the agent type, also for devices without an agent`() {
+        fun family(json: String) = Device.from(node(json)).osFamily
+        // Local groups (no agent, no description): 4 Windows, 6 Linux, 29 macOS. / Grupos locales: sin agente ni descripción.
+        assertEquals(OsFamily.Windows, family("""{"_id":"n","name":"pc","mtype":3,"agent":{"id":4,"caps":0}}"""))
+        assertEquals(OsFamily.Linux, family("""{"_id":"n","name":"srv","mtype":3,"agent":{"id":6,"caps":0}}"""))
+        assertEquals(OsFamily.Mac, family("""{"_id":"n","name":"mac","mtype":3,"agent":{"id":29,"caps":0}}"""))
+        // Agents of other systems. / Agentes de otros sistemas.
+        assertEquals(OsFamily.Mac, family("""{"_id":"n","name":"m","agent":{"id":16,"caps":15}}"""))
+        assertEquals(OsFamily.Android, family("""{"_id":"n","name":"a","agent":{"id":14,"caps":0}}"""))
+        assertEquals(OsFamily.Linux, family("""{"_id":"n","name":"pi","agent":{"id":26,"caps":15}}"""))
+        // Unknown type: the description decides; with neither, Other. / Tipo desconocido: decide la descripción; sin nada, Otro.
+        assertEquals(OsFamily.Linux, family("""{"_id":"n","name":"b","agent":{"id":0},"osdesc":"FreeBSD 14"}"""))
+        assertEquals(OsFamily.Other, family("""{"_id":"n","name":"z"}"""))
+    }
+
     @Test fun `a change keeps the live state it does not carry`() {
         val live = Device.from(node("""{"_id":"n","name":"old","conn":1,"pwr":1}"""))
         val changed = Device.from(node("""{"_id":"n","name":"new"}"""))

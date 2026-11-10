@@ -70,11 +70,16 @@ data class Device(
     val canOpenTerminal: Boolean get() = hasAgent && capabilities and AgentCaps.TERMINAL != 0
     val canOpenFiles: Boolean get() = hasAgent && capabilities and AgentCaps.FILES != 0
 
-    /** Windows by the agent's type (the same list as the Windows app), the rest by the description the agent reports.
-     *  Windows por el tipo de agente (la misma lista que la app de Windows), lo demás por la descripción que da el agente. */
+    /** By the agent's type (MeshCentral's own table), then by the description the agent reports. Devices without an agent
+     *  (local groups) use the same ids: 4 Windows, 6 Linux, 29 macOS, and report no description.
+     *  Por el tipo de agente (la tabla de MeshCentral) y luego por la descripción que da el agente. Los equipos sin agente
+     *  (grupos locales) usan los mismos números: 4 Windows, 6 Linux, 29 macOS, y no traen descripción. */
     val osFamily: OsFamily
         get() = when {
             agentId in windowsAgents -> OsFamily.Windows
+            agentId in macAgents -> OsFamily.Mac
+            agentId in androidAgents -> OsFamily.Android
+            agentId in linuxAgents -> OsFamily.Linux
             osDescription?.contains("Windows", ignoreCase = true) == true -> OsFamily.Windows
             osDescription?.contains("mac", ignoreCase = true) == true -> OsFamily.Mac
             osDescription?.contains("Android", ignoreCase = true) == true -> OsFamily.Android
@@ -86,7 +91,12 @@ data class Device(
     fun withDetails(changed: Device) = changed.copy(connectivity = connectivity, powerState = powerState)
 
     internal companion object {
+        // From MeshCentral's agenttypes.js (1.3.1): platform «win32», «osx», «android», «linux». / De agenttypes.js de MeshCentral.
+        // (11 and 12 say «linux» there but are macOS and Android builds. / El 11 y el 12 pone «linux» pero son de macOS y Android.)
         private val windowsAgents = setOf(1, 2, 3, 4, 21, 22, 42, 43, 10003, 10004)
+        private val macAgents = setOf(11, 16, 29, 10005)
+        private val androidAgents = setOf(12, 14)
+        private val linuxAgents = setOf(5, 6, 7, 8, 9, 10, 13, 15, 18, 19, 20, 24, 25, 26, 27, 28, 32, 33, 35, 36, 40, 41, 45)
 
         fun from(o: JsonObject, groupId: String? = null): Device {
             val agent = o["agent"] as? JsonObject
