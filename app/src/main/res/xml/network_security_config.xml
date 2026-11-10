@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- HTTPS only, and only the system's roots: a CA installed on the phone could read the traffic. A server with its own or a
+     company's certificate is accepted only by the fingerprint the person confirmed (core/CertificateTrust).
+     Solo HTTPS, y solo las raíces del sistema: una CA instalada en el móvil podría leer el tráfico. Un servidor con
+     certificado propio o de empresa solo se acepta por la huella que la persona confirmó. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
