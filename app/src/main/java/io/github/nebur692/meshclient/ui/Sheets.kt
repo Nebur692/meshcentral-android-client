@@ -1,0 +1,198 @@
+package io.github.nebur692.meshclient.ui
+
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import io.github.nebur692.meshclient.AppViewModel
+import io.github.nebur692.meshclient.BiometricOffer
+import io.github.nebur692.meshclient.DeviceSheet
+import io.github.nebur692.meshclient.R
+import io.github.nebur692.meshclient.core.Device
+import io.github.nebur692.meshclient.core.PowerAction
+import io.github.nebur692.meshclient.core.shellFor
+
+/** A panel from the bottom, with the device's name on top. / Un panel desde abajo, con el nombre del equipo arriba. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun Sheet(title: String, subtitle: String? = null, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.padding(bottom = 16.dp)) {
+            Text(title, Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.titleLarge)
+            subtitle?.let { Text(it, Modifier.padding(horizontal = 24.dp, vertical = 2.dp), style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Box(Modifier.height(8.dp))
+            content()
+        }
+    }
+}
+
+@Composable
+fun PowerSheet(vm: AppViewModel, d: Device) {
+    val can = vm.abilities(d)
+    val users = d.users.takeIf { it.isNotEmpty() }?.joinToString(", ")
+    Sheet(stringResource(R.string.act_power), users?.let { stringResource(R.string.signed_in_user, it) } ?: d.name, { vm.sheet = null }) {
+        SheetOption(R.drawable.ic_wake, stringResource(R.string.wake), stringResource(R.string.wake_hint), enabled = can.wake && !vm.actionBusy) { vm.wake(d) }
+        SheetOption(R.drawable.ic_sleep, stringResource(R.string.sleep), stringResource(R.string.sleep_hint), enabled = can.power && !vm.actionBusy) { vm.power(d, PowerAction.Sleep) }
+        SheetOption(R.drawable.ic_restart, stringResource(R.string.restart), null, enabled = can.power && !vm.actionBusy, danger = true) { vm.sheet = DeviceSheet.ConfirmRestart }
+        SheetOption(R.drawable.ic_power, stringResource(R.string.power_off), null, enabled = can.power && !vm.actionBusy, danger = true) { vm.sheet = DeviceSheet.ConfirmPowerOff }
+        if (!d.isOnline && !can.wake) Text(stringResource(R.string.power_offline), Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+fun MoreSheet(vm: AppViewModel, d: Device, onCopy: () -> Unit) {
+    val can = vm.abilities(d)
+    Sheet(d.name, null, { vm.sheet = null }) {
+        if (can.edit) SheetOption(R.drawable.ic_edit, stringResource(R.string.edit_device), null) { vm.sheet = DeviceSheet.Edit }
+        SheetOption(R.drawable.ic_copy, stringResource(R.string.copy_details), stringResource(R.string.copy_details_hint), onClick = onCopy)
+        if (can.uninstall || can.remove) HorizontalDivider(Modifier.padding(vertical = 4.dp))
+        if (can.uninstall) SheetOption(R.drawable.ic_uninstall, stringResource(R.string.uninstall), null, danger = true) { vm.sheet = DeviceSheet.ConfirmUninstall }
+        if (can.remove) SheetOption(R.drawable.ic_trash, stringResource(R.string.remove), null, danger = true) { vm.sheet = DeviceSheet.ConfirmRemove }
+    }
+}
+
+@Composable
+fun MessageSheet(vm: AppViewModel, d: Device) {
+    val can = vm.abilities(d)
+    var title by rememberSaveable { mutableStateOf("") }
+    var text by rememberSaveable { mutableStateOf("") }
+    // A window that waits to be closed needs remote control; a notification, the notify right. / La ventana pide control remoto.
+    var window by rememberSaveable { mutableStateOf(!can.notify) }
+    Sheet(stringResource(R.string.message_title), d.users.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: d.name, { vm.sheet = null }) {
+        Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(title, { title = it.take(100) }, label = { Text(stringResource(R.string.message_heading)) }, singleLine = true,
+                placeholder = { Text(stringResource(R.string.app_name)) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            OutlinedTextField(text, { text = it.take(1000) }, label = { Text(stringResource(R.string.message_text)) }, minLines = 3,
+                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            if (can.notify && can.messageBox) Row(
+                Modifier.fillMaxWidth().toggleable(window, role = Role.Switch, onValueChange = { window = it }).padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.message_window), style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.message_window_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(checked = window, onCheckedChange = null)
+            }
+        }
+        SheetButtons(stringResource(R.string.send), text.isNotBlank(), vm.actionBusy, { vm.sheet = null }) {
+            vm.sendMessage(d, title.ifBlank { "MeshCentral" }, text.trim(), window && can.messageBox)
+        }
+    }
+}
+
+/**
+ * Commands as the device's agent (the system account on Windows, root elsewhere), with their output below.
+ * Órdenes como el agente del equipo (la cuenta del sistema en Windows, root en los demás), con su salida debajo.
+ */
+@Composable
+fun RunSheet(vm: AppViewModel, d: Device) {
+    var commands by rememberSaveable { mutableStateOf("") }
+    var powerShell by rememberSaveable { mutableStateOf(false) }
+    Sheet(stringResource(R.string.run_title), stringResource(if (d.isWindows) R.string.run_as_system else R.string.run_as_root), { vm.clearCommandOutput(); vm.sheet = null }) {
+        Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (d.isWindows) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedChoice(!powerShell, "cmd", Modifier.weight(1f)) { powerShell = false }
+                OutlinedChoice(powerShell, "PowerShell", Modifier.weight(1f)) { powerShell = true }
+            }
+            OutlinedTextField(commands, { commands = it }, label = { Text(stringResource(R.string.run_commands)) }, minLines = 3, maxLines = 8,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                placeholder = { Text(if (d.isWindows) "ipconfig /all" else "uptime", fontFamily = FontFamily.Monospace) },
+                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            if (vm.actionBusy) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                Text(stringResource(R.string.run_waiting), style = MaterialTheme.typography.bodyMedium)
+            }
+            vm.commandOutput?.let { out ->
+                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.fillMaxWidth()) {
+                    Box(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()).horizontalScroll(rememberScrollState()).padding(12.dp)) {
+                        Text(out, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
+        SheetButtons(stringResource(R.string.run), commands.isNotBlank(), vm.actionBusy, { vm.clearCommandOutput(); vm.sheet = null }) {
+            vm.runCommands(d, commands, shellFor(d, powerShell))
+        }
+    }
+}
+
+@Composable
+fun EditSheet(vm: AppViewModel, d: Device) {
+    var name by rememberSaveable(d.id) { mutableStateOf(d.name) }
+    var description by rememberSaveable(d.id) { mutableStateOf(d.description.orEmpty()) }
+    var tags by rememberSaveable(d.id) { mutableStateOf(d.tags.joinToString(", ")) }
+    Sheet(stringResource(R.string.edit_device), null, { vm.sheet = null }) {
+        Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(name, { name = it.take(64) }, label = { Text(stringResource(R.string.device_name)) }, singleLine = true,
+                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            OutlinedTextField(description, { description = it.take(1024) }, label = { Text(stringResource(R.string.description)) },
+                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            OutlinedTextField(tags, { tags = it }, label = { Text(stringResource(R.string.tags)) }, singleLine = true,
+                supportingText = { Text(stringResource(R.string.tags_hint)) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+        }
+        SheetButtons(stringResource(R.string.save), name.isNotBlank(), vm.actionBusy, { vm.sheet = null }) {
+            vm.saveDevice(d, name, description, tags.split(',').map(String::trim).filter(String::isNotEmpty).distinct())
+        }
+    }
+}
+
+/** After signing in: the fingerprint next time? / Tras entrar: ¿la huella la próxima vez? */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BiometricOfferSheet(offer: BiometricOffer, answer: (Boolean) -> Unit) {
+    ModalBottomSheet(onDismissRequest = { answer(false) }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.primary, modifier = Modifier.size(72.dp)) {
+                Box(contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.ic_fingerprint), null, Modifier.size(40.dp)) }
+            }
+            Text(stringResource(R.string.biometric_offer_title), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+            Text(if (offer.session) pluralStringResource(R.plurals.biometric_offer_session, offer.days, offer.days) else stringResource(R.string.biometric_offer_password),
+                style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+            Button(onClick = { answer(true) }, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                Text(stringResource(R.string.biometric_offer_yes), style = MaterialTheme.typography.titleMedium)
+            }
+            TextButton(onClick = { answer(false) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.remember_no)) }
+        }
+    }
+}

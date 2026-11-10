@@ -5,6 +5,10 @@ enum class MeshFailure {
     InvalidAddress, NameNotResolved, ServerUnreachable, Timeout, UntrustedCertificate, HttpError,
     InvalidCredentials, TwoFactorRequired, InvalidTwoFactorCode, TooManyAttempts, ToolsNotAllowed,
     EmailValidationRequired, SessionExpired, Rejected, ConnectionLost, UnexpectedResponse,
+    /** This account has no rights for it on that device. / Esta cuenta no tiene permiso para eso en ese equipo. */
+    NotAllowed,
+    /** It needs the device's agent connected. / Hace falta el agente del equipo conectado. */
+    DeviceOffline,
 }
 
 /**

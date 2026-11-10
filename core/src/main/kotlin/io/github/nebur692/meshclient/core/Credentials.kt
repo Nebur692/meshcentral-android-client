@@ -19,6 +19,9 @@ class PasswordCredentials(val username: String, private val password: String, va
 
     fun withCode(code: String?) = PasswordCredentials(username, password, code)
 
+    /** The password itself, only to seal it under the fingerprint on the phone. / La contraseña, solo para sellarla bajo la huella. */
+    fun passwordForSealing(): String = password
+
     // Never prints the password. / Nunca escribe la contraseña.
     override fun toString() = "PasswordCredentials(username=$username)"
 

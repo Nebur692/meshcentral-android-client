@@ -1,27 +1,34 @@
 package io.github.nebur692.meshclient
 
+import android.hardware.biometrics.BiometricManager
+import android.hardware.biometrics.BiometricPrompt
+import android.os.Build
 import android.os.Bundle
+import android.os.CancellationSignal
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.AlertDialog
-import androidx.compose.runtime.SideEffect
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import io.github.nebur692.meshclient.ui.AccountScreen
+import io.github.nebur692.meshclient.ui.BiometricOfferSheet
 import io.github.nebur692.meshclient.ui.DeviceScreen
+import io.github.nebur692.meshclient.ui.DevicesScreen
 import io.github.nebur692.meshclient.ui.LoginScreen
 import io.github.nebur692.meshclient.ui.MeshTheme
-import io.github.nebur692.meshclient.ui.SignedInScreen
 
 class MainActivity : ComponentActivity() {
     private val vm: AppViewModel by viewModels()
@@ -36,6 +43,35 @@ class MainActivity : ComponentActivity() {
     override fun onStart() { super.onStart(); vm.onForeground() }
     override fun onStop() { super.onStop(); vm.onBackground() }
 
+    /**
+     * Android's own fingerprint prompt, with the cipher it must unlock: what it seals or opens is only usable after a
+     * strong biometric, never with the screen-lock code. / El aviso de huella del propio Android, con el cifrado que
+     * debe desbloquear: lo que sella o abre solo sirve tras una biometría fuerte, nunca con el código de bloqueo.
+     */
+    private fun ask(request: BiometricRequest) {
+        val cipher = vm.cipherFor(request) ?: return
+        val cancel = CancellationSignal()
+        val builder = BiometricPrompt.Builder(this)
+            .setTitle(getString(if (request is BiometricRequest.Seal) R.string.biometric_seal_title else R.string.biometric_open_title))
+            .setSubtitle(when (request) {
+                is BiometricRequest.Seal -> request.address.removePrefix("https://").trimEnd('/')
+                is BiometricRequest.Open -> "${request.server.username} · ${request.server.address.removePrefix("https://").trimEnd('/')}"
+            })
+            .setNegativeButton(getString(R.string.cancel), mainExecutor) { _, _ -> vm.biometricFailed(request, lockedOut = false) }
+            .setConfirmationRequired(false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) builder.setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+        builder.build().authenticate(BiometricPrompt.CryptoObject(cipher), cancel, mainExecutor, object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                result.cryptoObject?.cipher?.let { vm.biometricDone(request, it) } ?: vm.biometricFailed(request, lockedOut = false)
+            }
+
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence?) {
+                vm.biometricFailed(request, lockedOut = errorCode == BiometricPrompt.BIOMETRIC_ERROR_LOCKOUT ||
+                    errorCode == BiometricPrompt.BIOMETRIC_ERROR_LOCKOUT_PERMANENT)
+            }
+        })
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
@@ -46,12 +82,27 @@ class MainActivity : ComponentActivity() {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     when (val s = vm.screen) {
                         Screen.Login -> LoginScreen(vm)
-                        Screen.Devices, Screen.Account -> SignedInScreen(vm)
+                        Screen.Devices -> DevicesScreen(vm)
+                        Screen.Account -> AccountScreen(vm)
                         is Screen.DeviceDetail -> DeviceScreen(vm, s.id)
                         is Screen.SignOn -> {
                             LoginScreen(vm)
                             if (!vm.signOnLaunched) SideEffect { vm.signOnLaunched = true; signOn.launch(SignOnActivity.intent(this@MainActivity, s)) }
                         }
+                    }
+                    vm.biometricRequest?.let { r -> LaunchedEffect(r) { ask(r) } }
+                    vm.biometricOffer?.let { BiometricOfferSheet(it, vm::answerBiometricOffer) }
+                    vm.biometricProblem?.let { p ->
+                        AlertDialog(
+                            onDismissRequest = { vm.biometricProblem = null },
+                            text = { Text(stringResource(when (p) {
+                                BiometricProblem.KeyChanged -> R.string.biometric_key_changed
+                                BiometricProblem.Locked -> R.string.biometric_locked
+                                BiometricProblem.Stale -> R.string.biometric_stale
+                                BiometricProblem.Unavailable -> R.string.biometric_unavailable
+                            })) },
+                            confirmButton = { TextButton(onClick = { vm.biometricProblem = null }) { Text(stringResource(R.string.accept)) } },
+                        )
                     }
                     vm.rememberPrompt?.let { p ->
                         AlertDialog(

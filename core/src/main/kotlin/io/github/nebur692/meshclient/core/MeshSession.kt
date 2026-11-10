@@ -55,7 +55,15 @@ class MeshSession private constructor(
         val reply = request(buildJsonObject { put("action", "meshes") }, { it.str("action") == "meshes" },
             "equipos/ver-pantalla/tiempo-agotado", "equipos/ver-pantalla/conexion-cortada")
         val arr = reply["meshes"] as? JsonArray ?: throw unexpected("equipos/ver-pantalla/respuesta-ilegible", "meshes")
-        return arr.filterIsInstance<JsonObject>().map(DeviceGroup::from)
+        return arr.filterIsInstance<JsonObject>().map(DeviceGroup::from).also { list -> groups = list.associateBy { it.id } }
+    }
+
+    /** The groups last listed, for working out rights. / Los últimos grupos listados, para calcular permisos. */
+    @Volatile internal var groups: Map<String, DeviceGroup> = emptyMap()
+
+    /** Sends without waiting for an answer (for requests the server never answers). / Manda sin esperar respuesta. */
+    internal fun send(message: JsonObject, lostKey: String) {
+        if (!isOpen || !socket.send(message.toString())) throw lost(lostKey, null)
     }
 
     suspend fun devices(): List<Device> {
@@ -328,6 +336,6 @@ class MeshSession private constructor(
         private fun unexpected(key: String, what: String) =
             MeshClientException(MeshFailure.UnexpectedResponse, key, "The server sent an unexpected \"$what\" reply.")
 
-        private fun newId(): String = ByteArray(8).also(random::nextBytes).joinToString("") { "%02x".format(it) }
+        internal fun newId(): String = ByteArray(8).also(random::nextBytes).joinToString("") { "%02x".format(it) }
     }
 }

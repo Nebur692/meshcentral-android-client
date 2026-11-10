@@ -3,6 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Only to ask Android for the fingerprint prompt; the app never sees the fingerprint. / Solo para pedir a Android el aviso de huella; la app nunca ve la huella. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
     <!-- Nothing goes to Android's cloud backup: saved servers carry a password encrypted with a key of this phone.
          Nada va a la copia en la nube de Android: los servidores guardados llevan una contraseña cifrada con una llave de este móvil. -->

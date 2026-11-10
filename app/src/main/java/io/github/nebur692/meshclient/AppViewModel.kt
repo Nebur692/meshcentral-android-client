@@ -8,17 +8,35 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.nebur692.meshclient.core.CertificateTrust
+import io.github.nebur692.meshclient.core.CommandShell
 import io.github.nebur692.meshclient.core.Device
+import io.github.nebur692.meshclient.core.DeviceAbilities
 import io.github.nebur692.meshclient.core.DeviceChange
+import io.github.nebur692.meshclient.core.DeviceDetails
 import io.github.nebur692.meshclient.core.MeshClientException
 import io.github.nebur692.meshclient.core.MeshFailure
 import io.github.nebur692.meshclient.core.MeshSession
 import io.github.nebur692.meshclient.core.PasswordCredentials
+import io.github.nebur692.meshclient.core.PowerAction
 import io.github.nebur692.meshclient.core.ServerAddress
 import io.github.nebur692.meshclient.core.SignInMethods
 import io.github.nebur692.meshclient.core.SingleSignOn
+import io.github.nebur692.meshclient.core.abilitiesOn
+import io.github.nebur692.meshclient.core.changeDevice
+import io.github.nebur692.meshclient.core.details
+import io.github.nebur692.meshclient.core.messageBox
+import io.github.nebur692.meshclient.core.notes
+import io.github.nebur692.meshclient.core.notify
+import io.github.nebur692.meshclient.core.power
+import io.github.nebur692.meshclient.core.removeDevice
+import io.github.nebur692.meshclient.core.runCommands
+import io.github.nebur692.meshclient.core.setNotes
+import io.github.nebur692.meshclient.core.uninstallAgent
+import io.github.nebur692.meshclient.core.wake
+import io.github.nebur692.meshclient.data.BiometricVault
 import io.github.nebur692.meshclient.data.SavedServer
 import io.github.nebur692.meshclient.data.SavedServers
+import javax.crypto.Cipher
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filterNotNull
@@ -52,12 +70,35 @@ data class LoginForm(
     val error: UiError? = null,
     val certificate: CertificatePrompt? = null,
     val twoFactor: TwoFactorPrompt? = null,
+    /** The whole form (address, user, password) instead of the saved accounts. / El formulario entero en vez de las cuentas guardadas. */
+    val expanded: Boolean = false,
 )
 
-enum class DeviceFilter { All, Online, Windows, Linux }
+/** "Sign in with your fingerprint next time?", after signing in. [session]: a single sign-on account (a token is kept).
+ *  «¿Entrar con huella la próxima vez?», tras entrar. [session]: una cuenta de inicio único (se guarda un token). */
+data class BiometricOffer(val address: String, val session: Boolean, val days: Int)
+
+/** What the fingerprint prompt is for: to seal [secret] for [address], or to open [server]'s.
+ *  Para qué es el aviso de la huella: sellar [secret] de [address], o abrir el de [server]. */
+sealed interface BiometricRequest {
+    data class Seal(val address: String, val secret: String, val tokenExpires: Long = 0) : BiometricRequest
+    data class Open(val server: SavedServer) : BiometricRequest
+}
+
+/** Why the fingerprint did not work, shown once. / Por qué no funcionó la huella, se enseña una vez. */
+enum class BiometricProblem { KeyChanged, Unavailable, Locked, Stale }
+
+/** A panel of the device's sheet. / Un panel de la ficha del equipo. */
+enum class DeviceSheet { Power, More, Message, Run, Edit, ConfirmRestart, ConfirmPowerOff, ConfirmUninstall, ConfirmRemove }
+
+/** A short word after an action, or its failure. / Una palabra corta tras una acción, o su fallo. */
+data class Notice(val text: Int, val error: UiError? = null)
+
+enum class DeviceFilter { All, Online, Windows, Linux, Mac }
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val saved = SavedServers(app)
+    private val vault = BiometricVault()
 
     var savedServers by mutableStateOf(saved.all())
         private set
@@ -81,13 +122,38 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var rememberPrompt by mutableStateOf<RememberPrompt?>(null)
         private set
 
+    /** A strong biometric is set up on the phone (asked again each time the app comes back). / El móvil tiene biometría fuerte. */
+    var biometricsAvailable by mutableStateOf(false)
+        private set
+    var biometricOffer by mutableStateOf<BiometricOffer?>(null)
+        private set
+    var biometricRequest by mutableStateOf<BiometricRequest?>(null)
+        private set
+    var biometricProblem by mutableStateOf<BiometricProblem?>(null)
+
+    // The device's sheet. / La ficha del equipo.
+    var details by mutableStateOf<DeviceDetails?>(null)
+        private set
+    var detailsLoading by mutableStateOf(false)
+        private set
+    var sheet by mutableStateOf<DeviceSheet?>(null)
+    var notice by mutableStateOf<Notice?>(null)
+    var actionBusy by mutableStateOf(false)
+        private set
+    var commandOutput by mutableStateOf<String?>(null)
+        private set
+
     // Kept only while signed in, to reconnect or answer the second factor. / Solo mientras dura la sesión.
     private var credentials: PasswordCredentials? = null
     private var pendingPin: String? = null
     private var watching: Job? = null
     private var discovering: Job? = null
+    private var detailsJob: Job? = null
+    private var detailsFor: String? = null
     private var signOnFor: String? = null
     private var signedInWith: Screen.SignOn? = null
+    private var unlockedWithBiometric = false
+    private var autoUnlockTried = false
 
     /** Why the session could not be remembered, shown once. / Por qué no se pudo recordar la sesión, se enseña una vez. */
     var rememberFailed by mutableStateOf<UiError?>(null)
@@ -106,10 +172,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // Every property above this line: init runs in order, and pick() already uses them (a crash on the POCO with a
     // saved server). / Todas las propiedades por encima: init corre en orden y pick() ya las usa (se cerraba en el POCO).
     init {
+        biometricsAvailable = BiometricVault.available(app)
+        form = LoginForm(expanded = savedServers.isEmpty())
         savedServers.firstOrNull()?.let(::pick)
     }
 
     private fun userAgent() = "MeshCentralAndroidClient/${BuildConfig.VERSION_NAME}"
+
+    private fun savedFor(address: String) = savedServers.firstOrNull { it.address == address }
 
     fun edit(change: LoginForm.() -> LoginForm) {
         val before = form.server
@@ -125,7 +195,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (signOnFor == address.toString()) return
         discovering = viewModelScope.launch {
             if (!now) delay(700)
-            val pin = savedServers.firstOrNull { it.address == address.toString() }?.pinnedSha256 ?: acceptedPins[address.toString()]
+            val pin = savedFor(address.toString())?.pinnedSha256 ?: acceptedPins[address.toString()]
             val trust = CertificateTrust(pin)
             val found = SignInMethods.discover(address, trust, userAgent())
             signOnMethods = found
@@ -136,17 +206,148 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun pick(server: SavedServer) {
+        // With the fingerprint set, the password never reaches the form. / Con la huella, la contraseña nunca llega al formulario.
         form = form.copy(server = server.address, username = server.username,
-            password = saved.password(server).orEmpty(), remember = server.hasPassword, error = null)
+            password = if (server.hasBiometric) "" else saved.password(server).orEmpty(),
+            remember = server.hasPassword, error = null)
         discoverSignOn(now = true)
+    }
+
+    /** Back on the screen: the fingerprint may have been set up or removed meanwhile. / Puede que se configurara o quitara la huella. */
+    private fun refreshBiometrics() {
+        biometricsAvailable = BiometricVault.available(getApplication())
+        // The first time the app opens with a fingerprint account, the prompt comes by itself.
+        // La primera vez que se abre con una cuenta con huella, el aviso sale solo.
+        if (!autoUnlockTried && screen == Screen.Login && session == null && !form.expanded) {
+            autoUnlockTried = true
+            savedFor(form.server)?.takeIf { it.hasBiometric && biometricsAvailable }?.let(::unlock)
+        }
+    }
+
+    /** The whole form, for another account or for the same one with its password. / El formulario entero. */
+    fun showForm(server: SavedServer?) {
+        if (server == null) form = LoginForm(expanded = true) else { pick(server); form = form.copy(expanded = true, password = "") }
+        signOnFor = null
+        discoverSignOn(now = true)
+    }
+
+    /** Back from the form to the saved accounts. / Del formulario a las cuentas guardadas. */
+    fun showAccounts() {
+        if (savedServers.isEmpty()) return
+        val keep = savedFor(form.server) ?: savedServers.first()
+        form = LoginForm()
+        pick(keep)
     }
 
     fun forget(server: SavedServer) {
         saved.forget(server.address)
         savedServers = saved.all()
         // Forgetting the server on the form also takes its password off the screen. / Olvidar el servidor del formulario también quita su contraseña de la pantalla.
-        if (form.server == server.address) form = LoginForm()
+        if (form.server == server.address) {
+            form = LoginForm(expanded = savedServers.isEmpty())
+            savedServers.firstOrNull()?.let(::pick)
+        }
     }
+
+    /** The saved account: by its fingerprint, its remembered password or token, or its provider. / La cuenta guardada. */
+    fun signInSaved(server: SavedServer) {
+        pick(server)
+        if (server.hasBiometric && biometricsAvailable) unlock(server)
+        else if (server.hasPassword || server.singleSignOn != null) connect()
+        else showForm(server)
+    }
+
+    fun unlock(server: SavedServer) {
+        if (biometricRequest == null) biometricRequest = BiometricRequest.Open(server)
+    }
+
+    /** The cipher the prompt needs, or null with the problem shown. / El cifrado que necesita el aviso, o null con el problema. */
+    fun cipherFor(request: BiometricRequest): Cipher? {
+        val prepared = when (request) {
+            is BiometricRequest.Seal -> vault.forSealing()
+            is BiometricRequest.Open -> request.server.sealedBiometric?.let(vault::forOpening)
+        }
+        if (prepared?.cipher != null) return prepared.cipher
+        biometricRequest = null
+        if (prepared?.problem == BiometricVault.Problem.KeyChanged) {
+            saved.clearAllBiometric()
+            savedServers = saved.all()
+            biometricProblem = BiometricProblem.KeyChanged
+        } else biometricProblem = BiometricProblem.Unavailable
+        return null
+    }
+
+    /** The prompt for [request] unlocked [cipher]; an answer from a prompt no longer open (a rotation) is ignored.
+     *  El aviso de [request] desbloqueó [cipher]; la respuesta de un aviso que ya no está abierto (un giro) no cuenta. */
+    fun biometricDone(request: BiometricRequest, cipher: Cipher) {
+        if (request !== biometricRequest) return
+        biometricRequest = null
+        when (val r = request) {
+            is BiometricRequest.Seal -> {
+                val sealed = vault.seal(cipher, r.secret) ?: run { biometricProblem = BiometricProblem.Unavailable; return }
+                saved.setBiometric(r.address, sealed, r.tokenExpires)
+                savedServers = saved.all()
+                notice = Notice(R.string.biometric_on)
+            }
+            is BiometricRequest.Open -> {
+                val secret = r.server.sealedBiometric?.let { vault.open(cipher, it) } ?: run { biometricProblem = BiometricProblem.Unavailable; return }
+                signInWithSecret(r.server, secret)
+            }
+        }
+    }
+
+    /** Cancelled, or Android refused (too many tries…). / Cancelado, o Android no dejó (demasiados intentos…). */
+    fun biometricFailed(request: BiometricRequest, lockedOut: Boolean) {
+        if (request !== biometricRequest) return
+        biometricRequest = null
+        if (lockedOut) biometricProblem = BiometricProblem.Locked
+    }
+
+    private fun signInWithSecret(server: SavedServer, secret: String) {
+        val address = ServerAddress.parse(server.address) ?: return
+        val parts = secret.split("\n")
+        pendingPin = server.pinnedSha256 ?: acceptedPins[server.address]
+        unlockedWithBiometric = true
+        when {
+            parts.size == 2 && parts[0] == "p" -> {
+                credentials = PasswordCredentials(server.username, parts[1])
+                attempt(address, credentials!!, viaBiometric = true)
+            }
+            parts.size == 3 && parts[0] == "t" && server.singleSignOn != null -> {
+                val method = SingleSignOn(server.singleSignOn)
+                if (server.tokenExpires in 1..System.currentTimeMillis()) {
+                    // The 90 days are over: the provider again, and the fingerprint is offered again after.
+                    // Pasaron los 90 días: otra vez el proveedor, y la huella se vuelve a ofrecer después.
+                    saved.clearBiometric(server.address); savedServers = saved.all()
+                    startSignOn(method)
+                } else {
+                    credentials = PasswordCredentials(parts[1], parts[2])
+                    attempt(address, credentials!!, viaToken = method, viaBiometric = true)
+                }
+            }
+            else -> { saved.clearBiometric(server.address); savedServers = saved.all(); biometricProblem = BiometricProblem.Unavailable }
+        }
+    }
+
+    fun answerBiometricOffer(yes: Boolean) {
+        val offer = biometricOffer ?: return
+        biometricOffer = null
+        if (!yes) { saved.declineBiometric(offer.address); savedServers = saved.all(); return }
+        if (offer.session) rememberSession(underBiometric = true)
+        else credentials?.let { biometricRequest = BiometricRequest.Seal(offer.address, "p\n" + it.passwordForSealing()) }
+    }
+
+    /** The switch in the account: on asks for the finger, off forgets it. / El interruptor de la cuenta. */
+    fun setBiometric(on: Boolean) {
+        val s = session ?: return
+        val address = s.server.toString()
+        if (!on) { saved.clearBiometric(address); savedServers = saved.all(); return }
+        if (signedInWith != null) rememberSession(underBiometric = true)
+        else credentials?.let { biometricRequest = BiometricRequest.Seal(address, "p\n" + it.passwordForSealing()) }
+    }
+
+    /** The account on screen can be put under the fingerprint now. / La cuenta en pantalla se puede poner ya bajo la huella. */
+    val canSetBiometric: Boolean get() = biometricsAvailable && session != null && (signedInWith != null || credentials != null)
 
     fun connect() {
         val address = ServerAddress.parse(form.server)
@@ -154,8 +355,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             form = form.copy(error = UiError(MeshFailure.InvalidAddress, "conexion/iniciar-sesion/dato-invalido"))
             return
         }
-        val known = savedServers.firstOrNull { it.address == address.toString() }
+        val known = savedFor(address.toString())
         pendingPin = known?.pinnedSha256 ?: acceptedPins[address.toString()]
+        unlockedWithBiometric = false
+        // A saved account with nothing typed: its fingerprint first. / Una cuenta guardada sin nada escrito: primero su huella.
+        if (known != null && known.hasBiometric && biometricsAvailable && form.password.isEmpty() && form.username == known.username) {
+            unlock(known)
+            return
+        }
         // A single sign-on account saved here: its remembered token, or the provider again. / Una cuenta de inicio único guardada.
         if (known?.singleSignOn != null && form.password.isEmpty() && form.username == known.username) {
             val method = SingleSignOn(known.singleSignOn)
@@ -183,7 +390,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     return@launch
                 }
                 if (methods.size == 1) startSignOn(methods[0])
-                else form = form.copy(error = UiError(MeshFailure.InvalidCredentials, "conexion/iniciar-sesion/falta-dato", missingFields = true))
+                else form = form.copy(expanded = true, error = UiError(MeshFailure.InvalidCredentials, "conexion/iniciar-sesion/falta-dato", missingFields = true))
             }
             return
         }
@@ -196,7 +403,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val address = ServerAddress.parse(form.server) ?: return
         signOnLaunched = false
         form = form.copy(error = null, busy = false)
-        screen = Screen.SignOn(method, address, savedServers.firstOrNull { it.address == address.toString() }?.pinnedSha256 ?: pendingPin)
+        screen = Screen.SignOn(method, address, savedFor(address.toString())?.pinnedSha256 ?: pendingPin)
     }
 
     fun cancelSignOn() { signOnLaunched = false; if (screen is Screen.SignOn) screen = Screen.Login }
@@ -221,10 +428,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 saved.rememberSingleSignOn(how.address.toString(), s.user.name, how.pinnedSha256, how.method.strategy, null, 0)
                 savedServers = saved.all()
                 open(s)
-                form = form.copy(busy = false, username = s.user.name, password = "")
+                form = form.copy(busy = false, username = s.user.name, password = "", expanded = false)
                 screen = Screen.Devices
-                // Asked, as the Windows app does: a token lets in without the provider. / Se pregunta: un token entra sin el proveedor.
-                rememberPrompt = RememberPrompt(how.method.displayName, REMEMBER_DAYS)
+                // With a fingerprint, the fingerprint is offered (it keeps the token); without, the token alone, as the Windows app.
+                // Con huella se ofrece la huella (guarda el token); sin ella, solo el token, como la app de Windows.
+                val known = savedFor(how.address.toString())
+                if (biometricsAvailable) {
+                    if (known?.biometricDeclined != true) biometricOffer = BiometricOffer(how.address.toString(), session = true, days = REMEMBER_DAYS)
+                } else rememberPrompt = RememberPrompt(how.method.displayName, REMEMBER_DAYS)
             } catch (e: MeshClientException) {
                 form = form.copy(busy = false, error = UiError(e.failure, e.key, e.httpStatus))
             }
@@ -233,9 +444,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun answerRemember(yes: Boolean) {
         rememberPrompt = null
+        if (yes) rememberSession(underBiometric = false)
+    }
+
+    /** A login token for this phone, kept plainly or under the fingerprint. / Un token para este móvil, normal o bajo la huella. */
+    private fun rememberSession(underBiometric: Boolean) {
         val s = session ?: return
         val how = signedInWith ?: return
-        if (!yes) return
         viewModelScope.launch {
             try {
                 val name = "Android · ${android.os.Build.MODEL}".take(100)
@@ -244,16 +459,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (old.isNotEmpty()) s.removeLoginTokens(old)
                 val t = s.createLoginToken(name, REMEMBER_DAYS * 24L * 60)
                 val pass = t.tokenPass ?: return@launch
-                saved.rememberSingleSignOn(how.address.toString(), s.user.name, how.pinnedSha256, how.method.strategy, t.tokenUser to pass,
-                    System.currentTimeMillis() + REMEMBER_DAYS * 24L * 3600 * 1000)
-                savedServers = saved.all()
+                val expires = System.currentTimeMillis() + REMEMBER_DAYS * 24L * 3600 * 1000
                 credentials = PasswordCredentials(t.tokenUser, pass)
+                if (underBiometric) {
+                    biometricRequest = BiometricRequest.Seal(how.address.toString(), "t\n${t.tokenUser}\n$pass", expires)
+                } else {
+                    saved.rememberSingleSignOn(how.address.toString(), s.user.name, how.pinnedSha256, how.method.strategy, t.tokenUser to pass, expires)
+                    savedServers = saved.all()
+                }
             } catch (e: MeshClientException) {
                 rememberFailed = UiError(e.failure, e.key, e.httpStatus)
             }
         }
     }
-
 
     private companion object {
         const val REMEMBER_DAYS = 90
@@ -269,25 +487,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         acceptedPins[address.toString()] = prompt.sha256
         val c = credentials
         // Accepted while looking for its single sign-on: look again, now trusting it. / Aceptado buscando su inicio único: otra vez.
-        if (c == null) { signOnFor = null; connect() } else attempt(address, c)
+        if (c == null) { signOnFor = null; connect() } else attempt(address, c, viaBiometric = unlockedWithBiometric)
     }
-
 
     fun dismissPrompts() { form = form.copy(certificate = null, twoFactor = null, busy = false) }
 
     fun submitCode(code: String) {
         val c = credentials ?: return
         form = form.copy(twoFactor = null)
-        ServerAddress.parse(form.server)?.let { attempt(it, c.withCode(code.trim())) }
+        ServerAddress.parse(form.server)?.let { attempt(it, c.withCode(code.trim()), viaBiometric = unlockedWithBiometric) }
     }
 
     fun emailCode() {
         val c = credentials ?: return
-        ServerAddress.parse(form.server)?.let { attempt(it, c.withCode(PasswordCredentials.EMAIL_CODE)) }
+        ServerAddress.parse(form.server)?.let { attempt(it, c.withCode(PasswordCredentials.EMAIL_CODE), viaBiometric = unlockedWithBiometric) }
     }
 
-    /** [viaToken]: signing in with the remembered token of that single sign-on. / Entrando con el token recordado de ese inicio único. */
-    private fun attempt(address: ServerAddress, creds: PasswordCredentials, viaToken: SingleSignOn? = null) {
+    /** [viaToken]: with the remembered token of that single sign-on; [viaBiometric]: with what the fingerprint opened.
+     *  [viaToken]: con el token recordado de ese inicio único; [viaBiometric]: con lo que abrió la huella. */
+    private fun attempt(address: ServerAddress, creds: PasswordCredentials, viaToken: SingleSignOn? = null, viaBiometric: Boolean = false) {
         form = form.copy(busy = true, error = null)
         viewModelScope.launch {
             try {
@@ -295,21 +513,37 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 // A second-factor code is single-use: a reconnection asks for a new one. / El código es de un solo uso.
                 credentials = creds.withCode(null)
                 // A token login keeps the saved account as it is (its name, not the token's user). / Con token, la cuenta guardada se queda igual.
-                if (viaToken == null) saved.remember(address.toString(), creds.username, pendingPin, if (form.remember) form.password else null)
+                val typed = viaToken == null && !viaBiometric
+                if (viaToken == null) saved.remember(address.toString(), creds.username, pendingPin, if (typed && form.remember) form.password else null)
                 signedInWith = viaToken?.let { Screen.SignOn(it, address, pendingPin) }
                 savedServers = saved.all()
                 open(s)
-                form = form.copy(busy = false, password = if (viaToken == null && form.remember) form.password else "")
+                form = form.copy(busy = false, password = if (typed && form.remember) form.password else "", expanded = false)
                 screen = Screen.Devices
+                // Typed in by hand, with a fingerprint on the phone and none here yet: offered once.
+                // Escrita a mano, con huella en el móvil y aquí aún sin ella: se ofrece una vez.
+                val known = savedFor(address.toString())
+                if (typed && biometricsAvailable && known != null && !known.hasBiometric && !known.biometricDeclined)
+                    biometricOffer = BiometricOffer(address.toString(), session = false, days = 0)
             } catch (e: MeshClientException) {
                 // The remembered session was removed or ran out: the provider again, and the dead token goes.
                 // La sesión recordada se quitó o caducó: otra vez el proveedor, y el token muerto se va.
                 if (viaToken != null && e.failure == MeshFailure.InvalidCredentials) {
-                    val known = savedServers.firstOrNull { it.address == address.toString() }
+                    val known = savedFor(address.toString())
                     if (known != null) saved.rememberSingleSignOn(known.address, known.username, known.pinnedSha256, viaToken.strategy, null, 0)
+                    if (viaBiometric) saved.clearBiometric(address.toString())
                     savedServers = saved.all()
                     form = form.copy(busy = false)
                     startSignOn(viaToken)
+                    return@launch
+                }
+                // The password changed since it was put under the fingerprint: it goes, and the person types the new one.
+                // La contraseña cambió desde que se puso bajo la huella: se quita, y la persona escribe la nueva.
+                if (viaBiometric && e.failure == MeshFailure.InvalidCredentials) {
+                    saved.clearBiometric(address.toString())
+                    savedServers = saved.all()
+                    biometricProblem = BiometricProblem.Stale
+                    form = form.copy(busy = false, expanded = true, password = "")
                     return@launch
                 }
                 form = when (e.failure) {
@@ -356,6 +590,114 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ------------------------------------------------------------------ the device / el equipo
+
+    fun openDevice(id: String) {
+        screen = Screen.DeviceDetail(id)
+        sheet = null
+        commandOutput = null
+        loadDetails(id)
+    }
+
+    /** Inventory, network, last contact, notes and history, all at once; each part may come empty. / Todo a la vez. */
+    fun loadDetails(id: String) {
+        val s = session ?: return
+        val d = devices[id] ?: return
+        if (detailsFor != id) details = null
+        detailsFor = id
+        detailsJob?.cancel()
+        detailsLoading = true
+        detailsJob = viewModelScope.launch {
+            try {
+                details = s.details(d)
+            } catch (_: MeshClientException) {
+                // Only a lost connection gets here, and the banner already says it. / Solo llega aquí una conexión perdida.
+            } finally {
+                detailsLoading = false
+            }
+        }
+    }
+
+    fun abilities(d: Device): DeviceAbilities = session?.abilitiesOn(d) ?: DeviceAbilities.NONE
+
+    /** Runs one action, says it went well or why not. / Hace una acción y dice si fue bien o por qué no. */
+    private fun act(ok: Int, block: suspend (MeshSession) -> Unit) {
+        val s = session ?: return
+        if (actionBusy) return
+        actionBusy = true
+        viewModelScope.launch {
+            try {
+                block(s)
+                sheet = null
+                notice = Notice(ok)
+            } catch (e: MeshClientException) {
+                notice = Notice(R.string.action_failed, UiError(e.failure, e.key, e.httpStatus))
+            } finally {
+                actionBusy = false
+            }
+        }
+    }
+
+    fun wake(d: Device) = act(R.string.done_wake) { it.wake(d) }
+
+    fun power(d: Device, action: PowerAction) = act(when (action) {
+        PowerAction.Sleep -> R.string.done_sleep
+        PowerAction.Restart -> R.string.done_restart
+        PowerAction.PowerOff -> R.string.done_power_off
+    }) { it.power(d, action) }
+
+    /** A notification by default; a window that waits to be closed when [window]. / Un aviso; una ventana si [window]. */
+    fun sendMessage(d: Device, title: String, text: String, window: Boolean) =
+        act(R.string.done_message) { if (window) it.messageBox(d, title, text) else it.notify(d, title, text) }
+
+    fun runCommands(d: Device, commands: String, shell: CommandShell) {
+        val s = session ?: return
+        if (actionBusy) return
+        commandOutput = null
+        actionBusy = true
+        viewModelScope.launch {
+            try {
+                commandOutput = s.runCommands(d, commands, shell).ifEmpty { "—" }
+            } catch (e: MeshClientException) {
+                notice = Notice(R.string.action_failed, UiError(e.failure, e.key, e.httpStatus))
+            } finally {
+                actionBusy = false
+            }
+        }
+    }
+
+    fun clearCommandOutput() { commandOutput = null }
+
+    fun saveDevice(d: Device, name: String, description: String, tags: List<String>) = act(R.string.done_saved) {
+        it.changeDevice(d, name = name.trim().takeIf { n -> n.isNotEmpty() && n != d.name },
+            description = description.trim().takeIf { t -> t != d.description.orEmpty() },
+            tags = tags.takeIf { t -> t != d.tags })
+    }
+
+    /** setNotes never answers: read back to say it was saved. / setNotes no contesta: se relee para decir que se guardó. */
+    fun saveNotes(d: Device, text: String) = act(R.string.done_saved) { s ->
+        s.setNotes(d, text)
+        val want = text.ifEmpty { null }
+        var back: String? = null
+        for (i in 0 until 12) {
+            back = try { s.notes(d.id, 3_000) } catch (e: MeshClientException) { if (e.failure == MeshFailure.Timeout) null else throw e }
+            if (back == want) break
+            delay(250)
+        }
+        if (back != want) throw MeshClientException(MeshFailure.Rejected, "ficha/cambiar-ajustes/rechazo-remoto", "The notes did not stay.")
+        details = details?.copy(notes = back)
+    }
+
+    fun uninstall(d: Device) = act(R.string.done_uninstall) { it.uninstallAgent(d) }
+
+    fun remove(d: Device) = act(R.string.done_removed) {
+        it.removeDevice(d)
+        devices.remove(d.id)
+        screen = Screen.Devices
+    }
+
+    // ------------------------------------------------------------------ connection / conexión
+
     fun reconnect() {
         val address = session?.server ?: return signOut()
         val c = credentials
@@ -371,6 +713,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 open(if (c != null) MeshSession.connect(address, c, CertificateTrust(pendingPin), userAgent = userAgent())
                      else MeshSession.connectWithCookies(address, cookies!!, CertificateTrust(pendingPin), userAgent()))
+                (screen as? Screen.DeviceDetail)?.let { loadDetails(it.id) }
             } catch (e: MeshClientException) {
                 // The provider's session ran out: next time, through the provider. / La sesión del proveedor caducó.
                 if (c == null && e.failure == MeshFailure.SessionExpired) signOnCookies = null
@@ -395,26 +738,34 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Back on screen: a closed connection opens again, quietly. / De vuelta: la conexión cerrada se abre otra vez, sin avisar. */
     fun onForeground() {
         backgroundJob?.cancel()
+        refreshBiometrics()
         if (!paused) return
         paused = false
         if (session != null) reconnect()
     }
 
-    fun show(target: Screen) { screen = target }
+    fun show(target: Screen) { screen = target; if (target !is Screen.DeviceDetail) sheet = null }
 
     fun signOut() {
         watching?.cancel()
+        detailsJob?.cancel()
         session?.close()
         session = null
         credentials = null
         signedInWith = null
         signOnCookies = null
         rememberPrompt = null
+        biometricOffer = null
+        details = null
+        detailsFor = null
+        sheet = null
+        commandOutput = null
         backgroundJob?.cancel()
         paused = false
         devices.clear()
         lost = false
         savedServers = saved.all()
+        form = LoginForm(expanded = savedServers.isEmpty())
         savedServers.firstOrNull()?.let(::pick)
         screen = Screen.Login
     }

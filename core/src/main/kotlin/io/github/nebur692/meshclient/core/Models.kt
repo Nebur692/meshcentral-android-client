@@ -7,27 +7,37 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
 
-data class ServerInfo(val name: String, val domain: String, val version: String?) {
+/** [manageAllDeviceGroups]: this account manages every group (a server setting). / Esta cuenta gestiona todos los grupos. */
+data class ServerInfo(val name: String, val domain: String, val version: String?, val manageAllDeviceGroups: Boolean = false) {
     internal companion object {
-        fun from(o: JsonObject) = ServerInfo(o.str("name").orEmpty(), o.str("domain").orEmpty(), o.str("serverVersion") ?: o.str("version"))
+        fun from(o: JsonObject) = ServerInfo(o.str("name").orEmpty(), o.str("domain").orEmpty(), o.str("serverVersion") ?: o.str("version"),
+            o.bool("manageAllDeviceGroups"))
     }
 }
 
-data class UserInfo(val id: String, val name: String, val siteRights: Long) {
+/** [links]: rights given to this account directly and its user groups ("ugrp/…"); [removeRights]: rights taken away.
+ *  [links]: permisos dados a esta cuenta y sus grupos de usuarios; [removeRights]: permisos quitados. */
+data class UserInfo(
+    val id: String, val name: String, val siteRights: Long,
+    val links: Map<String, Long> = emptyMap(), val removeRights: Long? = null,
+) {
     val isFullAdministrator: Boolean get() = siteRights == 0xFFFFFFFFL
 
     internal companion object {
-        fun from(o: JsonObject) = UserInfo(o.str("_id").orEmpty(), o.str("name") ?: o.str("_id").orEmpty(), o.long("siteadmin") ?: 0)
+        fun from(o: JsonObject) = UserInfo(o.str("_id").orEmpty(), o.str("name") ?: o.str("_id").orEmpty(), o.long("siteadmin") ?: 0,
+            links(o), o.long("removeRights"))
     }
 }
 
 enum class DeviceGroupKind { Unknown, IntelAmtOnly, Agents, LocalDevices, IpKvm }
 
-data class DeviceGroup(val id: String, val name: String, val description: String?, val kind: DeviceGroupKind) {
+/** [links]: who has rights on the group, accounts and user groups. / Quién tiene permisos en el grupo. */
+data class DeviceGroup(val id: String, val name: String, val description: String?, val kind: DeviceGroupKind, val links: Map<String, Long> = emptyMap()) {
     internal companion object {
         fun from(o: JsonObject) = DeviceGroup(
             o.str("_id") ?: o.str("meshid").orEmpty(), o.str("name").orEmpty(), o.str("desc"),
             DeviceGroupKind.entries.getOrElse((o.long("mtype") ?: 0).toInt()) { DeviceGroupKind.Unknown },
+            links(o),
         )
     }
 }
@@ -63,9 +73,22 @@ data class Device(
     val tags: List<String>,
     val agentId: Int = 0,
     val description: String? = null,
+    /** When it last started (ms since 1970), as the agent says. / Cuándo arrancó por última vez, según el agente. */
+    val lastBoot: Long? = null,
+    /** Who is signed in on it now, and which of them have the screen locked. / Quién tiene sesión ahora y quién la tiene bloqueada. */
+    val users: List<String> = emptyList(),
+    val lockedUsers: List<String> = emptyList(),
+    val security: DeviceSecurity = DeviceSecurity(),
+    /** Rights given on this device alone. / Permisos dados solo en este equipo. */
+    val links: Map<String, Long> = emptyMap(),
+    /** The agent's core version, as it reports it. / La versión del núcleo del agente, como la da. */
+    val agentCore: String? = null,
+    /** Intel AMT is set up on it (any provisioning state but 0). / Tiene Intel AMT preparado. */
+    val hasIntelAmt: Boolean = false,
 ) {
     val isOnline: Boolean get() = connectivity != 0
-    private val hasAgent: Boolean get() = connectivity and Connectivity.AGENT != 0
+    val hasAgent: Boolean get() = connectivity and Connectivity.AGENT != 0
+    val isWindows: Boolean get() = agentId in windowsAgents
     val canOpenDesktop: Boolean get() = hasAgent && capabilities and AgentCaps.DESKTOP != 0
     val canOpenTerminal: Boolean get() = hasAgent && capabilities and AgentCaps.TERMINAL != 0
     val canOpenFiles: Boolean get() = hasAgent && capabilities and AgentCaps.FILES != 0
@@ -113,8 +136,18 @@ data class Device(
                 tags = (o["tags"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content?.takeIf(String::isNotEmpty) }.orEmpty(),
                 agentId = (agent?.long("id") ?: 0).toInt(),
                 description = o.str("desc"),
+                lastBoot = o.long("lastbootuptime")?.takeIf { it > 0 },
+                users = strings(o["users"]),
+                lockedUsers = strings(o["lusers"]),
+                security = DeviceSecurity.from(o),
+                links = links(o),
+                agentCore = agent?.str("core"),
+                hasIntelAmt = ((o["intelamt"] as? JsonObject)?.long("state") ?: 0) != 0L,
             )
         }
+
+        private fun strings(e: kotlinx.serialization.json.JsonElement?): List<String> =
+            (e as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content?.takeIf(String::isNotEmpty) }.orEmpty()
     }
 }
 
@@ -137,6 +170,50 @@ data class LoginToken(val name: String, val tokenUser: String, val tokenPass: St
         }
     }
 }
+
+/** One antivirus product the agent found. / Un antivirus que encontró el agente. */
+data class Antivirus(val product: String, val enabled: Boolean, val updated: Boolean)
+
+/**
+ * What the agent tells about protection, as MeshCentral's website shows it: Windows Security Center ("wsc", values "OK"
+ * or anything else meaning bad), its Linux counterpart ("lsc"), the antivirus list ("av"), Defender ("defender") and why a
+ * restart is pending ("pr"). Null means the agent did not say. / Lo que cuenta el agente de la protección, como lo enseña
+ * la web de MeshCentral. Null significa que el agente no lo dijo.
+ */
+data class DeviceSecurity(
+    val antivirusOk: Boolean? = null,
+    val firewallOk: Boolean? = null,
+    val updatesOk: Boolean? = null,
+    val antivirus: List<Antivirus> = emptyList(),
+    val realTimeProtection: Boolean? = null,
+    val pendingRestart: List<String> = emptyList(),
+) {
+    val isKnown: Boolean get() = antivirusOk != null || firewallOk != null || updatesOk != null || antivirus.isNotEmpty() || realTimeProtection != null
+
+    internal companion object {
+        fun from(o: JsonObject): DeviceSecurity {
+            val center = (o["wsc"] as? JsonObject) ?: (o["lsc"] as? JsonObject)
+            fun ok(k: String) = center?.str(k)?.let { it == "OK" }
+            val pending = when (val pr = o["pr"]) {
+                is JsonArray -> pr.mapNotNull { (it as? JsonPrimitive)?.content }
+                is JsonObject -> pr.values.mapNotNull { (it as? JsonPrimitive)?.content }
+                else -> emptyList()
+            }.filter(String::isNotEmpty)
+            return DeviceSecurity(
+                antivirusOk = ok("antiVirus"), firewallOk = ok("firewall"), updatesOk = ok("autoUpdate"),
+                antivirus = (o["av"] as? JsonArray)?.filterIsInstance<JsonObject>()?.mapNotNull { a ->
+                    a.str("product")?.let { Antivirus(it, a.bool("enabled"), a.bool("updated")) }
+                }.orEmpty(),
+                realTimeProtection = ((o["defender"] as? JsonObject)?.get("RealTimeProtection") as? JsonPrimitive)?.booleanOrNull,
+                pendingRestart = pending,
+            )
+        }
+    }
+}
+
+/** "links": { id: { rights } } → id → rights. / «links»: { id: { rights } } → id → permisos. */
+internal fun links(o: JsonObject): Map<String, Long> =
+    (o["links"] as? JsonObject)?.mapNotNull { (id, v) -> (v as? JsonObject)?.long("rights")?.let { id to it } }?.toMap().orEmpty()
 
 internal fun JsonObject.str(k: String): String? = (this[k] as? JsonPrimitive)?.takeIf { it.isString }?.content
 internal fun JsonObject.long(k: String): Long? = (this[k] as? JsonPrimitive)?.let { it.longOrNull ?: it.doubleOrNull?.toLong() }

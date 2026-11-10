@@ -32,9 +32,14 @@ data class SavedServer(
     internal val sealedToken: String? = null,
     /** When that token stops working (ms since 1970). / Cuándo deja de valer ese token. */
     val tokenExpires: Long = 0,
+    /** The password or the login token, sealed with the biometric key (see [BiometricVault]). / Sellado con la llave biométrica. */
+    internal val sealedBiometric: String? = null,
+    /** The person said no to the fingerprint here: not offered again. / Dijo que no a la huella aquí: no se vuelve a ofrecer. */
+    val biometricDeclined: Boolean = false,
 ) {
     val hasPassword: Boolean get() = sealedPassword != null
     val hasSession: Boolean get() = sealedToken != null && tokenExpires > System.currentTimeMillis()
+    val hasBiometric: Boolean get() = sealedBiometric != null
 }
 
 /** Kept in the app's private storage, excluded from every backup (data_extraction_rules). / En el almacén privado, fuera de toda copia. */
@@ -45,17 +50,38 @@ class SavedServers(context: Context) {
     fun all(): List<SavedServer> = read().sortedByDescending { it.lastUsed }
 
     fun remember(address: String, username: String, pinnedSha256: String?, password: String?) {
-        val sealed = password?.let(vault::seal)
+        val old = read().firstOrNull { it.address == address && it.username == username }
+        // With the fingerprint set, the password is kept only under it, never also in the plain vault.
+        // Con la huella puesta, la contraseña se guarda solo bajo ella, nunca también en el almacén normal.
+        val sealed = if (old?.hasBiometric == true) null else password?.let(vault::seal)
         val rest = read().filterNot { it.address == address }
-        write(rest + SavedServer(address, username, pinnedSha256, System.currentTimeMillis(), sealed))
+        write(rest + SavedServer(address, username, pinnedSha256, System.currentTimeMillis(), sealed,
+            sealedBiometric = old?.sealedBiometric, biometricDeclined = old?.biometricDeclined == true))
     }
 
     /** A single sign-on account: [token] only if the person asked to remember the session. / Una cuenta de inicio único. */
     fun rememberSingleSignOn(address: String, username: String, pinnedSha256: String?, strategy: String, token: Pair<String, String>?, expires: Long) {
+        val old = read().firstOrNull { it.address == address && it.username == username }
         val sealed = token?.let { vault.seal(it.first + "\n" + it.second) }
         val rest = read().filterNot { it.address == address }
-        write(rest + SavedServer(address, username, pinnedSha256, System.currentTimeMillis(), null, strategy, sealed, if (sealed != null) expires else 0))
+        write(rest + SavedServer(address, username, pinnedSha256, System.currentTimeMillis(), null, strategy, sealed, if (sealed != null) expires else 0,
+            sealedBiometric = old?.sealedBiometric, biometricDeclined = old?.biometricDeclined == true))
     }
+
+    /** [sealed] from [BiometricVault.seal]; the plain copies go. / Lo sellado con la huella; las copias normales se van. */
+    fun setBiometric(address: String, sealed: String, tokenExpires: Long = 0) = update(address) {
+        it.copy(sealedBiometric = sealed, biometricDeclined = false, sealedPassword = null, sealedToken = null,
+            tokenExpires = if (tokenExpires > 0) tokenExpires else it.tokenExpires)
+    }
+
+    fun clearBiometric(address: String) = update(address) { it.copy(sealedBiometric = null) }
+
+    fun declineBiometric(address: String) = update(address) { it.copy(biometricDeclined = true) }
+
+    /** After a new fingerprint on the phone the key is gone: nothing sealed with it opens any more. / La llave ya no está. */
+    fun clearAllBiometric() = write(read().map { it.copy(sealedBiometric = null) })
+
+    private fun update(address: String, change: (SavedServer) -> SavedServer) = write(read().map { if (it.address == address) change(it) else it })
 
     fun forget(address: String) = write(read().filterNot { it.address == address })
 
@@ -75,7 +101,8 @@ class SavedServers(context: Context) {
             val o = arr.getJSONObject(i)
             SavedServer(o.getString("address"), o.getString("username"), o.optString("pin").ifEmpty { null },
                 o.optLong("lastUsed"), o.optString("password").ifEmpty { null }, o.optString("sso").ifEmpty { null },
-                o.optString("token").ifEmpty { null }, o.optLong("tokenExpires"))
+                o.optString("token").ifEmpty { null }, o.optLong("tokenExpires"),
+                o.optString("bio").ifEmpty { null }, o.optBoolean("bioDeclined"))
         }
     } catch (_: JSONException) {
         emptyList()
@@ -86,7 +113,8 @@ class SavedServers(context: Context) {
         list.forEach { s ->
             arr.put(JSONObject().put("address", s.address).put("username", s.username).put("pin", s.pinnedSha256 ?: "")
                 .put("lastUsed", s.lastUsed).put("password", s.sealedPassword ?: "").put("sso", s.singleSignOn ?: "")
-                .put("token", s.sealedToken ?: "").put("tokenExpires", s.tokenExpires))
+                .put("token", s.sealedToken ?: "").put("tokenExpires", s.tokenExpires)
+                .put("bio", s.sealedBiometric ?: "").put("bioDeclined", s.biometricDeclined))
         }
         prefs.edit { putString(KEY, arr.toString()) }
     }

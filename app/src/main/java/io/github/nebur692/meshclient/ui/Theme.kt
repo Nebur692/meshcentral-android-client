@@ -1,18 +1,14 @@
 package io.github.nebur692.meshclient.ui
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 
 // The design's colours (Sistema de diseño). / Los colores del diseño.
 private val Light = lightColorScheme(
@@ -41,21 +37,24 @@ private val Dark = darkColorScheme(
 
 /** Status colours: never alone, always with a word. / Colores de estado: nunca solos, siempre con palabra. */
 @Immutable
-data class StatusColors(val online: Color, val offline: Color)
+data class StatusColors(
+    val online: Color, val offline: Color,
+    /** A badge: good, to look at, or neutral (background and text, 4.5:1 or more). / Una etiqueta: bien, a revisar o neutra. */
+    val goodContainer: Color = Color(0xFFD6F0DE), val onGood: Color = Color(0xFF0B3D20),
+    val warnContainer: Color = Color(0xFFFFE1B3), val onWarn: Color = Color(0xFF4A2C00),
+)
 
 val LocalStatusColors = staticCompositionLocalOf { StatusColors(Color(0xFF1E6B3E), Color(0xFF5B6168)) }
 
 @Composable
 fun MeshTheme(content: @Composable () -> Unit) {
     val dark = isSystemInDarkTheme()
-    val context = LocalContext.current
-    // Android 12+: the wallpaper's colours (Material You); before, the design's. / Android 12+: los colores del fondo.
-    val scheme: ColorScheme = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        dark -> Dark
-        else -> Light
-    }
-    val status = if (dark) StatusColors(Color(0xFF7DDB9A), Color(0xFFA9AEB5)) else StatusColors(Color(0xFF1E6B3E), Color(0xFF5B6168))
+    // Always the brand's blue, as the Windows app: the wallpaper's colours (Material You) turned it brown on a real
+    // phone, next to a blue logo. / Siempre el azul de la marca, como la app de Windows: los colores del fondo la
+    // volvían marrón en un móvil de verdad, al lado de un logo azul.
+    val scheme: ColorScheme = if (dark) Dark else Light
+    val status = if (dark) StatusColors(Color(0xFF7DDB9A), Color(0xFFA9AEB5), Color(0xFF1C4A2E), Color(0xFFB9F0C9), Color(0xFF5A3E00), Color(0xFFFFDDA6))
+    else StatusColors(Color(0xFF1E6B3E), Color(0xFF5B6168))
     androidx.compose.runtime.CompositionLocalProvider(LocalStatusColors provides status) {
         MaterialTheme(colorScheme = scheme, content = content)
     }

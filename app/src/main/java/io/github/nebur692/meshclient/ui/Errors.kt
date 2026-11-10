@@ -22,7 +22,25 @@ import io.github.nebur692.meshclient.core.MeshFailure
 /** What went wrong in plain words, and the key support can look up. / Qué falló en palabras claras, y la clave para soporte. */
 @Composable
 fun ErrorCard(error: UiError) {
-    val text = if (error.missingFields) stringResource(R.string.err_missing) else when (error.failure) {
+    val text = errorText(error)
+    Surface(
+        color = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(text, style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.error_code, error.key), style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+/** The failure in plain words. / El fallo en palabras claras. */
+@Composable
+fun errorText(error: UiError): String =
+    if (error.missingFields) stringResource(R.string.err_missing) else when (error.failure) {
+        MeshFailure.NotAllowed -> stringResource(R.string.err_not_allowed)
+        MeshFailure.DeviceOffline -> stringResource(R.string.err_device_offline)
         MeshFailure.InvalidAddress -> stringResource(R.string.err_address)
         MeshFailure.NameNotResolved -> stringResource(R.string.err_dns)
         MeshFailure.ServerUnreachable -> stringResource(R.string.err_unreachable)
@@ -38,14 +56,3 @@ fun ErrorCard(error: UiError) {
         MeshFailure.UnexpectedResponse -> stringResource(R.string.err_unexpected)
         MeshFailure.Rejected, MeshFailure.TwoFactorRequired, MeshFailure.InvalidTwoFactorCode -> stringResource(R.string.err_rejected)
     }
-    Surface(
-        color = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(text, style = MaterialTheme.typography.bodyMedium)
-            Text(stringResource(R.string.error_code, error.key), style = MaterialTheme.typography.labelSmall)
-        }
-    }
-}
