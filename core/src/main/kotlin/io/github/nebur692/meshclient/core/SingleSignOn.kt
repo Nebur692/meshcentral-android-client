@@ -4,6 +4,7 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
@@ -50,8 +51,11 @@ object SignInMethods {
     suspend fun discover(server: ServerAddress, trust: CertificateTrust, userAgent: String = "MeshCentralAndroidClient"): List<SingleSignOn> =
         withContext(Dispatchers.IO) {
             try {
-                val client = trust.applyTo(OkHttpClient.Builder()).callTimeout(10, TimeUnit.SECONDS).build()
-                client.newCall(Request.Builder().url(server.baseUrl).header("User-Agent", userAgent).build()).execute().use { r ->
+                // One page, read once: no connection is kept alive afterwards (it measured as a second open socket).
+                // Una página leída una vez: no se guarda ninguna conexión viva después (salía como un segundo socket abierto).
+                val client = trust.applyTo(OkHttpClient.Builder()).callTimeout(10, TimeUnit.SECONDS)
+                    .connectionPool(ConnectionPool(0, 1, TimeUnit.SECONDS)).build()
+                client.newCall(Request.Builder().url(server.baseUrl).header("User-Agent", userAgent).header("Connection", "close").build()).execute().use { r ->
                     if (!r.isSuccessful) emptyList() else parseLoginPage(r.body.string())
                 }
             } catch (_: IOException) {

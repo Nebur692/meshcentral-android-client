@@ -4,9 +4,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.material3.AlertDialog
+import androidx.compose.runtime.SideEffect
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -19,11 +21,20 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import io.github.nebur692.meshclient.ui.DeviceScreen
 import io.github.nebur692.meshclient.ui.LoginScreen
 import io.github.nebur692.meshclient.ui.MeshTheme
-import io.github.nebur692.meshclient.ui.SignOnScreen
 import io.github.nebur692.meshclient.ui.SignedInScreen
 
 class MainActivity : ComponentActivity() {
     private val vm: AppViewModel by viewModels()
+
+    // The provider's page runs in its own process and answers here. / La página del proveedor corre en su proceso y contesta aquí.
+    private val signOn = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        SignOnActivity.cookies(r.resultCode, r.data)?.let(vm::finishSignOn) ?: vm.cancelSignOn()
+    }
+
+    // Out of sight for a while, the live connection is closed; back, it opens again (battery, data).
+    // Fuera de la vista un rato se cierra la conexión en vivo; al volver se abre otra vez (batería, datos).
+    override fun onStart() { super.onStart(); vm.onForeground() }
+    override fun onStop() { super.onStop(); vm.onBackground() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -37,7 +48,10 @@ class MainActivity : ComponentActivity() {
                         Screen.Login -> LoginScreen(vm)
                         Screen.Devices, Screen.Account -> SignedInScreen(vm)
                         is Screen.DeviceDetail -> DeviceScreen(vm, s.id)
-                        is Screen.SignOn -> SignOnScreen(vm, s)
+                        is Screen.SignOn -> {
+                            LoginScreen(vm)
+                            if (!vm.signOnLaunched) SideEffect { vm.signOnLaunched = true; signOn.launch(SignOnActivity.intent(this@MainActivity, s)) }
+                        }
                     }
                     vm.rememberPrompt?.let { p ->
                         AlertDialog(

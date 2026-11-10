@@ -89,6 +89,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var signOnFor: String? = null
     private var signedInWith: Screen.SignOn? = null
 
+    /** Why the session could not be remembered, shown once. / Por qué no se pudo recordar la sesión, se enseña una vez. */
+    var rememberFailed by mutableStateOf<UiError?>(null)
+
+    /** Fingerprints accepted in this run, before any sign-in saved them. / Huellas aceptadas en esta vez, antes de guardarlas. */
+    private val acceptedPins = mutableMapOf<String, String>()
+
+    /** The provider's page is already open (it runs in its own activity). / La página del proveedor ya está abierta. */
+    var signOnLaunched = false
+
+    // A single sign-on session without a remembered token reconnects with its cookies. / Sin token, se reconecta con sus cookies.
+    private var signOnCookies: Map<String, String>? = null
+    private var backgroundJob: Job? = null
+    private var paused = false
+
+    // Every property above this line: init runs in order, and pick() already uses them (a crash on the POCO with a
+    // saved server). / Todas las propiedades por encima: init corre en orden y pick() ya las usa (se cerraba en el POCO).
     init {
         savedServers.firstOrNull()?.let(::pick)
     }
@@ -178,11 +194,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Opens the provider's page. / Abre la página del proveedor. */
     fun startSignOn(method: SingleSignOn) {
         val address = ServerAddress.parse(form.server) ?: return
+        signOnLaunched = false
         form = form.copy(error = null, busy = false)
         screen = Screen.SignOn(method, address, savedServers.firstOrNull { it.address == address.toString() }?.pinnedSha256 ?: pendingPin)
     }
 
-    fun cancelSignOn() { screen = Screen.Login }
+    fun cancelSignOn() { signOnLaunched = false; if (screen is Screen.SignOn) screen = Screen.Login }
 
     /**
      * The browser came back to MeshCentral: its session cookies are tried on the control channel, and only an accepted
@@ -191,6 +208,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun finishSignOn(cookies: Map<String, String>) {
         val how = screen as? Screen.SignOn ?: return
+        signOnLaunched = false
         screen = Screen.Login
         form = form.copy(busy = true, error = null)
         viewModelScope.launch {
@@ -198,6 +216,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val s = MeshSession.connectWithCookies(how.address, cookies, CertificateTrust(how.pinnedSha256), userAgent())
                 credentials = null
                 signedInWith = how
+                signOnCookies = cookies
                 pendingPin = how.pinnedSha256
                 saved.rememberSingleSignOn(how.address.toString(), s.user.name, how.pinnedSha256, how.method.strategy, null, 0)
                 savedServers = saved.all()
@@ -235,10 +254,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Why the session could not be remembered, shown once. / Por qué no se pudo recordar la sesión, se enseña una vez. */
-    var rememberFailed by mutableStateOf<UiError?>(null)
 
-    private companion object { const val REMEMBER_DAYS = 90 }
+    private companion object {
+        const val REMEMBER_DAYS = 90
+        // Long enough for switching apps for a moment. / Lo bastante para cambiar de app un momento.
+        const val BACKGROUND_GRACE_MS = 60_000L
+    }
 
     fun acceptCertificate() {
         val prompt = form.certificate ?: return
@@ -251,8 +272,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (c == null) { signOnFor = null; connect() } else attempt(address, c)
     }
 
-    /** Fingerprints accepted in this run, before any sign-in saved them. / Huellas aceptadas en esta vez, antes de guardarlas. */
-    private val acceptedPins = mutableMapOf<String, String>()
 
     fun dismissPrompts() { form = form.copy(certificate = null, twoFactor = null, busy = false) }
 
@@ -339,20 +358,46 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun reconnect() {
         val address = session?.server ?: return signOut()
-        // Signed in by the provider without a remembered token: through the provider again. / Sin token: otra vez por el proveedor.
-        val c = credentials ?: return signedInWith?.let { how ->
+        val c = credentials
+        val cookies = signOnCookies
+        // Signed in by the provider, no token and its session gone: through the provider again. / Sin token ni sesión: otra vez el proveedor.
+        if (c == null && cookies == null) return signedInWith?.let { how ->
             signOut()
             form = form.copy(server = how.address.toString())
-            screen = how
+            startSignOn(how.method)
         } ?: signOut()
         lost = false
         viewModelScope.launch {
             try {
-                open(MeshSession.connect(address, c, CertificateTrust(pendingPin), userAgent = userAgent()))
-            } catch (_: MeshClientException) {
+                open(if (c != null) MeshSession.connect(address, c, CertificateTrust(pendingPin), userAgent = userAgent())
+                     else MeshSession.connectWithCookies(address, cookies!!, CertificateTrust(pendingPin), userAgent()))
+            } catch (e: MeshClientException) {
+                // The provider's session ran out: next time, through the provider. / La sesión del proveedor caducó.
+                if (c == null && e.failure == MeshFailure.SessionExpired) signOnCookies = null
                 lost = true
             }
         }
+    }
+
+    /** The app left the screen: after [BACKGROUND_GRACE_MS], the live connection closes (no pings, no events).
+     *  La app dejó la pantalla: pasado ese margen se cierra la conexión en vivo (sin pings ni avisos). */
+    fun onBackground() {
+        if (session == null) return
+        backgroundJob?.cancel()
+        backgroundJob = viewModelScope.launch {
+            delay(BACKGROUND_GRACE_MS)
+            paused = true
+            watching?.cancel()
+            session?.close()
+        }
+    }
+
+    /** Back on screen: a closed connection opens again, quietly. / De vuelta: la conexión cerrada se abre otra vez, sin avisar. */
+    fun onForeground() {
+        backgroundJob?.cancel()
+        if (!paused) return
+        paused = false
+        if (session != null) reconnect()
     }
 
     fun show(target: Screen) { screen = target }
@@ -363,7 +408,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         session = null
         credentials = null
         signedInWith = null
+        signOnCookies = null
         rememberPrompt = null
+        backgroundJob?.cancel()
+        paused = false
         devices.clear()
         lost = false
         savedServers = saved.all()

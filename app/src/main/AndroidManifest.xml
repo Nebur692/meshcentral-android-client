@@ -27,5 +27,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- The single sign-on provider's page, in a process of its own: the browser (Chromium, ~70 MB measured on a
+             POCO X5) goes away with it instead of staying in the app. / La página del proveedor, en su propio proceso: el
+             navegador (~70 MB medidos en un POCO X5) se va con él en vez de quedarse en la app. -->
+        <activity
+            android:name=".SignOnActivity"
+            android:exported="false"
+            android:process=":signon"
+            android:theme="@style/Theme.MeshClient"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>

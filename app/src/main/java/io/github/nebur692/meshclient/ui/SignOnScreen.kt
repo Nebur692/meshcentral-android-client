@@ -32,7 +32,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
-import io.github.nebur692.meshclient.AppViewModel
 import io.github.nebur692.meshclient.R
 import io.github.nebur692.meshclient.Screen
 import io.github.nebur692.meshclient.core.CertificateTrust
@@ -50,12 +49,12 @@ import io.github.nebur692.meshclient.core.ServerAddress
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SignOnScreen(vm: AppViewModel, how: Screen.SignOn) {
+fun SignOnScreen(how: Screen.SignOn, onCancel: () -> Unit, onDone: (Map<String, String>) -> Unit) {
     var view by remember { mutableStateOf<WebView?>(null) }
     var loading by remember { mutableStateOf(true) }
     var host by remember { mutableStateOf(how.address.host) }
     // Back goes back inside the provider's pages first. / Atrás vuelve primero dentro de las páginas del proveedor.
-    BackHandler { view?.takeIf { it.canGoBack() }?.goBack() ?: vm.cancelSignOn() }
+    BackHandler { view?.takeIf { it.canGoBack() }?.goBack() ?: onCancel() }
     Scaffold(topBar = {
         TopAppBar(
             title = {
@@ -66,7 +65,7 @@ fun SignOnScreen(vm: AppViewModel, how: Screen.SignOn) {
                 }
             },
             navigationIcon = {
-                IconButton(onClick = vm::cancelSignOn) { Icon(painterResource(R.drawable.ic_close), stringResource(R.string.cancel)) }
+                IconButton(onClick = onCancel) { Icon(painterResource(R.drawable.ic_close), stringResource(R.string.cancel)) }
             },
         )
     }) { padding ->
@@ -74,7 +73,7 @@ fun SignOnScreen(vm: AppViewModel, how: Screen.SignOn) {
             AndroidView(
                 factory = { ctx ->
                     WebView(ctx).apply {
-                        configure(this, how, onPage = { loading = it.loading; host = it.host }) { cookies -> vm.finishSignOn(cookies) }
+                        configure(this, how, onPage = { loading = it.loading; host = it.host }) { cookies -> onDone(cookies) }
                         view = this
                     }
                 },
