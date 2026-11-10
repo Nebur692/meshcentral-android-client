@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">MeshCentral Client</string>
+    <string name="app_name">Cliente MeshCentral</string>
     <string name="login_subtitle">Entra en tu servidor MeshCentral y maneja tus equipos desde el móvil.</string>
     <string name="saved_servers">Servidores guardados</string>
     <string name="server">Servidor</string>

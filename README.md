@@ -7,7 +7,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Build](https://github.com/Nebur692/meshcentral-android-client/actions/workflows/build.yml/badge.svg)](https://github.com/Nebur692/meshcentral-android-client/actions/workflows/build.yml)
 
-🇬🇧 [English](#english) · 🇪🇸 [Español](#español)
+🇬🇧 [English](#english) · 🇪🇸 [Español](#español) · [Privacy policy](docs/PRIVACY.md)
 
 </div>
 
