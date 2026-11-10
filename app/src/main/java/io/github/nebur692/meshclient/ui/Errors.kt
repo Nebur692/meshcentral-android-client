@@ -22,7 +22,7 @@ import io.github.nebur692.meshclient.core.MeshFailure
 /** What went wrong in plain words, and the key support can look up. / Qué falló en palabras claras, y la clave para soporte. */
 @Composable
 fun ErrorCard(error: UiError) {
-    val text = when (error.failure) {
+    val text = if (error.missingFields) stringResource(R.string.err_missing) else when (error.failure) {
         MeshFailure.InvalidAddress -> stringResource(R.string.err_address)
         MeshFailure.NameNotResolved -> stringResource(R.string.err_dns)
         MeshFailure.ServerUnreachable -> stringResource(R.string.err_unreachable)
@@ -33,7 +33,8 @@ fun ErrorCard(error: UiError) {
         MeshFailure.ToolsNotAllowed -> stringResource(R.string.err_notools)
         MeshFailure.EmailValidationRequired -> stringResource(R.string.err_email_validation)
         MeshFailure.UntrustedCertificate -> stringResource(R.string.err_certificate)
-        MeshFailure.ConnectionLost, MeshFailure.SessionExpired -> stringResource(R.string.err_lost)
+        MeshFailure.ConnectionLost -> stringResource(R.string.err_lost)
+        MeshFailure.SessionExpired -> stringResource(R.string.err_session)
         MeshFailure.UnexpectedResponse -> stringResource(R.string.err_unexpected)
         MeshFailure.Rejected, MeshFailure.TwoFactorRequired, MeshFailure.InvalidTwoFactorCode -> stringResource(R.string.err_rejected)
     }

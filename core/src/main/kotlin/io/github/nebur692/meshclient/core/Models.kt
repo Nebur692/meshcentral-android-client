@@ -127,6 +127,17 @@ sealed interface DeviceChange {
     data class Connection(override val deviceId: String, val connectivity: Int, val powerState: Int) : DeviceChange
 }
 
+/** A MeshCentral login token: [tokenPass] only right after creating it. [expire] in ms since 1970, 0 = never.
+ *  Un token de entrada de MeshCentral: [tokenPass] solo al crearlo. [expire] en ms desde 1970, 0 = nunca. */
+data class LoginToken(val name: String, val tokenUser: String, val tokenPass: String?, val created: Long, val expire: Long) {
+    internal companion object {
+        fun from(o: JsonObject): LoginToken? {
+            val user = o.str("tokenUser") ?: return null
+            return LoginToken(o.str("name").orEmpty(), user, o.str("tokenPass"), o.long("created") ?: 0, o.long("expire") ?: 0)
+        }
+    }
+}
+
 internal fun JsonObject.str(k: String): String? = (this[k] as? JsonPrimitive)?.takeIf { it.isString }?.content
 internal fun JsonObject.long(k: String): Long? = (this[k] as? JsonPrimitive)?.let { it.longOrNull ?: it.doubleOrNull?.toLong() }
 internal fun JsonObject.bool(k: String): Boolean = (this[k] as? JsonPrimitive)?.booleanOrNull == true

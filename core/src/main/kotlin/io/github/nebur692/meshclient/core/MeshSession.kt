@@ -15,6 +15,7 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
@@ -66,6 +67,35 @@ class MeshSession private constructor(
         return byGroup.flatMap { (groupId, nodes) ->
             (nodes as? JsonArray).orEmpty().filterIsInstance<JsonObject>().map { Device.from(it, groupId) }
         }
+    }
+
+    /**
+     * A login token for this account (MeshCentral's "createLoginToken"): a user and password of its own that sign in
+     * without the single sign-on provider, until [lifetimeMinutes] pass (0 = never). The person is asked before.
+     * Un token de entrada de esta cuenta: usuario y contraseña propios que entran sin el proveedor de inicio único hasta
+     * que pasan [lifetimeMinutes] (0 = nunca). Se le pregunta antes a la persona.
+     */
+    suspend fun createLoginToken(name: String, lifetimeMinutes: Long): LoginToken {
+        val id = newId()
+        // Success comes without the responseid, errors with it (as the Windows app measured). / El éxito llega sin el responseid.
+        val reply = request(buildJsonObject { put("action", "createLoginToken"); put("name", name); put("expire", lifetimeMinutes); put("responseid", id) },
+            { it.str("action") == "createLoginToken" && (it.str("responseid") == id || (it.str("tokenUser") != null && it.str("name") == name)) },
+            "usuarios/cambiar-ajustes/tiempo-agotado", "usuarios/cambiar-ajustes/conexion-cortada")
+        return LoginToken.from(reply) ?: throw MeshClientException(MeshFailure.Rejected, "usuarios/cambiar-ajustes/rechazo-remoto",
+            "The server did not give a login token (${reply.str("result")}).").apply { serverMessage = reply.str("result") }
+    }
+
+    /** This account's login tokens (without their passwords). / Los tokens de entrada de esta cuenta (sin su contraseña). */
+    suspend fun loginTokens(): List<LoginToken> = tokens(buildJsonObject { put("action", "loginTokens") })
+
+    /** Removes login tokens by their user, and gives the ones left. / Quita tokens por su usuario y da los que quedan. */
+    suspend fun removeLoginTokens(tokenUsers: List<String>): List<LoginToken> =
+        tokens(buildJsonObject { put("action", "loginTokens"); put("remove", JsonArray(tokenUsers.map(::JsonPrimitive))) })
+
+    private suspend fun tokens(message: JsonObject): List<LoginToken> {
+        val reply = request(message, { it.str("action") == "loginTokens" && it["loginTokens"] is JsonArray },
+            "usuarios/cambiar-ajustes/tiempo-agotado", "usuarios/cambiar-ajustes/conexion-cortada")
+        return (reply["loginTokens"] as JsonArray).filterIsInstance<JsonObject>().mapNotNull(LoginToken::from)
     }
 
     internal suspend fun request(
@@ -177,6 +207,40 @@ class MeshSession private constructor(
             server: ServerAddress, credentials: PasswordCredentials, trust: CertificateTrust,
             userAgent: String = "MeshCentralAndroidClient", timeoutMs: Long = DEFAULT_TIMEOUT_MS,
         ): MeshSession = connectCore(server, trust, userAgent, timeoutMs, { it.header("x-meshauth", credentials.header()) }) { loginFailure(it, credentials) }
+
+        /**
+         * Signs in with the session cookies ("xid", "xid.sig") MeshCentral gave a browser after a single sign-on. The
+         * cookie alone proves nothing (a refused account also gets one): only an accepted control channel means the
+         * person is in. / Entra con las cookies de sesión que MeshCentral dio a un navegador tras un inicio de sesión
+         * único. La cookie sola no prueba nada (una cuenta rechazada también la recibe): solo un canal aceptado.
+         */
+        suspend fun connectWithCookies(
+            server: ServerAddress, cookies: Map<String, String>, trust: CertificateTrust,
+            userAgent: String = "MeshCentralAndroidClient", timeoutMs: Long = DEFAULT_TIMEOUT_MS,
+        ): MeshSession {
+            if ("xid" !in cookies) throw MeshClientException(MeshFailure.SessionExpired, "conexion/iniciar-sesion/sesion-cerrada", "There is no MeshCentral session to use.")
+            val header = cookies.entries.joinToString("; ") { (k, v) -> "$k=$v" }
+            return connectCore(server, trust, userAgent, timeoutMs, { it.header("Cookie", header) }, ::sessionFailure)
+        }
+
+        /** Reads a browser's cookie line ("a=1; b=2") into names and values. / Lee la línea de cookies de un navegador. */
+        fun parseCookies(line: String?): Map<String, String> =
+            line.orEmpty().split(';').map(String::trim).mapNotNull { part ->
+                val i = part.indexOf('=')
+                if (i <= 0) null else part.substring(0, i).trim() to part.substring(i + 1).trim()
+            }.toMap()
+
+        internal fun sessionFailure(close: JsonObject): MeshClientException {
+            val cause = close.str("cause").orEmpty()
+            val msg = close.str("msg").orEmpty()
+            return when (cause) {
+                "notools" -> MeshClientException(MeshFailure.ToolsNotAllowed, "conexion/iniciar-sesion/no-autorizado", "This account is not allowed to use tools like this one.")
+                "banned", "locked" -> MeshClientException(MeshFailure.TooManyAttempts, "conexion/iniciar-sesion/limite-de-tasa", "The server is refusing logins for a while.")
+                "noauth" -> MeshClientException(MeshFailure.SessionExpired, "conexion/iniciar-sesion/sesion-cerrada",
+                    "The server did not accept the session: the sign-on was refused or the session has expired.")
+                else -> MeshClientException(MeshFailure.Rejected, "conexion/iniciar-sesion/rechazo-remoto", "The server refused the session ($cause $msg).")
+            }.apply { serverMessage = msg.ifEmpty { cause } }
+        }
 
         private suspend fun connectCore(
             server: ServerAddress, trust: CertificateTrust, userAgent: String, timeoutMs: Long,

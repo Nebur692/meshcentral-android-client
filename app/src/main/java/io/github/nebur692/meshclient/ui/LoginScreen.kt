@@ -30,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,6 +54,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.nebur692.meshclient.AppViewModel
 import io.github.nebur692.meshclient.R
@@ -148,6 +150,19 @@ fun LoginScreen(vm: AppViewModel) {
                     Text(stringResource(R.string.connecting), Modifier.padding(start = 12.dp))
                 } else {
                     Text(stringResource(R.string.connect), style = MaterialTheme.typography.titleMedium)
+                }
+            }
+            // The single sign-on the server offers (read from its login page), as on its website.
+            // El inicio de sesión único que ofrece el servidor (leído de su página de entrada), como en su web.
+            if (vm.signOnMethods.isNotEmpty()) {
+                Text(stringResource(R.string.signon_or), Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                vm.signOnMethods.forEach { m ->
+                    OutlinedButton(onClick = { keyboard?.hide(); vm.startSignOn(m) }, enabled = !f.busy && f.server.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                        Icon(painterResource(R.drawable.ic_lock), null, Modifier.size(20.dp))
+                        Text(stringResource(R.string.signon_button, m.displayName), Modifier.padding(start = 10.dp), style = MaterialTheme.typography.titleMedium)
+                    }
                 }
             }
         }

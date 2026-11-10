@@ -55,6 +55,44 @@ class SessionIntegrationTest {
         assertNull("closing on purpose is not a loss", s.closedReason.value)
     }
 
+    /** Signs in on the website as a browser does and gives its session cookies. / Entra en la web como un navegador y da sus cookies. */
+    private fun webSessionCookies(user: String, password: String): Map<String, String> {
+        val client = CertificateTrust(cert).applyTo(okhttp3.OkHttpClient.Builder()).followRedirects(false).build()
+        val form = okhttp3.FormBody.Builder().add("action", "login").add("username", user).add("password", password).build()
+        client.newCall(okhttp3.Request.Builder().url(server.resolve("login")).post(form).build()).execute().use { r ->
+            return r.headers("Set-Cookie").map { it.substringBefore(";") }.associate { it.substringBefore("=") to it.substringAfter("=") }
+        }
+    }
+
+    @Test fun `the website session cookie opens the control channel, and a made-up one does not`() = runBlocking {
+        need()
+        val cookies = webSessionCookies("admin", "Admin-Pass-1234")
+        assertTrue("no xid cookie: $cookies", "xid" in cookies)
+        val s = MeshSession.connectWithCookies(server, cookies, CertificateTrust(cert))
+        try { assertEquals("admin", s.user.name.lowercase()) } finally { s.close() }
+        val e = failureOf { MeshSession.connectWithCookies(server, mapOf("xid" to "made-up", "xid.sig" to "made-up"), CertificateTrust(cert)) }
+        assertEquals(MeshFailure.SessionExpired, e.failure)
+        val none = failureOf { MeshSession.connectWithCookies(server, emptyMap(), CertificateTrust(cert)) }
+        assertEquals(MeshFailure.SessionExpired, none.failure)
+    }
+
+    @Test fun `a login token signs in without the password, until it is removed`() = runBlocking {
+        need()
+        val admin = MeshSession.connect(server, PasswordCredentials("admin", "Admin-Pass-1234"), CertificateTrust(cert))
+        try {
+            val token = admin.createLoginToken("Android test", 60)
+            assertTrue(token.tokenUser.startsWith("~t:"))
+            val byToken = MeshSession.connect(server, PasswordCredentials(token.tokenUser, token.tokenPass!!), CertificateTrust(cert))
+            try { assertEquals("admin", byToken.user.name.lowercase()) } finally { byToken.close() }
+            assertTrue(admin.loginTokens().any { it.tokenUser == token.tokenUser && it.tokenPass == null })
+            assertTrue(admin.removeLoginTokens(listOf(token.tokenUser)).none { it.tokenUser == token.tokenUser })
+            val e = failureOf { MeshSession.connect(server, PasswordCredentials(token.tokenUser, token.tokenPass!!), CertificateTrust(cert)) }
+            assertEquals(MeshFailure.InvalidCredentials, e.failure)
+        } finally {
+            admin.close()
+        }
+    }
+
     @Test fun `a wrong password is said so`() {
         need()
         val e = failureOf { MeshSession.connect(server, PasswordCredentials("admin", "wrong-password"), CertificateTrust(cert)) }

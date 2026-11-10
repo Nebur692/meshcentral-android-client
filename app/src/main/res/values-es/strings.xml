@@ -73,4 +73,18 @@
     <string name="err_lost">Se ha perdido la conexión con el servidor.</string>
     <string name="err_unexpected">El servidor ha mandado una respuesta que la app no esperaba.</string>
     <string name="err_certificate">No se ha aceptado el certificado del servidor.</string>
+    <string name="signon_title">Entrar con %1$s</string>
+    <string name="signon_button">Entrar con %1$s</string>
+    <string name="signon_or">o</string>
+    <string name="remember_title">¿Recordar esta sesión?</string>
+    <plurals name="remember_text">
+        <item quantity="one">Durante %2$d día este móvil entrará en este servidor sin pasar por %1$s. Se guarda un token de entrada, cifrado con el almacén de claves de Android, nunca tu contraseña. «Olvidar» lo quita del móvil.</item>
+        <item quantity="other">Durante %2$d días este móvil entrará en este servidor sin pasar por %1$s. Se guarda un token de entrada, cifrado con el almacén de claves de Android, nunca tu contraseña. «Olvidar» lo quita del móvil.</item>
+        <item quantity="many">Durante %2$d días este móvil entrará en este servidor sin pasar por %1$s. Se guarda un token de entrada, cifrado con el almacén de claves de Android, nunca tu contraseña. «Olvidar» lo quita del móvil.</item>
+    </plurals>
+    <string name="remember_yes">Recordar</string>
+    <string name="remember_no">Ahora no</string>
+    <string name="remember_failed">No se ha podido recordar la sesión: la próxima vez pasarás otra vez por el proveedor.</string>
+    <string name="err_missing">Escribe tu usuario y tu contraseña.</string>
+    <string name="err_session">El servidor no aceptó la sesión: la entrada se rechazó o ha caducado.</string>
 </resources>

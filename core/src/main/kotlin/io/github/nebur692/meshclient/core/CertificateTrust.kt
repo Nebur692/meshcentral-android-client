@@ -31,7 +31,8 @@ class CertificateTrust(pinnedSha256: String? = null) {
     private val system: X509TrustManager = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
         .apply { init(null as KeyStore?) }.trustManagers.filterIsInstance<X509TrustManager>().first()
 
-    private fun isPinned(cert: X509Certificate): Boolean {
+    /** The certificate the person accepted, by its fingerprint (also for the sign-on browser). / El que aceptó la persona, por su huella. */
+    fun isPinned(cert: X509Certificate): Boolean {
         val pin = pinnedSha256 ?: return false
         return MessageDigest.isEqual(fingerprint(cert).toByteArray(), pin.toByteArray())
     }

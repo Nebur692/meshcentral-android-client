@@ -72,4 +72,17 @@
     <string name="err_lost">The connection to the server was lost.</string>
     <string name="err_unexpected">The server sent an answer the app did not expect.</string>
     <string name="err_certificate">The server\'s certificate was not accepted.</string>
+    <string name="signon_title">Sign in with %1$s</string>
+    <string name="signon_button">Sign in with %1$s</string>
+    <string name="signon_or">or</string>
+    <string name="remember_title">Remember this session?</string>
+    <plurals name="remember_text">
+        <item quantity="one">For %2$d day this phone will sign in to this server without going through %1$s. A login token is kept, encrypted with Android\'s keystore, never your password. Forget removes it from the phone.</item>
+        <item quantity="other">For %2$d days this phone will sign in to this server without going through %1$s. A login token is kept, encrypted with Android\'s keystore, never your password. Forget removes it from the phone.</item>
+    </plurals>
+    <string name="remember_yes">Remember</string>
+    <string name="remember_no">Not now</string>
+    <string name="remember_failed">The session could not be remembered: next time you will go through the provider again.</string>
+    <string name="err_missing">Enter your username and password.</string>
+    <string name="err_session">The server did not accept the session: the sign-in was refused or it has expired.</string>
 </resources>

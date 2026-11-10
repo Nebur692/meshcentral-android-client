@@ -25,8 +25,16 @@ data class SavedServer(
     val lastUsed: Long,
     /** IV and ciphertext, only if the person asked to remember it. / IV y texto cifrado, solo si lo pidió. */
     internal val sealedPassword: String? = null,
+    /** The single sign-on strategy ("oidc"…) when this account signs in that way. / La estrategia de inicio único, si entra así. */
+    val singleSignOn: String? = null,
+    /** A MeshCentral login token ("user\npassword"), sealed, only if the person asked to remember the session.
+     *  Un token de entrada de MeshCentral, sellado, solo si la persona pidió recordar la sesión. */
+    internal val sealedToken: String? = null,
+    /** When that token stops working (ms since 1970). / Cuándo deja de valer ese token. */
+    val tokenExpires: Long = 0,
 ) {
     val hasPassword: Boolean get() = sealedPassword != null
+    val hasSession: Boolean get() = sealedToken != null && tokenExpires > System.currentTimeMillis()
 }
 
 /** Kept in the app's private storage, excluded from every backup (data_extraction_rules). / En el almacén privado, fuera de toda copia. */
@@ -42,7 +50,21 @@ class SavedServers(context: Context) {
         write(rest + SavedServer(address, username, pinnedSha256, System.currentTimeMillis(), sealed))
     }
 
+    /** A single sign-on account: [token] only if the person asked to remember the session. / Una cuenta de inicio único. */
+    fun rememberSingleSignOn(address: String, username: String, pinnedSha256: String?, strategy: String, token: Pair<String, String>?, expires: Long) {
+        val sealed = token?.let { vault.seal(it.first + "\n" + it.second) }
+        val rest = read().filterNot { it.address == address }
+        write(rest + SavedServer(address, username, pinnedSha256, System.currentTimeMillis(), null, strategy, sealed, if (sealed != null) expires else 0))
+    }
+
     fun forget(address: String) = write(read().filterNot { it.address == address })
+
+    /** The remembered session's token user and password, while it lasts. / El usuario y la contraseña del token recordado, mientras dure. */
+    fun token(server: SavedServer): Pair<String, String>? {
+        if (!server.hasSession) return null
+        val both = server.sealedToken?.let(vault::open)?.split("\n", limit = 2) ?: return null
+        return if (both.size == 2) both[0] to both[1] else null
+    }
 
     /** Null when there is none or the key is gone (lock screen removed, for example). / Null si no hay o la llave ya no existe. */
     fun password(server: SavedServer): String? = server.sealedPassword?.let(vault::open)
@@ -52,7 +74,8 @@ class SavedServers(context: Context) {
         (0 until arr.length()).map { i ->
             val o = arr.getJSONObject(i)
             SavedServer(o.getString("address"), o.getString("username"), o.optString("pin").ifEmpty { null },
-                o.optLong("lastUsed"), o.optString("password").ifEmpty { null })
+                o.optLong("lastUsed"), o.optString("password").ifEmpty { null }, o.optString("sso").ifEmpty { null },
+                o.optString("token").ifEmpty { null }, o.optLong("tokenExpires"))
         }
     } catch (_: JSONException) {
         emptyList()
@@ -62,7 +85,8 @@ class SavedServers(context: Context) {
         val arr = JSONArray()
         list.forEach { s ->
             arr.put(JSONObject().put("address", s.address).put("username", s.username).put("pin", s.pinnedSha256 ?: "")
-                .put("lastUsed", s.lastUsed).put("password", s.sealedPassword ?: ""))
+                .put("lastUsed", s.lastUsed).put("password", s.sealedPassword ?: "").put("sso", s.singleSignOn ?: "")
+                .put("token", s.sealedToken ?: "").put("tokenExpires", s.tokenExpires))
         }
         prefs.edit { putString(KEY, arr.toString()) }
     }
