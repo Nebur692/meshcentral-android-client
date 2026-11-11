@@ -68,6 +68,29 @@ class DeviceUnitTest {
         assertNull(hw.model); assertNull(hw.serial)
     }
 
+    @Test fun `Linux volumes - read-only images and rootfs out, a file system mounted twice shown once by its shortest path`() {
+        // As a WSL agent sent them to MeshCentral 1.3.1 (sizes in KiB, as text). / Como los mandó un agente de la WSL.
+        val hw = HardwareSummary.from(json("""{"linux":{"volumes":[
+            {"size":"99148","used":"99148","available":"0","mount_point":"/usr/src/linux-headers-6.18","type":"ext4"},
+            {"size":"525323260","used":"334071516","available":"191251744","mount_point":"/usr/lib/wsl/drivers","type":"9p"},
+            {"size":"1055762868","used":"347575608","available":"654483788","mount_point":"/","type":"ext4"},
+            {"size":"14364828","used":"3412","available":"14361416","mount_point":"/init","type":"rootfs"},
+            {"size":"525323260","used":"334071516","available":"191251744","mount_point":"/mnt/c","type":"9p"},
+            {"size":"1000","used":"950","available":"0","mount_point":"/datos","type":"ext4"}]}}"""))
+        // A full disk with the root reserve (used < size) is a real one and stays. / Un disco lleno de verdad se queda.
+        assertEquals(listOf("/", "/mnt/c", "/datos"), hw.volumes.map { it.name })
+    }
+
+    @Test fun `network - the loopback interface is left out, also when it carries another address`() {
+        val nics = NetworkInterface.from(json("""{
+            "lo":[{"mac":"00:00:00:00:00:00","type":"ethernet","status":"up","address":"127.0.0.1","family":"IPv4"},
+                  {"mac":"00:00:00:00:00:00","type":"ethernet","status":"up","address":"10.255.255.254","family":"IPv4"}],
+            "Loopback Pseudo-Interface 1":[{"type":"loopback","status":"up","address":"::1","family":"IPv6"}],
+            "eth0":[{"mac":"00:15:5D:A8:3F:C7","type":"ethernet","status":"up","address":"172.31.180.160","family":"IPv4","gateway":"172.31.176.1"}]}"""))
+        assertEquals(listOf("eth0"), nics.map { it.name })
+        assertEquals("00:15:5D:A8:3F:C7", nics[0].mac); assertTrue(nics[0].isUp)
+    }
+
     @Test fun `BitLocker as MeshCentral's website reads it, old and new records`() {
         fun enc(v: String) = HardwareSummary.from(json("""{"windows":{"volumes":{"C":{"size":10,"sizeremaining":1,$v}}}}""")).volumes[0].encryption
         assertEquals(Encryption.Locked, enc(""""protectionStatus":2,"volumeStatus":1"""))

@@ -52,17 +52,7 @@ suspend fun MeshSession.lastConnect(nodeId: String): LastConnect? {
 suspend fun MeshSession.networkInfo(nodeId: String): List<NetworkInterface> {
     val r = request(buildJsonObject { put("action", "getnetworkinfo"); put("nodeid", nodeId) },
         { it.str("action") == "getnetworkinfo" && it.str("nodeid") == nodeId }, DETAIL_TIMEOUT, DETAIL_LOST)
-    val nics = r["netif2"] as? JsonObject ?: return emptyList()
-    return nics.map { (name, entries) ->
-        val e = (entries as? JsonArray)?.filterIsInstance<JsonObject>().orEmpty()
-        NetworkInterface(
-            name,
-            e.firstNotNullOfOrNull { x -> x.str("mac")?.takeIf { it.isNotEmpty() && it != "00:00:00:00:00:00" } },
-            e.firstNotNullOfOrNull { it.str("status") },
-            e.firstNotNullOfOrNull { it.long("speed") },
-            e.mapNotNull { x -> x.str("address")?.takeIf(String::isNotEmpty)?.let { NetworkAddress(it, x.str("family"), x.str("netmask"), x.str("gateway")) } },
-        )
-    }
+    return NetworkInterface.from(r["netif2"] as? JsonObject ?: return emptyList())
 }
 
 /** Null when there are none. Without access the server does not answer at all. / Null si no hay. Sin acceso no contesta. */

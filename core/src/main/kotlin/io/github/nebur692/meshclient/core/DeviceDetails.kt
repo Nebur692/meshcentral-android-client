@@ -49,7 +49,7 @@ data class HardwareSummary(
     companion object {
         // What a manufacturer leaves when it fills nothing in. / Lo que deja un fabricante cuando no rellena nada.
         private val placeholder = Regex("^(default string|to be filled.*|system (serial number|product name|manufacturer)|none|n/?a|0+|not specified|unknown|o\\.e\\.m\\.?)$", RegexOption.IGNORE_CASE)
-        private val notDisks = setOf("overlay", "tmpfs", "devtmpfs", "squashfs", "efivarfs", "ramfs", "autofs", "fuse.snapfuse")
+        private val notDisks = setOf("overlay", "tmpfs", "devtmpfs", "squashfs", "rootfs", "efivarfs", "ramfs", "autofs", "fuse.snapfuse")
         private val notDiskMounts = listOf("/var/lib/docker/", "/snap/", "/run/", "/dev/", "/sys/", "/proc/", "/boot/efi")
 
         internal fun clean(v: String?): String? = v?.trim()?.takeIf { it.isNotEmpty() && !placeholder.matches(it) }
@@ -140,6 +140,7 @@ data class HardwareSummary(
 
         private fun volumes(windows: JsonObject?, linux: JsonObject?): List<VolumeInfo> {
             val list = mutableListOf<VolumeInfo>()
+            val mounts = mutableListOf<VolumeInfo>()
             (windows?.get("volumes") as? JsonObject)?.forEach { (letter, node) ->
                 val v = node as? JsonObject ?: return@forEach
                 val size = number(v["size"])?.takeIf { it > 0 } ?: return@forEach
@@ -149,8 +150,16 @@ data class HardwareSummary(
                 val at = v.str("mount_point").orEmpty()
                 if (at.isEmpty() || v.str("type").orEmpty() in notDisks || notDiskMounts.any { at.startsWith(it) || at == it.trimEnd('/') }) return@forEach
                 val kib = number(v["size"])?.takeIf { it > 0 } ?: return@forEach
-                list += VolumeInfo(at, null, v.str("type"), kib * 1024, (number(v["available"]) ?: 0) * 1024)
+                val free = number(v["available"]) ?: 0
+                // A read-only image (a snap, the kernel headers) is always exactly full: never a disk to watch.
+                // Una imagen de solo lectura siempre está justo llena: no es un disco que vigilar.
+                if (free == 0L && number(v["used"]) == kib) return@forEach
+                mounts += VolumeInfo(at, null, v.str("type"), kib * 1024, free * 1024)
             }
+            // The same file system mounted twice (a bind mount) shows the same figures: once, by its shortest path.
+            // El mismo sistema de ficheros montado dos veces da las mismas cifras: una vez, por su ruta más corta.
+            val keep = mounts.groupBy { Triple(it.fileSystem, it.bytes, it.freeBytes) }.values.map { same -> same.minBy { it.name.length } }.toSet()
+            list += mounts.filter { it in keep }
             return list
         }
     }
@@ -159,6 +168,25 @@ data class HardwareSummary(
 /** One network interface of a device (getnetworkinfo "netif2"). / Una interfaz de red de un equipo. */
 data class NetworkInterface(val name: String, val mac: String?, val status: String?, val speedBitsPerSecond: Long?, val addresses: List<NetworkAddress>) {
     val isUp: Boolean get() = status.equals("up", ignoreCase = true)
+
+    companion object {
+        private val loopback = Regex("^(127\\.|::1$)")
+
+        /** getnetworkinfo's netif2, without the loopback interface. / netif2 de getnetworkinfo, sin la interfaz de loopback. */
+        internal fun from(netif2: JsonObject): List<NetworkInterface> = netif2.mapNotNull { (name, entries) ->
+            val e = (entries as? JsonArray)?.filterIsInstance<JsonObject>().orEmpty()
+            // Only the loopback interface carries 127.x or ::1 (on WSL it also carries 10.255.255.254).
+            // Solo la de loopback lleva 127.x o ::1 (en la WSL lleva además 10.255.255.254).
+            if (e.any { it.str("type") == "loopback" || loopback.containsMatchIn(it.str("address").orEmpty()) }) return@mapNotNull null
+            NetworkInterface(
+                name,
+                e.firstNotNullOfOrNull { x -> x.str("mac")?.takeIf { it.isNotEmpty() && it != "00:00:00:00:00:00" } },
+                e.firstNotNullOfOrNull { it.str("status") },
+                e.firstNotNullOfOrNull { it.long("speed") },
+                e.mapNotNull { x -> x.str("address")?.takeIf(String::isNotEmpty)?.let { NetworkAddress(it, x.str("family"), x.str("netmask"), x.str("gateway")) } },
+            )
+        }
+    }
 }
 
 data class NetworkAddress(val address: String, val family: String?, val netmask: String?, val gateway: String?)

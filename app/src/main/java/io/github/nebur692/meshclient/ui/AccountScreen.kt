@@ -81,8 +81,10 @@ fun AccountScreen(vm: AppViewModel) {
                     Switch(checked = on, onCheckedChange = null, enabled = on || vm.canSetBiometric)
                 }
             }
-            Item(R.drawable.ic_shield, stringResource(R.string.account_certificate),
-                s.trust.pinnedSha256?.let(CertificateTrust::display) ?: stringResource(R.string.account_certificate_system))
+            // "Accepted" only when the person accepted it; a public one is simply trusted. / «Aceptado» solo si lo aceptó la persona.
+            val pinned = s.trust.pinnedSha256
+            Item(R.drawable.ic_shield, stringResource(if (pinned != null) R.string.account_certificate else R.string.account_certificate_server),
+                pinned?.let(CertificateTrust::display) ?: stringResource(R.string.account_certificate_system))
 
             Heading(R.string.about)
             Item(R.drawable.ic_lock, stringResource(R.string.privacy), null) { uri.openUri(PRIVACY_URL) }

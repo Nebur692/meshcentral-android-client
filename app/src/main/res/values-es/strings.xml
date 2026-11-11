@@ -19,6 +19,7 @@
     <string name="cert_fingerprint">Huella SHA-256</string>
     <string name="accept">Aceptar</string>
     <string name="cancel">Cancelar</string>
+    <string name="close">Cerrar</string>
     <string name="tfa_title">Doble factor</string>
     <string name="tfa_body">Escribe el código de tu app de autenticación.</string>
     <string name="tfa_code">Código</string>
@@ -48,6 +49,7 @@
     <string name="description">Descripción</string>
     <string name="tags">Etiquetas</string>
     <string name="account_certificate">Certificado aceptado</string>
+    <string name="account_certificate_server">Certificado del servidor</string>
     <string name="account_certificate_system">De confianza para Android</string>
     <string name="sign_out">Salir</string>
     <string name="app_version">Versión de la app %1$s</string>

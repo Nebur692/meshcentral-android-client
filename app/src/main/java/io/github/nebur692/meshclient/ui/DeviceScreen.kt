@@ -8,22 +8,28 @@ import android.text.format.Formatter
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -96,7 +102,7 @@ fun DeviceScreen(vm: AppViewModel, id: String) {
         val text = stringResource(n.text) + (n.error?.let { e -> "\n" + errorText(e) + " · " + e.key } ?: "")
         LaunchedEffect(n) { snack.showSnackbar(text); vm.notice = null }
     }
-    val list = rememberLazyListState()
+    val list = rememberLazyStaggeredGridState()
     val scope = rememberCoroutineScope()
     val sections = buildList {
         add(Section.Summary)
@@ -135,20 +141,27 @@ fun DeviceScreen(vm: AppViewModel, id: String) {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        LazyColumn(Modifier.padding(padding).fillMaxSize(), state = list,
-            contentPadding = PaddingValues(bottom = bottom + 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item(key = "header") { Header(vm, d) }
-            item(key = "actions") { Actions(vm, d) }
-            sections.forEach { s ->
-                item(key = s.name) {
-                    when (s) {
-                        Section.Summary -> SummarySection(d, details)
-                        Section.Security -> SecuritySection(d, details)
-                        Section.System -> SystemSection(vm, d, details)
-                        Section.Hardware -> HardwareSection(details!!)
-                        Section.Network -> NetworkSection(d, details)
-                        Section.Notes -> NotesSection(vm, d, details)
-                        Section.Events -> EventsSection(details!!)
+        // Room for the keyboard over the navigation bar, which the bottom padding already counts: the notes being typed stay
+        // in sight. / Sitio para el teclado, menos la barra de navegación que ya cuenta: las notas que se escriben se ven.
+        BoxWithConstraints(Modifier.padding(padding).fillMaxSize().windowInsetsPadding(WindowInsets.ime.exclude(WindowInsets.navigationBars))) {
+            // On a tablet or an open foldable: the actions in one row and the sections in two columns.
+            // En una tableta o un plegable abierto: las acciones en una fila y las secciones en dos columnas.
+            val wide = maxWidth >= 840.dp
+            LazyVerticalStaggeredGrid(StaggeredGridCells.Fixed(if (wide) 2 else 1), Modifier.fillMaxSize(), state = list,
+                contentPadding = PaddingValues(bottom = bottom + 24.dp), verticalItemSpacing = 12.dp) {
+                item(key = "header", span = StaggeredGridItemSpan.FullLine) { Header(vm, d) }
+                item(key = "actions", span = StaggeredGridItemSpan.FullLine) { Actions(vm, d, if (wide) 8 else 4) }
+                sections.forEach { s ->
+                    item(key = s.name) {
+                        when (s) {
+                            Section.Summary -> SummarySection(d, details)
+                            Section.Security -> SecuritySection(d, details)
+                            Section.System -> SystemSection(vm, d, details)
+                            Section.Hardware -> HardwareSection(details!!)
+                            Section.Network -> NetworkSection(d, details)
+                            Section.Notes -> NotesSection(vm, d, details)
+                            Section.Events -> EventsSection(details!!)
+                        }
                     }
                 }
             }
@@ -165,7 +178,7 @@ private fun Header(vm: AppViewModel, d: Device) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             val status = LocalStatusColors.current
             Text(stringResource(if (d.isOnline) R.string.online else R.string.offline) +
-                (d.lastBoot?.takeIf { d.isOnline }?.let { " · " + stringResource(R.string.on_since, ago(it)) } ?: ""),
+                (d.lastBoot?.takeIf { d.isOnline }?.let { " · " + stringResource(R.string.on_since, ago(it).replaceFirstChar { c -> c.lowercase() }) } ?: ""),
                 style = MaterialTheme.typography.titleSmall, color = if (d.isOnline) status.online else status.offline)
             Text(listOfNotNull(d.osDescription, vm.groupNames[d.groupId]?.let { stringResource(R.string.in_group, it) }).joinToString(" · "),
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -177,14 +190,15 @@ private fun Header(vm: AppViewModel, d: Device) {
 
 /** One action button of the grid. [soon]: coming in a later version. / Un botón de la cuadrícula; [soon]: llega más adelante. */
 @Composable
-private fun ActionButton(icon: Int, label: Int, main: Boolean, enabled: Boolean, modifier: Modifier, soon: Boolean = false, onClick: () -> Unit = {}) {
-    val bg = if (main) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
-    val fg = if (main) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+private fun ActionButton(icon: Int, label: Int, enabled: Boolean, modifier: Modifier, soon: Boolean = false, onClick: () -> Unit = {}) {
+    // What works carries colour; what is coming or not possible now stays grey. / Lo que funciona, con color; lo demás, gris.
+    val bg = if (soon || !enabled) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.primaryContainer
+    val fg = if (soon || !enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimaryContainer
     Column(
         modifier.heightIn(min = 88.dp).clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Surface(shape = RoundedCornerShape(16.dp), color = if (enabled) bg else bg.copy(alpha = 0.5f), contentColor = if (enabled) fg else fg.copy(alpha = 0.5f),
+        Surface(shape = RoundedCornerShape(16.dp), color = bg, contentColor = if (enabled) fg else fg.copy(alpha = 0.6f),
             modifier = Modifier.size(52.dp)) {
             Box(contentAlignment = Alignment.Center) { Icon(painterResource(icon), null, Modifier.size(24.dp)) }
         }
@@ -196,27 +210,27 @@ private fun ActionButton(icon: Int, label: Int, main: Boolean, enabled: Boolean,
 
 /** What this account may do; what it may not is not shown. / Lo que puede hacer esta cuenta; lo que no, no sale. */
 @Composable
-private fun Actions(vm: AppViewModel, d: Device) {
+private fun Actions(vm: AppViewModel, d: Device, columns: Int) {
     val rights = vm.session?.rightsOn(d) ?: 0
     val can = vm.abilities(d)
     fun has(r: Long) = MeshRights.has(rights, r)
-    data class A(val icon: Int, val label: Int, val main: Boolean, val enabled: Boolean, val soon: Boolean, val onClick: () -> Unit)
+    data class A(val icon: Int, val label: Int, val enabled: Boolean, val soon: Boolean, val onClick: () -> Unit)
     val all = buildList {
-        if (MeshRights.tool(rights, MeshRights.NO_DESKTOP)) add(A(R.drawable.ic_monitor, R.string.act_desktop, true, false, true) {})
-        if (MeshRights.tool(rights, MeshRights.NO_TERMINAL)) add(A(R.drawable.ic_terminal, R.string.act_terminal, true, false, true) {})
-        if (MeshRights.tool(rights, MeshRights.NO_FILES)) add(A(R.drawable.ic_folder, R.string.act_files, true, false, true) {})
-        if (has(MeshRights.WAKE) || has(MeshRights.RESET_OFF)) add(A(R.drawable.ic_power, R.string.act_power, true, can.wake || can.power, false) { vm.sheet = DeviceSheet.Power })
-        if (has(MeshRights.REMOTE_CONTROL)) add(A(R.drawable.ic_processes, R.string.act_processes, false, false, true) {})
-        if (has(MeshRights.REMOTE_CONTROL) && d.isWindows) add(A(R.drawable.ic_services, R.string.act_services, false, false, true) {})
-        if (has(MeshRights.CHAT_NOTIFY) || has(MeshRights.REMOTE_CONTROL)) add(A(R.drawable.ic_chat, R.string.act_message, false, can.anyMessage, false) { vm.sheet = DeviceSheet.Message })
-        if (has(MeshRights.REMOTE_COMMAND)) add(A(R.drawable.ic_run, R.string.act_run, false, can.runCommands, false) { vm.sheet = DeviceSheet.Run })
+        if (MeshRights.tool(rights, MeshRights.NO_DESKTOP)) add(A(R.drawable.ic_monitor, R.string.act_desktop, false, true) {})
+        if (MeshRights.tool(rights, MeshRights.NO_TERMINAL)) add(A(R.drawable.ic_terminal, R.string.act_terminal, false, true) {})
+        if (MeshRights.tool(rights, MeshRights.NO_FILES)) add(A(R.drawable.ic_folder, R.string.act_files, false, true) {})
+        if (has(MeshRights.WAKE) || has(MeshRights.RESET_OFF)) add(A(R.drawable.ic_power, R.string.act_power, can.wake || can.power, false) { vm.sheet = DeviceSheet.Power })
+        if (has(MeshRights.REMOTE_CONTROL)) add(A(R.drawable.ic_processes, R.string.act_processes, false, true) {})
+        if (has(MeshRights.REMOTE_CONTROL) && d.isWindows) add(A(R.drawable.ic_services, R.string.act_services, false, true) {})
+        if (has(MeshRights.CHAT_NOTIFY) || has(MeshRights.REMOTE_CONTROL)) add(A(R.drawable.ic_chat, R.string.act_message, can.anyMessage, false) { vm.sheet = DeviceSheet.Message })
+        if (has(MeshRights.REMOTE_COMMAND)) add(A(R.drawable.ic_run, R.string.act_run, can.runCommands, false) { vm.sheet = DeviceSheet.Run })
     }
     if (all.isEmpty()) return
     Column(Modifier.padding(horizontal = 8.dp)) {
-        all.chunked(4).forEach { row ->
+        all.chunked(columns).forEach { row ->
             Row(Modifier.fillMaxWidth()) {
-                row.forEach { a -> ActionButton(a.icon, a.label, a.main, a.enabled, Modifier.weight(1f), a.soon, a.onClick) }
-                repeat(4 - row.size) { Box(Modifier.weight(1f)) }
+                row.forEach { a -> ActionButton(a.icon, a.label, a.enabled, Modifier.weight(1f), a.soon, a.onClick) }
+                repeat(columns - row.size) { Box(Modifier.weight(1f)) }
             }
         }
     }
@@ -456,14 +470,17 @@ private fun DeviceSheets(vm: AppViewModel, d: Device, details: DeviceDetails?, c
         DeviceSheet.Run -> RunSheet(vm, d)
         DeviceSheet.Edit -> EditSheet(vm, d)
         DeviceSheet.ConfirmRestart -> Confirm(vm, R.string.confirm_restart_title, if (d.users.isEmpty()) R.string.confirm_restart_text else R.string.confirm_restart_users,
-            d.users.joinToString(", "), R.string.restart) { vm.power(d, io.github.nebur692.meshclient.core.PowerAction.Restart) }
+            whoOrName(d), R.string.restart) { vm.power(d, io.github.nebur692.meshclient.core.PowerAction.Restart) }
         DeviceSheet.ConfirmPowerOff -> Confirm(vm, R.string.confirm_off_title, if (d.users.isEmpty()) R.string.confirm_off_text else R.string.confirm_off_users,
-            d.users.joinToString(", "), R.string.power_off) { vm.power(d, io.github.nebur692.meshclient.core.PowerAction.PowerOff) }
+            whoOrName(d), R.string.power_off) { vm.power(d, io.github.nebur692.meshclient.core.PowerAction.PowerOff) }
         DeviceSheet.ConfirmUninstall -> Confirm(vm, R.string.confirm_uninstall_title, R.string.confirm_uninstall_text, d.name, R.string.uninstall) { vm.uninstall(d) }
         DeviceSheet.ConfirmRemove -> Confirm(vm, R.string.confirm_remove_title, R.string.confirm_remove_text, d.name, R.string.remove) { vm.remove(d) }
         null -> Unit
     }
 }
+
+/** Who is signed in, which the warning names; with nobody, the device. / Quién tiene sesión; si no hay nadie, el equipo. */
+private fun whoOrName(d: Device) = d.users.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: d.name
 
 @Composable
 private fun Confirm(vm: AppViewModel, title: Int, text: Int, arg: String, action: Int, onYes: () -> Unit) {
@@ -491,9 +508,9 @@ fun SheetOption(icon: Int, label: String, hint: String?, enabled: Boolean = true
 
 /** For the sheets' text fields. / Para los campos de los paneles. */
 @Composable
-fun SheetButtons(confirm: String, enabled: Boolean, busy: Boolean, onCancel: () -> Unit, onConfirm: () -> Unit) {
+fun SheetButtons(confirm: String, enabled: Boolean, busy: Boolean, onCancel: () -> Unit, dismiss: Int = R.string.cancel, onConfirm: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
-        TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
+        TextButton(onClick = onCancel) { Text(stringResource(dismiss)) }
         androidx.compose.material3.Button(onClick = onConfirm, enabled = enabled && !busy) { Text(confirm) }
     }
 }

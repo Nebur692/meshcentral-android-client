@@ -19,6 +19,7 @@
     <string name="cert_fingerprint">SHA-256 fingerprint</string>
     <string name="accept">Accept</string>
     <string name="cancel">Cancel</string>
+    <string name="close">Close</string>
     <string name="tfa_title">Second factor</string>
     <string name="tfa_body">Enter the code from your authenticator app.</string>
     <string name="tfa_code">Code</string>
@@ -47,6 +48,7 @@
     <string name="description">Description</string>
     <string name="tags">Tags</string>
     <string name="account_certificate">Accepted certificate</string>
+    <string name="account_certificate_server">Server certificate</string>
     <string name="account_certificate_system">Trusted by Android</string>
     <string name="sign_out">Sign out</string>
     <string name="app_version">App version %1$s</string>
@@ -102,7 +104,7 @@
     <string name="sec_events">Events</string>
     <string name="edit_device">Edit name, description and tags</string>
     <string name="more_options">More options</string>
-    <string name="on_since">on %1$s</string>
+    <string name="on_since">booted %1$s</string>
     <string name="in_group">group %1$s</string>
     <string name="signed_in_user">Signed in: %1$s</string>
     <string name="soon">Soon</string>

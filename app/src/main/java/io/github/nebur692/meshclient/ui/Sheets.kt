@@ -53,14 +53,19 @@ import io.github.nebur692.meshclient.core.shellFor
 /** A panel from the bottom, with the device's name on top. / Un panel desde abajo, con el nombre del equipo arriba. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Sheet(title: String, subtitle: String? = null, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+private fun Sheet(title: String, subtitle: String? = null, onDismiss: () -> Unit, buttons: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.padding(bottom = 16.dp)) {
-            Text(title, Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.titleLarge)
-            subtitle?.let { Text(it, Modifier.padding(horizontal = 24.dp, vertical = 2.dp), style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            Box(Modifier.height(8.dp))
-            content()
+            // With the keyboard up the fields scroll and the buttons stay in sight above it.
+            // Con el teclado abierto los campos se desplazan y los botones siguen a la vista encima de él.
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                Text(title, Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.titleLarge)
+                subtitle?.let { Text(it, Modifier.padding(horizontal = 24.dp, vertical = 2.dp), style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                Box(Modifier.height(8.dp))
+                content()
+            }
+            buttons?.invoke()
         }
     }
 }
@@ -98,7 +103,11 @@ fun MessageSheet(vm: AppViewModel, d: Device) {
     var text by rememberSaveable { mutableStateOf("") }
     // A window that waits to be closed needs remote control; a notification, the notify right. / La ventana pide control remoto.
     var window by rememberSaveable { mutableStateOf(!can.notify) }
-    Sheet(stringResource(R.string.message_title), d.users.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: d.name, { vm.sheet = null }) {
+    Sheet(stringResource(R.string.message_title), d.users.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: d.name, { vm.sheet = null }, buttons = {
+        SheetButtons(stringResource(R.string.send), text.isNotBlank(), vm.actionBusy, { vm.sheet = null }) {
+            vm.sendMessage(d, title.ifBlank { "MeshCentral" }, text.trim(), window && can.messageBox)
+        }
+    }) {
         Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(title, { title = it.take(100) }, label = { Text(stringResource(R.string.message_heading)) }, singleLine = true,
                 placeholder = { Text(stringResource(R.string.app_name)) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
@@ -114,9 +123,6 @@ fun MessageSheet(vm: AppViewModel, d: Device) {
                 Switch(checked = window, onCheckedChange = null)
             }
         }
-        SheetButtons(stringResource(R.string.send), text.isNotBlank(), vm.actionBusy, { vm.sheet = null }) {
-            vm.sendMessage(d, title.ifBlank { "MeshCentral" }, text.trim(), window && can.messageBox)
-        }
     }
 }
 
@@ -128,7 +134,13 @@ fun MessageSheet(vm: AppViewModel, d: Device) {
 fun RunSheet(vm: AppViewModel, d: Device) {
     var commands by rememberSaveable { mutableStateOf("") }
     var powerShell by rememberSaveable { mutableStateOf(false) }
-    Sheet(stringResource(R.string.run_title), stringResource(if (d.isWindows) R.string.run_as_system else R.string.run_as_root), { vm.clearCommandOutput(); vm.sheet = null }) {
+    Sheet(stringResource(R.string.run_title), stringResource(if (d.isWindows) R.string.run_as_system else R.string.run_as_root), { vm.clearCommandOutput(); vm.sheet = null }, buttons = {
+        // Once something has run there is nothing to cancel. / Cuando ya se ha ejecutado algo no hay nada que cancelar.
+        SheetButtons(stringResource(R.string.run), commands.isNotBlank(), vm.actionBusy, { vm.clearCommandOutput(); vm.sheet = null },
+            dismiss = if (vm.commandOutput != null) R.string.close else R.string.cancel) {
+            vm.runCommands(d, commands, shellFor(d, powerShell))
+        }
+    }) {
         Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (d.isWindows) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedChoice(!powerShell, "cmd", Modifier.weight(1f)) { powerShell = false }
@@ -145,13 +157,10 @@ fun RunSheet(vm: AppViewModel, d: Device) {
             vm.commandOutput?.let { out ->
                 Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.fillMaxWidth()) {
                     Box(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()).horizontalScroll(rememberScrollState()).padding(12.dp)) {
-                        Text(out, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+                        Text(out.trimEnd(), fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
-        }
-        SheetButtons(stringResource(R.string.run), commands.isNotBlank(), vm.actionBusy, { vm.clearCommandOutput(); vm.sheet = null }) {
-            vm.runCommands(d, commands, shellFor(d, powerShell))
         }
     }
 }
@@ -161,7 +170,11 @@ fun EditSheet(vm: AppViewModel, d: Device) {
     var name by rememberSaveable(d.id) { mutableStateOf(d.name) }
     var description by rememberSaveable(d.id) { mutableStateOf(d.description.orEmpty()) }
     var tags by rememberSaveable(d.id) { mutableStateOf(d.tags.joinToString(", ")) }
-    Sheet(stringResource(R.string.edit_device), null, { vm.sheet = null }) {
+    Sheet(stringResource(R.string.edit_device), null, { vm.sheet = null }, buttons = {
+        SheetButtons(stringResource(R.string.save), name.isNotBlank(), vm.actionBusy, { vm.sheet = null }) {
+            vm.saveDevice(d, name, description, tags.split(',').map(String::trim).filter(String::isNotEmpty).distinct())
+        }
+    }) {
         Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(name, { name = it.take(64) }, label = { Text(stringResource(R.string.device_name)) }, singleLine = true,
                 modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
@@ -169,9 +182,6 @@ fun EditSheet(vm: AppViewModel, d: Device) {
                 modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
             OutlinedTextField(tags, { tags = it }, label = { Text(stringResource(R.string.tags)) }, singleLine = true,
                 supportingText = { Text(stringResource(R.string.tags_hint)) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-        }
-        SheetButtons(stringResource(R.string.save), name.isNotBlank(), vm.actionBusy, { vm.sheet = null }) {
-            vm.saveDevice(d, name, description, tags.split(',').map(String::trim).filter(String::isNotEmpty).distinct())
         }
     }
 }
