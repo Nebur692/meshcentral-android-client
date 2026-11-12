@@ -17,8 +17,8 @@ android {
         // per-app language 13, predictive back 14). / Android 10 o más nuevo; lo que trae cada versión se usa donde existe.
         minSdk = 29
         targetSdk = 37
-        versionCode = 4
-        versionName = "0.3.0"
+        versionCode = 5
+        versionName = "0.4.0"
     }
 
     buildTypes {
@@ -60,6 +60,7 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.core.ktx)
     implementation(libs.splashscreen)
+    implementation(libs.webkit)
     implementation(libs.coroutines.android)
     testImplementation(libs.junit)
 }

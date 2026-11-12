@@ -7,6 +7,7 @@ enum class MeshFailure {
     EmailValidationRequired, SessionExpired, Rejected, ConnectionLost, UnexpectedResponse,
     /** This account has no rights for it on that device. / Esta cuenta no tiene permiso para eso en ese equipo. */
     NotAllowed,
+    NotFound,
     /** It needs the device's agent connected. / Hace falta el agente del equipo conectado. */
     DeviceOffline,
 }

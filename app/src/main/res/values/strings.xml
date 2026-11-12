@@ -232,6 +232,7 @@
     <string name="biometric_unavailable">The fingerprint could not be used now. Sign in with your password.</string>
     <string name="biometric_on">Fingerprint sign-in is on.</string>
     <string name="err_not_allowed">This account has no permission for that on this device.</string>
+    <string name="err_not_found">That is no longer on the device (it was moved or deleted), or it cannot be read.</string>
     <string name="err_device_offline">The device\'s agent is not connected.</string>
     <plurals name="show_all_events">
         <item quantity="one">See the %1$d event</item>
@@ -241,4 +242,59 @@
         <item quantity="one">A sign-in for %1$d day is kept encrypted on this phone, and it only opens with your fingerprint or face. You can remove it any time in Account.</item>
         <item quantity="other">A sign-in for %1$d days is kept encrypted on this phone, and it only opens with your fingerprint or face. You can remove it any time in Account.</item>
     </plurals>
+    <!-- Terminal and files (phase 2) / Terminal y ficheros (fase 2) -->
+    <string name="term_choose">Open a terminal</string>
+    <string name="term_cmd">Command prompt (cmd)</string>
+    <string name="term_powershell">PowerShell</string>
+    <string name="term_shell">Terminal (as the agent: root)</string>
+    <string name="term_user_shell">User terminal</string>
+    <string name="term_user_shell_hint">The shell of whoever is signed in on the device; it needs someone signed in.</string>
+    <string name="term_connecting">Connecting…</string>
+    <string name="term_closed">The terminal was closed.</string>
+    <string name="term_closed_by_device">The device or the server closed this terminal.</string>
+    <string name="term_webview_old">The terminal needs a newer “Android System WebView”. Update it from Google Play and open the terminal again.</string>
+    <string name="term_webview_update">Update on Google Play</string>
+    <string name="term_again">Open again</string>
+    <string name="term_recorded">This session is being recorded by the server.</string>
+    <string name="term_select">Select text</string>
+    <string name="term_paste">Paste</string>
+    <plurals name="term_paste_lines">
+        <item quantity="one">Paste %1$d line?</item>
+        <item quantity="other">Paste %1$d lines?</item>
+    </plurals>
+    <string name="term_paste_lines_text">Each line will run as a command on the device as soon as it arrives.</string>
+    <string name="term_paste_empty">The clipboard has no text.</string>
+    <string name="term_copy_all">Copy all</string>
+    <plurals name="term_copied">
+        <item quantity="one">Copied (%1$d character).</item>
+        <item quantity="other">Copied (%1$d characters).</item>
+    </plurals>
+    <string name="term_select_hint">Hold a word to start selecting, then drag the handles.</string>
+    <string name="key_up">Up</string>
+    <string name="key_down">Down</string>
+    <string name="key_left">Left</string>
+    <string name="key_right">Right</string>
+    <string name="files_drives">Drives</string>
+    <string name="files_up">Up</string>
+    <string name="files_refresh">Refresh</string>
+    <string name="files_empty">This folder is empty.</string>
+    <string name="files_upload">Upload…</string>
+    <string name="files_download">Download…</string>
+    <string name="files_rename">Rename</string>
+    <string name="files_delete">Delete</string>
+    <string name="files_new_folder">New folder</string>
+    <string name="files_folder_name">Name of the new folder</string>
+    <string name="files_new_name">New name</string>
+    <string name="files_bad_name">A name cannot be empty or have / or \\ in it.</string>
+    <string name="files_ok">OK</string>
+    <string name="files_delete_file_ask">Delete %1$s from the device? This cannot be undone.</string>
+    <string name="files_delete_folder_ask">Delete the folder %1$s and everything inside it from the device? This cannot be undone.</string>
+    <string name="files_uploading">Uploading %1$s…</string>
+    <string name="files_downloading">Downloading %1$s…</string>
+    <string name="files_folder_created">Folder created.</string>
+    <string name="files_renamed">Renamed.</string>
+    <string name="files_deleted">Deleted.</string>
+    <string name="files_uploaded">Uploaded.</string>
+    <string name="files_downloaded">Downloaded.</string>
+    <string name="files_failed">It could not be done.</string>
 </resources>

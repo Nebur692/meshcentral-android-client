@@ -217,8 +217,8 @@ private fun Actions(vm: AppViewModel, d: Device, columns: Int) {
     data class A(val icon: Int, val label: Int, val enabled: Boolean, val soon: Boolean, val onClick: () -> Unit)
     val all = buildList {
         if (MeshRights.tool(rights, MeshRights.NO_DESKTOP)) add(A(R.drawable.ic_monitor, R.string.act_desktop, false, true) {})
-        if (MeshRights.tool(rights, MeshRights.NO_TERMINAL)) add(A(R.drawable.ic_terminal, R.string.act_terminal, false, true) {})
-        if (MeshRights.tool(rights, MeshRights.NO_FILES)) add(A(R.drawable.ic_folder, R.string.act_files, false, true) {})
+        if (MeshRights.tool(rights, MeshRights.NO_TERMINAL)) add(A(R.drawable.ic_terminal, R.string.act_terminal, d.canOpenTerminal, false) { vm.sheet = DeviceSheet.Terminal })
+        if (MeshRights.tool(rights, MeshRights.NO_FILES)) add(A(R.drawable.ic_folder, R.string.act_files, d.canOpenFiles, false) { vm.openFiles(d.id) })
         if (has(MeshRights.WAKE) || has(MeshRights.RESET_OFF)) add(A(R.drawable.ic_power, R.string.act_power, can.wake || can.power, false) { vm.sheet = DeviceSheet.Power })
         if (has(MeshRights.REMOTE_CONTROL)) add(A(R.drawable.ic_processes, R.string.act_processes, false, true) {})
         if (has(MeshRights.REMOTE_CONTROL) && d.isWindows) add(A(R.drawable.ic_services, R.string.act_services, false, true) {})
@@ -461,6 +461,7 @@ private fun summary(context: Context, d: Device, details: DeviceDetails?, group:
 @Composable
 private fun DeviceSheets(vm: AppViewModel, d: Device, details: DeviceDetails?, context: Context) {
     when (vm.sheet) {
+        DeviceSheet.Terminal -> TerminalSheet(vm, d)
         DeviceSheet.Power -> PowerSheet(vm, d)
         DeviceSheet.More -> MoreSheet(vm, d) {
             context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(d.name, summary(context, d, details, vm.groupNames[d.groupId])))

@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.net.http.SslError
 import android.webkit.CookieManager
 import android.webkit.SslErrorHandler
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
@@ -73,7 +74,7 @@ fun SignOnScreen(how: Screen.SignOn, onCancel: () -> Unit, onDone: (Map<String, 
             AndroidView(
                 factory = { ctx ->
                     WebView(ctx).apply {
-                        configure(this, how, onPage = { loading = it.loading; host = it.host }) { cookies -> onDone(cookies) }
+                        configure(this, how, onPage = { loading = it.loading; host = it.host }, onGone = onCancel) { cookies -> onDone(cookies) }
                         view = this
                     }
                 },
@@ -90,7 +91,7 @@ private data class PageState(val loading: Boolean, val host: String)
 // The provider's page needs JavaScript; nothing of the app is exposed to it (no JavaScript interface).
 // La página del proveedor necesita JavaScript; no se le expone nada de la app (sin interfaz de JavaScript).
 @SuppressLint("SetJavaScriptEnabled")
-private fun configure(web: WebView, how: Screen.SignOn, onPage: (PageState) -> Unit, done: (Map<String, String>) -> Unit) {
+private fun configure(web: WebView, how: Screen.SignOn, onPage: (PageState) -> Unit, onGone: () -> Unit, done: (Map<String, String>) -> Unit) {
     web.settings.javaScriptEnabled = true
     web.settings.domStorageEnabled = true
     web.settings.allowFileAccess = false
@@ -114,6 +115,13 @@ private fun configure(web: WebView, how: Screen.SignOn, onPage: (PageState) -> U
             finished = true
             forgetSession(how.address)
             done(cookies)
+        }
+
+        // The page's process died (out of memory, or killed): without this the whole app would close. The person starts again.
+        // Murió el proceso de la página (sin memoria, o lo mataron): sin esto se cerraría la app entera. La persona empieza otra vez.
+        override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+            if (!finished) { finished = true; onGone() }
+            return true
         }
 
         // Only the certificate the person already accepted for this server, by its fingerprint; anything else is refused.

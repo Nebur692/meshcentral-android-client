@@ -26,6 +26,8 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import io.github.nebur692.meshclient.ui.AccountScreen
 import io.github.nebur692.meshclient.ui.BiometricOfferSheet
 import io.github.nebur692.meshclient.ui.DeviceScreen
+import io.github.nebur692.meshclient.ui.FilesScreen
+import io.github.nebur692.meshclient.ui.TerminalScreen
 import io.github.nebur692.meshclient.ui.DevicesScreen
 import io.github.nebur692.meshclient.ui.LoginScreen
 import io.github.nebur692.meshclient.ui.MeshTheme
@@ -85,6 +87,8 @@ class MainActivity : ComponentActivity() {
                         Screen.Devices -> DevicesScreen(vm)
                         Screen.Account -> AccountScreen(vm)
                         is Screen.DeviceDetail -> DeviceScreen(vm, s.id)
+                        is Screen.Terminal -> TerminalScreen(vm)
+                        is Screen.Files -> FilesScreen(vm)
                         is Screen.SignOn -> {
                             LoginScreen(vm)
                             if (!vm.signOnLaunched) SideEffect { vm.signOnLaunched = true; signOn.launch(SignOnActivity.intent(this@MainActivity, s)) }

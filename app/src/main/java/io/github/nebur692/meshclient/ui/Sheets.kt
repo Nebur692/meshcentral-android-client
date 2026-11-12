@@ -1,5 +1,6 @@
 package io.github.nebur692.meshclient.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +21,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -49,6 +51,7 @@ import io.github.nebur692.meshclient.R
 import io.github.nebur692.meshclient.core.Device
 import io.github.nebur692.meshclient.core.PowerAction
 import io.github.nebur692.meshclient.core.shellFor
+import io.github.nebur692.meshclient.core.TunnelProtocol
 
 /** A panel from the bottom, with the device's name on top. / Un panel desde abajo, con el nombre del equipo arriba. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -203,6 +206,23 @@ fun BiometricOfferSheet(offer: BiometricOffer, answer: (Boolean) -> Unit) {
                 Text(stringResource(R.string.biometric_offer_yes), style = MaterialTheme.typography.titleMedium)
             }
             TextButton(onClick = { answer(false) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.remember_no)) }
+        }
+    }
+}
+
+/** Which terminal: cmd or PowerShell on Windows, the agent's or the user's shell elsewhere. / Qué terminal abrir. */
+@Composable
+fun TerminalSheet(vm: AppViewModel, d: Device) {
+    Sheet(stringResource(R.string.term_choose), d.name, onDismiss = { vm.sheet = null }) {
+        val kinds = if (d.isWindows) listOf(TunnelProtocol.Terminal to null, TunnelProtocol.PowerShell to null)
+        else listOf(TunnelProtocol.Terminal to null, TunnelProtocol.UserShell to R.string.term_user_shell_hint)
+        kinds.forEach { (kind, hint) ->
+            ListItem(
+                headlineContent = { Text(stringResource(terminalName(kind, d.isWindows))) },
+                supportingContent = hint?.let { h -> { Text(stringResource(h)) } },
+                leadingContent = { Icon(painterResource(R.drawable.ic_terminal), null) },
+                modifier = Modifier.clickable { vm.openTerminal(d.id, kind) },
+            )
         }
     }
 }

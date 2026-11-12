@@ -40,6 +40,7 @@ fun ErrorCard(error: UiError) {
 fun errorText(error: UiError): String =
     if (error.missingFields) stringResource(R.string.err_missing) else when (error.failure) {
         MeshFailure.NotAllowed -> stringResource(R.string.err_not_allowed)
+        MeshFailure.NotFound -> stringResource(R.string.err_not_found)
         MeshFailure.DeviceOffline -> stringResource(R.string.err_device_offline)
         MeshFailure.InvalidAddress -> stringResource(R.string.err_address)
         MeshFailure.NameNotResolved -> stringResource(R.string.err_dns)

@@ -16,6 +16,7 @@ import io.github.nebur692.meshclient.core.DeviceDetails
 import io.github.nebur692.meshclient.core.MeshClientException
 import io.github.nebur692.meshclient.core.MeshFailure
 import io.github.nebur692.meshclient.core.MeshSession
+import io.github.nebur692.meshclient.core.TunnelProtocol
 import io.github.nebur692.meshclient.core.PasswordCredentials
 import io.github.nebur692.meshclient.core.PowerAction
 import io.github.nebur692.meshclient.core.ServerAddress
@@ -47,6 +48,8 @@ sealed interface Screen {
     data object Devices : Screen
     data object Account : Screen
     data class DeviceDetail(val id: String) : Screen
+    data class Terminal(val id: String) : Screen
+    data class Files(val id: String) : Screen
     /** The provider's page, in a browser inside the app. / La página del proveedor, en un navegador dentro de la app. */
     data class SignOn(val method: SingleSignOn, val address: ServerAddress, val pinnedSha256: String?) : Screen
 }
@@ -89,7 +92,7 @@ sealed interface BiometricRequest {
 enum class BiometricProblem { KeyChanged, Unavailable, Locked, Stale }
 
 /** A panel of the device's sheet. / Un panel de la ficha del equipo. */
-enum class DeviceSheet { Power, More, Message, Run, Edit, ConfirmRestart, ConfirmPowerOff, ConfirmUninstall, ConfirmRemove }
+enum class DeviceSheet { Terminal, Power, More, Message, Run, Edit, ConfirmRestart, ConfirmPowerOff, ConfirmUninstall, ConfirmRemove }
 
 /** A short word after an action, or its failure. / Una palabra corta tras una acción, o su fallo. */
 data class Notice(val text: Int, val error: UiError? = null)
@@ -731,6 +734,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             delay(BACKGROUND_GRACE_MS)
             paused = true
             watching?.cancel()
+            // A terminal or files left open would keep the phone's data and battery busy. / Gastarían datos y batería.
+            terminal?.close(); files?.close()
             session?.close()
         }
     }
@@ -746,7 +751,45 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun show(target: Screen) { screen = target; if (target !is Screen.DeviceDetail) sheet = null }
 
+    // ------------------------------------------------------------------ terminal and files / terminal y ficheros
+
+    var terminal by mutableStateOf<TerminalModel?>(null)
+        private set
+    var files by mutableStateOf<FilesModel?>(null)
+        private set
+
+    fun openTerminal(id: String, kind: TunnelProtocol) {
+        val s = session ?: return
+        val d = devices[id] ?: return
+        terminal?.close()
+        sheet = null
+        terminal = TerminalModel(s, d, kind, viewModelScope)
+        screen = Screen.Terminal(id)
+    }
+
+    fun openFiles(id: String) {
+        val s = session ?: return
+        val d = devices[id] ?: return
+        files?.close()
+        sheet = null
+        files = FilesModel(s, d, viewModelScope, getApplication<Application>().contentResolver).also { it.open() }
+        screen = Screen.Files(id)
+    }
+
+    /** Back from a terminal or the files to the device's sheet, closing its tunnel. / De vuelta a la ficha, cerrando su túnel. */
+    fun leaveTool() {
+        val id = when (val s = screen) { is Screen.Terminal -> s.id; is Screen.Files -> s.id; else -> null }
+        closeTools()
+        show(if (id != null && devices[id] != null) Screen.DeviceDetail(id) else Screen.Devices)
+    }
+
+    private fun closeTools() {
+        terminal?.close(); terminal = null
+        files?.close(); files = null
+    }
+
     fun signOut() {
+        closeTools()
         watching?.cancel()
         detailsJob?.cancel()
         session?.close()
@@ -771,6 +814,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        closeTools()
         session?.close()
     }
 }

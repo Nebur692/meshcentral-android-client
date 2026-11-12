@@ -33,9 +33,12 @@ class MeshSession private constructor(
     val server: ServerAddress,
     val trust: CertificateTrust,
     private val listener: Listener,
-    private val timeoutMs: Long,
+    internal val timeoutMs: Long,
 ) {
     private lateinit var socket: WebSocket
+
+    /** The client of this session (its pinned certificate), for tunnels. / El cliente de esta sesión (su certificado fijado), para los túneles. */
+    internal lateinit var http: OkHttpClient
 
     var serverInfo: ServerInfo = ServerInfo("", "", null)
         private set
@@ -60,6 +63,17 @@ class MeshSession private constructor(
 
     /** The groups last listed, for working out rights. / Los últimos grupos listados, para calcular permisos. */
     @Volatile internal var groups: Map<String, DeviceGroup> = emptyMap()
+
+    /** The two cookies a relay tunnel needs (browser side and agent side). / Las dos cookies de un túnel de relé (lado navegador y lado agente). */
+    internal class RelayCookies(val cookie: String, val relayCookie: String)
+
+    internal suspend fun relayCookies(): RelayCookies {
+        val reply = request(buildJsonObject { put("action", "authcookie") }, { it.str("action") == "authcookie" },
+            "conexion/abrir-detalle/tiempo-agotado", "conexion/abrir-detalle/conexion-cortada")
+        val c = reply.str("cookie"); val r = reply.str("rcookie")
+        if (c == null || r == null) throw unexpected("conexion/abrir-detalle/respuesta-ilegible", "authcookie")
+        return RelayCookies(c, r)
+    }
 
     /** Sends without waiting for an answer (for requests the server never answers). / Manda sin esperar respuesta. */
     internal fun send(message: JsonObject, lostKey: String) {
@@ -266,6 +280,7 @@ class MeshSession private constructor(
             val serverInfo = listener.waitFor { it.str("action") == "serverinfo" || it.str("action") == "close" }
             val userInfo = listener.waitFor { it.str("action") == "userinfo" || it.str("action") == "close" }
             val session = MeshSession(server, trust, listener, timeoutMs)
+            session.http = client
             val request = authenticate(Request.Builder().url(server.controlUrl).header("User-Agent", userAgent)).build()
             session.socket = client.newWebSocket(request, listener)
             try {

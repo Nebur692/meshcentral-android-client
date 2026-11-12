@@ -234,6 +234,7 @@
     <string name="biometric_unavailable">Ahora no se ha podido usar la huella. Entra con tu contraseña.</string>
     <string name="biometric_on">Entrada con huella activada.</string>
     <string name="err_not_allowed">Esta cuenta no tiene permiso para eso en este equipo.</string>
+    <string name="err_not_found">Eso ya no está en el equipo (se movió o se borró) o no se puede leer.</string>
     <string name="err_device_offline">El agente del equipo no está conectado.</string>
     <plurals name="show_all_events">
         <item quantity="one">Ver %1$d evento</item>
@@ -245,4 +246,61 @@
         <item quantity="many">Se guarda una entrada de %1$d días cifrada en este móvil, que solo se abre con tu huella o tu cara. La puedes quitar cuando quieras en Cuenta.</item>
         <item quantity="other">Se guarda una entrada de %1$d días cifrada en este móvil, que solo se abre con tu huella o tu cara. La puedes quitar cuando quieras en Cuenta.</item>
     </plurals>
+    <!-- Terminal and files (phase 2) / Terminal y ficheros (fase 2) -->
+    <string name="term_choose">Abrir una terminal</string>
+    <string name="term_cmd">Símbolo del sistema (cmd)</string>
+    <string name="term_powershell">PowerShell</string>
+    <string name="term_shell">Terminal (como el agente: root)</string>
+    <string name="term_user_shell">Terminal del usuario</string>
+    <string name="term_user_shell_hint">La shell de quien tiene la sesión abierta en el equipo; necesita que haya alguien.</string>
+    <string name="term_connecting">Conectando…</string>
+    <string name="term_closed">La terminal se ha cerrado.</string>
+    <string name="term_closed_by_device">El equipo o el servidor ha cerrado esta terminal.</string>
+    <string name="term_webview_old">La terminal necesita un «WebView del sistema Android» más nuevo. Actualízalo desde Google Play y vuelve a abrir la terminal.</string>
+    <string name="term_webview_update">Actualizar en Google Play</string>
+    <string name="term_again">Abrir otra vez</string>
+    <string name="term_recorded">El servidor está grabando esta sesión.</string>
+    <string name="term_select">Seleccionar texto</string>
+    <string name="term_paste">Pegar</string>
+    <plurals name="term_paste_lines">
+        <item quantity="one">¿Pegar %1$d línea?</item>
+        <item quantity="many">¿Pegar %1$d líneas?</item>
+        <item quantity="other">¿Pegar %1$d líneas?</item>
+    </plurals>
+    <string name="term_paste_lines_text">Cada línea se ejecutará como una orden en el equipo en cuanto llegue.</string>
+    <string name="term_paste_empty">El portapapeles no tiene texto.</string>
+    <string name="term_copy_all">Copiar todo</string>
+    <plurals name="term_copied">
+        <item quantity="one">Copiado (%1$d carácter).</item>
+        <item quantity="many">Copiado (%1$d caracteres).</item>
+        <item quantity="other">Copiado (%1$d caracteres).</item>
+    </plurals>
+    <string name="term_select_hint">Mantén pulsada una palabra para empezar a seleccionar y arrastra los tiradores.</string>
+    <string name="key_up">Arriba</string>
+    <string name="key_down">Abajo</string>
+    <string name="key_left">Izquierda</string>
+    <string name="key_right">Derecha</string>
+    <string name="files_drives">Unidades</string>
+    <string name="files_up">Subir de nivel</string>
+    <string name="files_refresh">Recargar</string>
+    <string name="files_empty">Esta carpeta está vacía.</string>
+    <string name="files_upload">Subir…</string>
+    <string name="files_download">Bajar…</string>
+    <string name="files_rename">Renombrar</string>
+    <string name="files_delete">Borrar</string>
+    <string name="files_new_folder">Nueva carpeta</string>
+    <string name="files_folder_name">Nombre de la carpeta nueva</string>
+    <string name="files_new_name">Nombre nuevo</string>
+    <string name="files_bad_name">Un nombre no puede estar vacío ni llevar / ni \\.</string>
+    <string name="files_ok">Aceptar</string>
+    <string name="files_delete_file_ask">¿Borrar %1$s del equipo? No se puede deshacer.</string>
+    <string name="files_delete_folder_ask">¿Borrar la carpeta %1$s y todo lo que tiene dentro del equipo? No se puede deshacer.</string>
+    <string name="files_uploading">Subiendo %1$s…</string>
+    <string name="files_downloading">Bajando %1$s…</string>
+    <string name="files_folder_created">Carpeta creada.</string>
+    <string name="files_renamed">Renombrado.</string>
+    <string name="files_deleted">Borrado.</string>
+    <string name="files_uploaded">Subido.</string>
+    <string name="files_downloaded">Bajado.</string>
+    <string name="files_failed">No se ha podido hacer.</string>
 </resources>
