@@ -15,7 +15,7 @@ and per-app language on 13, predictive back on 14), in the brand's own colours, 
 | 2 | **Terminal** (shell, cmd, PowerShell) with the keys a phone lacks, and **files** (browse, upload, download with progress) | **done** (0.4.0) |
 | 3 | **Remote desktop** by touch: direct touch or touchpad, keyboard, Ctrl+Alt+Del, clipboard (text) | **done** (0.5.0; clipboard 0.6.0) |
 | 4 | **Device actions** (wake, sleep, restart, power off, message, run commands, edit, uninstall, remove), **single sign-on**, notifications from the server | **done** (0.3.0; notifications 0.6.0) |
-| 5 | Groups, users, server events, port mapping and SSH | groups, users and events **done** (0.7.0); ports and SSH next |
+| 5 | Groups, users, server events, port mapping and SSH | **done** (0.7.0 administration, 0.8.0 port mapping and SSH) |
 | 6 | Google Play: signing, store listing, closed test, then production | **in closed test** |
 
 ## Español
@@ -31,5 +31,5 @@ temático e idioma por app en la 13, «Atrás» predictivo en la 14), con los co
 | 2 | **Terminal** (shell, cmd, PowerShell) con las teclas que no tiene el móvil, y **ficheros** (explorar, subir, bajar con progreso) | **hecha** (0.4.0) |
 | 3 | **Escritorio remoto** táctil: tocar donde apunto o touchpad, teclado, Ctrl+Alt+Supr, portapapeles (texto) | **hecha** (0.5.0; portapapeles 0.6.0) |
 | 4 | **Acciones sobre el equipo** (despertar, suspender, reiniciar, apagar, mensaje, ejecutar órdenes, editar, desinstalar, borrar), **inicio de sesión único**, avisos del servidor | **hecha** (0.3.0; avisos 0.6.0) |
-| 5 | Grupos, usuarios, sucesos del servidor, redirección de puertos y SSH | grupos, usuarios y sucesos **hechos** (0.7.0); puertos y SSH, lo siguiente |
+| 5 | Grupos, usuarios, sucesos del servidor, redirección de puertos y SSH | **hecha** (0.7.0 administración, 0.8.0 redirección de puertos y SSH) |
 | 6 | Google Play: firma, ficha, prueba cerrada y después producción | **en prueba cerrada** |

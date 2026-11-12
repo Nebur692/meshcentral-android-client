@@ -15,6 +15,10 @@ dependencies {
     api(libs.coroutines.core)
     api(libs.serialization.json)
     implementation(libs.okhttp)
+    // SSH to a device through its agent; Bouncy Castle for ed25519 and curve25519, which Android lacks in part.
+    // SSH a un equipo por su agente; Bouncy Castle para ed25519 y curve25519, que Android no trae entero.
+    implementation(libs.jsch)
+    implementation(libs.bouncycastle)
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)
 }

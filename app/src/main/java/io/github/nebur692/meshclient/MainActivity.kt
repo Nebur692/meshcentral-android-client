@@ -91,6 +91,7 @@ class MainActivity : ComponentActivity() {
                         Screen.Devices -> DevicesScreen(vm)
                         Screen.Account -> AccountScreen(vm)
                         is Screen.Admin -> io.github.nebur692.meshclient.ui.AdminScreen(vm, s.page, s.id)
+                        Screen.Ports -> io.github.nebur692.meshclient.ui.PortsScreen(vm)
                         is Screen.DeviceDetail -> DeviceScreen(vm, s.id)
                         is Screen.Terminal -> TerminalScreen(vm)
                         is Screen.Files -> FilesScreen(vm)
@@ -108,6 +109,7 @@ class MainActivity : ComponentActivity() {
                         ) notifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                     }
                     vm.biometricOffer?.let { BiometricOfferSheet(it, vm::answerBiometricOffer) }
+                    vm.hostKeyPrompt?.let { io.github.nebur692.meshclient.ui.HostKeyDialog(it, vm::answerHostKey) }
                     vm.serverNotice?.let { n ->
                         AlertDialog(
                             onDismissRequest = { vm.serverNotice = null },

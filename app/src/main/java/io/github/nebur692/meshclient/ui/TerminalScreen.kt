@@ -131,7 +131,7 @@ fun TerminalScreen(vm: AppViewModel) {
                     title = {
                         Column {
                             Text(t.title ?: t.device.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(stringResource(terminalName(t.kind, t.device.isWindows)), style = MaterialTheme.typography.bodySmall,
+                            Text(t.label, style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                         }
                     },
@@ -149,7 +149,7 @@ fun TerminalScreen(vm: AppViewModel) {
                 )
                 if (webViewReady) when (val s = t.state) {
                     TerminalState.Connecting -> { LinearProgressIndicator(Modifier.fillMaxWidth()); Notice(stringResource(R.string.term_connecting)) }
-                    is TerminalState.Closed -> ClosedBar(s.error, onAgain = { vm.openTerminal(t.device.id, t.kind) })
+                    is TerminalState.Closed -> ClosedBar(s.error, onAgain = t.again)
                     TerminalState.Open -> if (t.recorded) Notice(stringResource(R.string.term_recorded)) else HorizontalDivider()
                 }
             }

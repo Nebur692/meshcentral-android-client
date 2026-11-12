@@ -16,7 +16,7 @@ import io.github.nebur692.meshclient.core.RemoteEntry
 import io.github.nebur692.meshclient.core.RemoteEntryKind
 import io.github.nebur692.meshclient.core.RemotePaths
 import io.github.nebur692.meshclient.core.TerminalKeys
-import io.github.nebur692.meshclient.core.TerminalSession
+import io.github.nebur692.meshclient.core.TerminalConnection
 import io.github.nebur692.meshclient.core.TunnelProtocol
 import io.github.nebur692.meshclient.core.deviceClipboard
 import io.github.nebur692.meshclient.core.setDeviceClipboard
@@ -51,7 +51,16 @@ sealed interface TerminalState {
  * el Ctrl y el Alt de la barra, copiar y pegar están aquí. Lo que escribió el equipo se guarda (hasta [KEEP] bytes),
  * para que una página hecha de nuevo (se giró la pantalla, se volvió a la app) lo enseñe todo otra vez.
  */
-class TerminalModel(private val session: MeshSession, val device: Device, val kind: TunnelProtocol, private val scope: CoroutineScope) {
+class TerminalModel(
+    val device: Device,
+    /** What kind of terminal, for the title (cmd, PowerShell, SSH · user@host…). / Qué terminal, para el título. */
+    val label: String,
+    /** Opens it at the page's size: the agent's terminal or SSH. / La abre al tamaño de la página: la del agente o SSH. */
+    private val opener: suspend (cols: Int, rows: Int) -> TerminalConnection,
+    private val scope: CoroutineScope,
+    /** The same terminal again, after it ended. / La misma terminal otra vez, cuando acabó. */
+    val again: () -> Unit,
+) {
     var state by mutableStateOf<TerminalState>(TerminalState.Connecting)
         private set
     var title by mutableStateOf<String?>(null)
@@ -68,7 +77,7 @@ class TerminalModel(private val session: MeshSession, val device: Device, val ki
     /** Posts to the page; set by the screen while it has one. / Manda a la página; lo pone la pantalla mientras tiene una. */
     var toPage: ((String) -> Unit)? = null
 
-    private var term: TerminalSession? = null
+    private var term: TerminalConnection? = null
     private var reading: Job? = null
     private val kept = ByteArrayOutputStream()
 
@@ -94,7 +103,7 @@ class TerminalModel(private val session: MeshSession, val device: Device, val ki
         if (reading != null) return
         reading = scope.launch {
             try {
-                val opened = TerminalSession.open(session, device.id, kind, cols, rows)
+                val opened = opener(cols, rows)
                 term = opened
                 recorded = opened.isRecorded
                 state = TerminalState.Open

@@ -419,4 +419,48 @@
         <item quantity="many">%d personas</item>
         <item quantity="other">%d personas</item>
     </plurals>
+    <!-- SSH y redirección de puertos (fase 5) -->
+    <string name="act_ssh">SSH</string>
+    <string name="ssh_title">SSH…</string>
+    <string name="ssh_sheet_hint">A este equipo o a una máquina a la que llega, por su agente</string>
+    <string name="ssh_connect">Conectar</string>
+    <string name="ssh_host">Máquina</string>
+    <string name="ssh_host_this">Este equipo</string>
+    <string name="ssh_port">Puerto</string>
+    <string name="ssh_key">Usar una clave privada…</string>
+    <string name="ssh_key_chosen">Clave: %1$s</string>
+    <string name="ssh_passphrase">Frase de la clave</string>
+    <string name="ssh_hint">Va por el agente del equipo: la máquina no necesita ser accesible desde internet. La contraseña no se guarda.</string>
+    <string name="ssh_key_new_title">Servidor SSH nuevo</string>
+    <string name="ssh_key_new_text">Primera conexión a %1$s. Si puedes, comprueba que esta es su huella antes de fiarte:</string>
+    <string name="ssh_key_changed_title">La identidad del servidor SSH HA CAMBIADO</string>
+    <string name="ssh_key_changed_text">%1$s enseña ahora otra identidad. Puede que lo hayan reinstalado, o que alguien esté en medio. No sigas si no sabes por qué:</string>
+    <string name="ssh_key_before">Antes: %1$s</string>
+    <string name="ssh_key_trust">Fiarse y conectar</string>
+    <string name="ssh_key_trust_anyway">Fiarse de la nueva</string>
+    <string name="ports_title">Puertos redirigidos</string>
+    <string name="ports_new">Redirigir un puerto</string>
+    <string name="ports_new_hint">Llegar a un puerto del equipo desde apps de este móvil (RDP, VNC, navegador)</string>
+    <string name="ports_start">Empezar</string>
+    <string name="ports_remote">Puerto</string>
+    <string name="ports_local">Puerto en este móvil</string>
+    <string name="ports_local_any">Uno libre cualquiera</string>
+    <string name="ports_hint">Solo lo pueden usar las apps de este móvil (127.0.0.1). Sigue abierto, con un aviso, hasta que lo pares.</string>
+    <string name="ports_none">No hay puertos redirigidos.</string>
+    <string name="ports_on">En este móvil: %1$s</string>
+    <string name="ports_traffic">↓ %1$s · ↑ %2$s</string>
+    <string name="ports_failed">La última conexión falló:</string>
+    <string name="ports_open">Abrir</string>
+    <string name="ports_copy">Copiar dirección</string>
+    <string name="ports_stop">Parar</string>
+    <plurals name="ports_open">
+        <item quantity="one">%d puerto redirigido</item>
+        <item quantity="many">%d puertos redirigidos</item>
+        <item quantity="other">%d puertos redirigidos</item>
+    </plurals>
+    <plurals name="ports_connections">
+        <item quantity="one">%d conexión abierta</item>
+        <item quantity="many">%d conexiones abiertas</item>
+        <item quantity="other">%d conexiones abiertas</item>
+    </plurals>
 </resources>

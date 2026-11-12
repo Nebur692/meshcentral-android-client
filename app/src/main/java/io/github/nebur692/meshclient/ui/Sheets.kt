@@ -56,7 +56,7 @@ import io.github.nebur692.meshclient.core.TunnelProtocol
 /** A panel from the bottom, with the device's name on top. / Un panel desde abajo, con el nombre del equipo arriba. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Sheet(title: String, subtitle: String? = null, onDismiss: () -> Unit, buttons: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
+internal fun Sheet(title: String, subtitle: String? = null, onDismiss: () -> Unit, buttons: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.padding(bottom = 16.dp)) {
             // With the keyboard up the fields scroll and the buttons stay in sight above it.
@@ -93,6 +93,7 @@ fun MoreSheet(vm: AppViewModel, d: Device, onCopy: () -> Unit) {
     Sheet(d.name, null, { vm.sheet = null }) {
         if (can.edit) SheetOption(R.drawable.ic_edit, stringResource(R.string.edit_device), null) { vm.sheet = DeviceSheet.Edit }
         SheetOption(R.drawable.ic_copy, stringResource(R.string.copy_details), stringResource(R.string.copy_details_hint), onClick = onCopy)
+        if (vm.canRelay(d)) SheetOption(R.drawable.ic_globe, stringResource(R.string.ports_new), stringResource(R.string.ports_new_hint)) { vm.sheet = DeviceSheet.Port }
         if (vm.moveTargets(d).isNotEmpty()) SheetOption(R.drawable.ic_folder, stringResource(R.string.move_device), stringResource(R.string.move_device_hint)) { vm.sheet = DeviceSheet.Move }
         if (can.uninstall || can.remove) HorizontalDivider(Modifier.padding(vertical = 4.dp))
         if (can.uninstall) SheetOption(R.drawable.ic_uninstall, stringResource(R.string.uninstall), null, danger = true) { vm.sheet = DeviceSheet.ConfirmUninstall }
@@ -233,5 +234,12 @@ fun TerminalSheet(vm: AppViewModel, d: Device) {
                 modifier = Modifier.clickable { vm.openTerminal(d.id, kind) },
             )
         }
+        // SSH to this device or to a machine it reaches, through its agent. / SSH a este equipo o a una máquina a la que llega.
+        if (vm.canRelay(d)) ListItem(
+            headlineContent = { Text(stringResource(R.string.ssh_title)) },
+            supportingContent = { Text(stringResource(R.string.ssh_sheet_hint)) },
+            leadingContent = { Icon(painterResource(R.drawable.ic_lock), null) },
+            modifier = Modifier.clickable { vm.sheet = DeviceSheet.Ssh },
+        )
     }
 }

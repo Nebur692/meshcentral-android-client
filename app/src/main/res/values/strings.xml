@@ -411,4 +411,46 @@
         <item quantity="one">%d person</item>
         <item quantity="other">%d people</item>
     </plurals>
+    <!-- SSH and port mapping (phase 5) / SSH y redirección de puertos (fase 5) -->
+    <string name="act_ssh">SSH</string>
+    <string name="ssh_title">SSH…</string>
+    <string name="ssh_sheet_hint">To this device or a machine it reaches, through its agent</string>
+    <string name="ssh_connect">Connect</string>
+    <string name="ssh_host">Machine</string>
+    <string name="ssh_host_this">This device</string>
+    <string name="ssh_port">Port</string>
+    <string name="ssh_key">Use a private key…</string>
+    <string name="ssh_key_chosen">Key: %1$s</string>
+    <string name="ssh_passphrase">Key passphrase</string>
+    <string name="ssh_hint">It goes through the device\'s agent: the machine does not need to be reachable from the internet. The password is not kept.</string>
+    <string name="ssh_key_new_title">New SSH server</string>
+    <string name="ssh_key_new_text">First connection to %1$s. If you can, check that this is its fingerprint before trusting it:</string>
+    <string name="ssh_key_changed_title">The SSH server\'s identity CHANGED</string>
+    <string name="ssh_key_changed_text">%1$s now shows a different identity. It may have been reinstalled, or someone may be in the middle. Do not go on unless you know why:</string>
+    <string name="ssh_key_before">Before: %1$s</string>
+    <string name="ssh_key_trust">Trust and connect</string>
+    <string name="ssh_key_trust_anyway">Trust the new one</string>
+    <string name="ports_title">Port mappings</string>
+    <string name="ports_new">Map a port</string>
+    <string name="ports_new_hint">Reach a port of the device from apps on this phone (RDP, VNC, browser)</string>
+    <string name="ports_start">Start</string>
+    <string name="ports_remote">Port</string>
+    <string name="ports_local">Port on this phone</string>
+    <string name="ports_local_any">Any free one</string>
+    <string name="ports_hint">Only apps on this phone can use it (127.0.0.1). It stays open, with a notification, until you stop it.</string>
+    <string name="ports_none">No ports mapped.</string>
+    <string name="ports_on">On this phone: %1$s</string>
+    <string name="ports_traffic">↓ %1$s · ↑ %2$s</string>
+    <string name="ports_failed">The last connection failed:</string>
+    <string name="ports_open">Open</string>
+    <string name="ports_copy">Copy address</string>
+    <string name="ports_stop">Stop</string>
+    <plurals name="ports_open">
+        <item quantity="one">%d port mapped</item>
+        <item quantity="other">%d ports mapped</item>
+    </plurals>
+    <plurals name="ports_connections">
+        <item quantity="one">%d connection open</item>
+        <item quantity="other">%d connections open</item>
+    </plurals>
 </resources>

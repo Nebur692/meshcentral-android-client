@@ -17,6 +17,7 @@ import io.github.nebur692.meshclient.core.MeshClientException
 import io.github.nebur692.meshclient.core.MeshFailure
 import io.github.nebur692.meshclient.core.MeshSession
 import io.github.nebur692.meshclient.core.canMove
+import io.github.nebur692.meshclient.core.rightsOn
 import io.github.nebur692.meshclient.core.moveDevice
 import io.github.nebur692.meshclient.core.TunnelProtocol
 import io.github.nebur692.meshclient.core.PasswordCredentials
@@ -51,6 +52,8 @@ sealed interface Screen {
     data object Account : Screen
     /** The administration: a list, or one of its items. / La administración: una lista, o uno de sus elementos. */
     data class Admin(val page: AdminPage, val id: String? = null) : Screen
+    /** The port mappings open now. / Las redirecciones de puertos abiertas. */
+    data object Ports : Screen
     data class DeviceDetail(val id: String) : Screen
     data class Terminal(val id: String) : Screen
     data class Files(val id: String) : Screen
@@ -97,7 +100,7 @@ sealed interface BiometricRequest {
 enum class BiometricProblem { KeyChanged, Unavailable, Locked, Stale }
 
 /** A panel of the device's sheet. / Un panel de la ficha del equipo. */
-enum class DeviceSheet { Terminal, Power, More, Move, Message, Run, Edit, ConfirmRestart, ConfirmPowerOff, ConfirmUninstall, ConfirmRemove }
+enum class DeviceSheet { Terminal, Power, More, Move, Ssh, Port, Message, Run, Edit, ConfirmRestart, ConfirmPowerOff, ConfirmUninstall, ConfirmRemove }
 
 /** A short word after an action, or its failure. / Una palabra corta tras una acción, o su fallo. */
 data class Notice(val text: Int, val error: UiError? = null)
@@ -659,6 +662,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun abilities(d: Device): DeviceAbilities = session?.abilitiesOn(d) ?: DeviceAbilities.NONE
 
+    /** SSH and port mapping go through the agent with remote control rights. / SSH y puertos van por el agente con control remoto. */
+    fun canRelay(d: Device): Boolean = d.hasAgent && session?.rightsOn(d)?.let { io.github.nebur692.meshclient.core.MeshRights.has(it, io.github.nebur692.meshclient.core.MeshRights.REMOTE_CONTROL) } == true
+
     /** Runs one action, says it went well or why not. / Hace una acción y dice si fue bien o por qué no. */
     private fun act(ok: Int, block: suspend (MeshSession) -> Unit) {
         val s = session ?: return
@@ -835,7 +841,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val d = devices[id] ?: return
         terminal?.close()
         sheet = null
-        terminal = TerminalModel(s, d, kind, viewModelScope)
+        val app = getApplication<Application>()
+        terminal = TerminalModel(d, app.getString(io.github.nebur692.meshclient.ui.terminalName(kind, d.isWindows)), { c, r ->
+            io.github.nebur692.meshclient.core.TerminalSession.open(session ?: s, d.id, kind, c, r)
+        }, viewModelScope) { openTerminal(id, kind) }
         keep(d, R.string.act_terminal)
         screen = Screen.Terminal(id)
     }
@@ -862,10 +871,106 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         terminal?.close(); terminal = null
         files?.close(); files = null
         desktop?.close(); desktop = null
-        RemoteSessionService.stop(getApplication())
+        keepForMappings()
     }
 
-    private val toolOpen get() = terminal != null || files != null || desktop != null
+    private val toolOpen get() = terminal != null || files != null || desktop != null || mappings.isNotEmpty()
+
+    // ------------------------------------------------------------------ SSH
+
+    private val knownHosts = KnownHosts(app)
+    val sshPlaces = SshPlaces(app)
+
+    /** An SSH server's identity waiting for the person. / La identidad de un servidor SSH esperando a la persona. */
+    var hostKeyPrompt by mutableStateOf<HostKeyPrompt?>(null)
+        private set
+    private var hostKeyAnswer: kotlinx.coroutines.CompletableDeferred<Boolean>? = null
+
+    fun answerHostKey(yes: Boolean) {
+        hostKeyPrompt = null
+        hostKeyAnswer?.complete(yes)
+    }
+
+    /**
+     * Known and equal: yes. New or changed: the person decides (the SSH client waits on its own thread); a yes is kept.
+     * Conocida e igual: sí. Nueva o cambiada: decide la persona (el cliente SSH espera en su hilo); un sí se guarda.
+     */
+    private fun trustHostKey(serverKey: String, destination: String, k: io.github.nebur692.meshclient.core.SshHostKey): Boolean {
+        val before = knownHosts.get(serverKey)
+        if (before == KnownHosts.line(k)) return true
+        val answer = kotlinx.coroutines.CompletableDeferred<Boolean>()
+        hostKeyAnswer = answer
+        viewModelScope.launch { hostKeyPrompt = HostKeyPrompt(destination, k, before) }
+        val yes = kotlinx.coroutines.runBlocking { kotlinx.coroutines.withTimeoutOrNull(120_000) { answer.await() } } == true
+        if (yes) knownHosts.accept(serverKey, k)
+        return yes
+    }
+
+    /** An SSH terminal to the device, or to [host] seen from it. / Una terminal SSH al equipo, o a [host] visto desde él. */
+    fun openSsh(id: String, host: String, port: Int, user: String, password: String?, privateKey: ByteArray?, passphrase: String?) {
+        val s = session ?: return
+        val d = devices[id] ?: return
+        terminal?.close()
+        sheet = null
+        val h = host.trim().ifEmpty { null }
+        sshPlaces.put(id, SshPlace(h.orEmpty(), port, user.trim()))
+        val destination = "${user.trim()}@${h ?: d.name}:$port"
+        val serverKey = knownHosts.key(s.server.toString(), d.id, h, port)
+        val login = io.github.nebur692.meshclient.core.SshLogin(user.trim(), password, privateKey, passphrase)
+        terminal = TerminalModel(d, "SSH · $destination", { c, r ->
+            io.github.nebur692.meshclient.core.SshTerminal.open(session ?: s, d.id, d.name, h, port, login, { k -> trustHostKey(serverKey, destination, k) }, c, r)
+        }, viewModelScope) { openSsh(id, host, port, user, password, privateKey, passphrase) }
+        keep(d, R.string.act_ssh)
+        screen = Screen.Terminal(id)
+    }
+
+    /** A private key file the person picked, read here (it is small). / Un fichero de clave que eligió la persona. */
+    fun readKey(uri: android.net.Uri): ByteArray? = runCatching {
+        getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes().takeIf { b -> b.size < 64 * 1024 } }
+    }.getOrNull()
+
+    // ------------------------------------------------------------------ port mapping / redirección de puertos
+
+    /** The mappings open now; they live until closed or signing out. / Las redirecciones abiertas; viven hasta cerrarlas o salir. */
+    val mappings = androidx.compose.runtime.mutableStateListOf<MappingView>()
+
+    fun startMapping(id: String, remotePort: Int, host: String, localPort: Int): Boolean {
+        if (session == null) return false
+        val d = devices[id] ?: return false
+        return try {
+            val m = io.github.nebur692.meshclient.core.PortMapping.start({ session },
+                io.github.nebur692.meshclient.core.PortTarget(d.id, d.name, remotePort, host.trim().ifEmpty { null }, localPort))
+            mappings += MappingView(m, viewModelScope)
+            keepForMappings()
+            if (!notificationsAsked) { notificationsAsked = true; askNotifications = true }
+            true
+        } catch (e: MeshClientException) {
+            notice = Notice(R.string.action_failed, UiError(e.failure, e.key, e.httpStatus))
+            false
+        }
+    }
+
+    fun stopMapping(m: MappingView) {
+        m.close()
+        mappings.remove(m)
+        keepForMappings()
+    }
+
+    private fun closeMappings() {
+        mappings.forEach { it.close() }
+        mappings.clear()
+    }
+
+    /** With mappings left, the notification says so; with nothing open, it goes. / Con redirecciones, el aviso lo dice. */
+    private fun keepForMappings() {
+        val app = getApplication<Application>()
+        when {
+            terminal != null || files != null || desktop != null -> Unit
+            mappings.isEmpty() -> RemoteSessionService.stop(app)
+            else -> RemoteSessionService.start(app, mappings.joinToString { it.mapping.target.destination },
+                app.resources.getQuantityString(R.plurals.ports_open, mappings.size, mappings.size))
+        }
+    }
 
     /** Wants the notification permission once, the first time a tool opens. / Quiere el permiso de avisos al abrir una. */
     var askNotifications by mutableStateOf(false)
@@ -910,13 +1015,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // "Disconnect" in the notification closes the tool, as the back arrow does. / «Desconectar» la cierra, como la flecha.
         viewModelScope.launch { RemoteSessionService.disconnectRequests.collect {
             if (!toolOpen) return@collect
-            leaveTool()
+            closeMappings()
+            if (terminal != null || files != null || desktop != null) leaveTool() else keepForMappings()
             // Out of sight, the connection then closes as usual. / Fuera de la vista, la conexión se cierra como siempre.
             if (!visible) onBackground()
         } }
     }
 
     fun signOut() {
+        closeMappings()
         closeTools()
         admin = null
         watching?.cancel()
@@ -943,6 +1050,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        closeMappings()
         runCatching { getApplication<Application>().getSystemService(android.net.ConnectivityManager::class.java).unregisterNetworkCallback(networks) }
         closeTools()
         session?.close()

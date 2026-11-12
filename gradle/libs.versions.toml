@@ -11,6 +11,8 @@ webkit = "1.18.0"
 coroutines = "1.11.0"
 serialization = "1.13.0"
 okhttp = "5.5.1"
+jsch = "2.28.8"
+bouncycastle = "1.87"
 lifecycle = "2.11.0"
 junit = "4.13.2"
 
@@ -18,6 +20,8 @@ junit = "4.13.2"
 # The protocol core, an included build (core/): no version. / El núcleo de protocolo, una compilación incluida: sin versión.
 meshclient-core = { group = "io.github.nebur692.meshclient", name = "core" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+jsch = { group = "com.github.mwiede", name = "jsch", version.ref = "jsch" }
+bouncycastle = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "bouncycastle" }
 serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
 coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }

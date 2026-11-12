@@ -42,6 +42,7 @@ import io.github.nebur692.meshclient.AdminPage
 import io.github.nebur692.meshclient.core.canManageUserGroups
 import io.github.nebur692.meshclient.core.canManageUsers
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -95,6 +96,10 @@ fun AccountScreen(vm: AppViewModel) {
 
             // The administration, as far as this account's rights go. / La administración, hasta donde llegan sus permisos.
             val manageUsers = s.canManageUsers
+            if (vm.mappings.isNotEmpty()) {
+                Heading(R.string.ports_title)
+                Item(R.drawable.ic_globe, stringResource(R.string.ports_title), pluralStringResource(R.plurals.ports_open, vm.mappings.size, vm.mappings.size)) { vm.show(Screen.Ports) }
+            }
             Heading(R.string.admin)
             Item(R.drawable.ic_info, stringResource(R.string.admin_events), stringResource(R.string.admin_events_hint)) { vm.show(Screen.Admin(AdminPage.Events)) }
             Item(R.drawable.ic_folder, stringResource(R.string.admin_groups), stringResource(R.string.admin_groups_hint)) { vm.show(Screen.Admin(AdminPage.Groups)) }

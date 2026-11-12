@@ -12,9 +12,9 @@ import kotlinx.serialization.json.put
  * Una terminal (shell, cmd o PowerShell) en un equipo por un túnel de relé, como la abre la app de Windows: la salida
  * xterm en bytes, lo que escribe la persona en UTF-8 y el tamaño en columnas y filas.
  */
-class TerminalSession private constructor(val tunnel: MeshTunnel) {
+class TerminalSession private constructor(val tunnel: MeshTunnel) : TerminalConnection {
 
-    val isRecorded: Boolean get() = tunnel.isRecorded
+    override val isRecorded: Boolean get() = tunnel.isRecorded
 
     /**
      * What the device prints, in order; it ends with the reason as its error (none if [close] was called). Some agents
@@ -22,7 +22,7 @@ class TerminalSession private constructor(val tunnel: MeshTunnel) {
      * Lo que escribe el equipo, en orden; acaba con el motivo como error (ninguno si se llamó a [close]). Algunos
      * agentes mandan el aviso como texto: el mismo UTF-8 para la pantalla. Lo lee un solo colector a la vez; dejar de leer no cierra nada.
      */
-    val output: Flow<ByteArray> = tunnel.frames.receiveAsFlow().mapNotNull {
+    override val output: Flow<ByteArray> = tunnel.frames.receiveAsFlow().mapNotNull {
         when (it) {
             is TunnelFrame.Binary -> it.bytes
             is TunnelFrame.Text -> it.text.toByteArray(Charsets.UTF_8)
@@ -36,11 +36,11 @@ class TerminalSession private constructor(val tunnel: MeshTunnel) {
     }
 
     /** What the person types. / Lo que escribe la persona. */
-    fun write(text: String) = tunnel.send(text.toByteArray(Charsets.UTF_8), LOST)
+    override fun write(text: String) = tunnel.send(text.toByteArray(Charsets.UTF_8), LOST)
 
-    fun resize(cols: Int, rows: Int) = tunnel.sendControl(buildJsonObject { put("type", "termsize"); put("cols", cols); put("rows", rows) }, LOST)
+    override fun resize(cols: Int, rows: Int) = tunnel.sendControl(buildJsonObject { put("type", "termsize"); put("cols", cols); put("rows", rows) }, LOST)
 
-    fun close() = tunnel.close()
+    override fun close() = tunnel.close()
 
     companion object {
         private const val LOST = "tunel/ver-pantalla/conexion-cortada"
