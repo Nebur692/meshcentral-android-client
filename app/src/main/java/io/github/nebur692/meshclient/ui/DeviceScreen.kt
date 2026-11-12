@@ -470,6 +470,7 @@ private fun DeviceSheets(vm: AppViewModel, d: Device, details: DeviceDetails?, c
         DeviceSheet.Message -> MessageSheet(vm, d)
         DeviceSheet.Run -> RunSheet(vm, d)
         DeviceSheet.Edit -> EditSheet(vm, d)
+        DeviceSheet.Move -> MoveSheet(vm, d)
         DeviceSheet.ConfirmRestart -> Confirm(vm, R.string.confirm_restart_title, if (d.users.isEmpty()) R.string.confirm_restart_text else R.string.confirm_restart_users,
             whoOrName(d), R.string.restart) { vm.power(d, io.github.nebur692.meshclient.core.PowerAction.Restart) }
         DeviceSheet.ConfirmPowerOff -> Confirm(vm, R.string.confirm_off_title, if (d.users.isEmpty()) R.string.confirm_off_text else R.string.confirm_off_users,

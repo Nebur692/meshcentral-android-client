@@ -38,6 +38,13 @@ import io.github.nebur692.meshclient.AppViewModel
 import io.github.nebur692.meshclient.BuildConfig
 import io.github.nebur692.meshclient.R
 import io.github.nebur692.meshclient.Screen
+import io.github.nebur692.meshclient.AdminPage
+import io.github.nebur692.meshclient.core.canManageUserGroups
+import io.github.nebur692.meshclient.core.canManageUsers
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import io.github.nebur692.meshclient.core.CertificateTrust
 
 private const val PRIVACY_URL = "https://nebur692.github.io/meshcentral-android-client/PRIVACY.html"
@@ -85,6 +92,22 @@ fun AccountScreen(vm: AppViewModel) {
             val pinned = s.trust.pinnedSha256
             Item(R.drawable.ic_shield, stringResource(if (pinned != null) R.string.account_certificate else R.string.account_certificate_server),
                 pinned?.let(CertificateTrust::display) ?: stringResource(R.string.account_certificate_system))
+
+            // The administration, as far as this account's rights go. / La administración, hasta donde llegan sus permisos.
+            val manageUsers = s.canManageUsers
+            Heading(R.string.admin)
+            Item(R.drawable.ic_info, stringResource(R.string.admin_events), stringResource(R.string.admin_events_hint)) { vm.show(Screen.Admin(AdminPage.Events)) }
+            Item(R.drawable.ic_folder, stringResource(R.string.admin_groups), stringResource(R.string.admin_groups_hint)) { vm.show(Screen.Admin(AdminPage.Groups)) }
+            if (manageUsers) Item(R.drawable.ic_person, stringResource(R.string.admin_users), stringResource(R.string.admin_users_hint)) { vm.show(Screen.Admin(AdminPage.Users)) }
+            if (s.canManageUserGroups) Item(R.drawable.ic_person, stringResource(R.string.admin_user_groups), stringResource(R.string.admin_user_groups_hint)) { vm.show(Screen.Admin(AdminPage.UserGroups)) }
+            if (manageUsers) {
+                var notifying by remember { mutableStateOf(false) }
+                Item(R.drawable.ic_chat, stringResource(R.string.admin_notify), stringResource(R.string.admin_notify_hint)) {
+                    vm.openAdminModel()
+                    notifying = true
+                }
+                if (notifying) NotifyDialog({ notifying = false }) { vm.admin?.notifyEveryone(it); notifying = false }
+            }
 
             Heading(R.string.about)
             Item(R.drawable.ic_lock, stringResource(R.string.privacy), null) { uri.openUri(PRIVACY_URL) }

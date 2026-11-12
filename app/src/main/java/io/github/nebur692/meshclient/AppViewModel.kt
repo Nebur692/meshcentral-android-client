@@ -16,6 +16,8 @@ import io.github.nebur692.meshclient.core.DeviceDetails
 import io.github.nebur692.meshclient.core.MeshClientException
 import io.github.nebur692.meshclient.core.MeshFailure
 import io.github.nebur692.meshclient.core.MeshSession
+import io.github.nebur692.meshclient.core.canMove
+import io.github.nebur692.meshclient.core.moveDevice
 import io.github.nebur692.meshclient.core.TunnelProtocol
 import io.github.nebur692.meshclient.core.PasswordCredentials
 import io.github.nebur692.meshclient.core.PowerAction
@@ -47,6 +49,8 @@ sealed interface Screen {
     data object Login : Screen
     data object Devices : Screen
     data object Account : Screen
+    /** The administration: a list, or one of its items. / La administración: una lista, o uno de sus elementos. */
+    data class Admin(val page: AdminPage, val id: String? = null) : Screen
     data class DeviceDetail(val id: String) : Screen
     data class Terminal(val id: String) : Screen
     data class Files(val id: String) : Screen
@@ -93,7 +97,7 @@ sealed interface BiometricRequest {
 enum class BiometricProblem { KeyChanged, Unavailable, Locked, Stale }
 
 /** A panel of the device's sheet. / Un panel de la ficha del equipo. */
-enum class DeviceSheet { Terminal, Power, More, Message, Run, Edit, ConfirmRestart, ConfirmPowerOff, ConfirmUninstall, ConfirmRemove }
+enum class DeviceSheet { Terminal, Power, More, Move, Message, Run, Edit, ConfirmRestart, ConfirmPowerOff, ConfirmUninstall, ConfirmRemove }
 
 /** A short word after an action, or its failure. / Una palabra corta tras una acción, o su fallo. */
 data class Notice(val text: Int, val error: UiError? = null)
@@ -786,7 +790,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (session != null) reconnect()
     }
 
-    fun show(target: Screen) { screen = target; if (target !is Screen.DeviceDetail) sheet = null }
+    fun show(target: Screen) {
+        if (target is Screen.Admin && admin == null) admin = AdminModel({ session }, viewModelScope)
+        if (target is Screen.Admin && target.page == AdminPage.Groups && target.id == null) admin?.inviteLink = null
+        screen = target
+        if (target !is Screen.DeviceDetail) sheet = null
+    }
+
+    fun openAdminModel() { if (admin == null) admin = AdminModel({ session }, viewModelScope) }
+
+    /** The administration, made the first time it opens. / La administración, creada la primera vez que se abre. */
+    var admin by mutableStateOf<AdminModel?>(null)
+        private set
+
+    /** The groups this device can move into. / Los grupos a los que se puede mover este equipo. */
+    fun moveTargets(d: Device): List<io.github.nebur692.meshclient.core.DeviceGroup> {
+        val s = session ?: return emptyList()
+        return s.knownGroups.filter { s.canMove(d, it) }.sortedBy { it.name.lowercase() }
+    }
+
+    fun moveDevice(d: Device, target: io.github.nebur692.meshclient.core.DeviceGroup) = act(R.string.done_moved) { it.moveDevice(d, target) }
 
     // ------------------------------------------------------------------ terminal and files / terminal y ficheros
 
@@ -895,6 +918,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun signOut() {
         closeTools()
+        admin = null
         watching?.cancel()
         detailsJob?.cancel()
         session?.close()

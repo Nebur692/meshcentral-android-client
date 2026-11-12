@@ -90,6 +90,7 @@ class MainActivity : ComponentActivity() {
                         Screen.Login -> LoginScreen(vm)
                         Screen.Devices -> DevicesScreen(vm)
                         Screen.Account -> AccountScreen(vm)
+                        is Screen.Admin -> io.github.nebur692.meshclient.ui.AdminScreen(vm, s.page, s.id)
                         is Screen.DeviceDetail -> DeviceScreen(vm, s.id)
                         is Screen.Terminal -> TerminalScreen(vm)
                         is Screen.Files -> FilesScreen(vm)

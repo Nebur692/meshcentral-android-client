@@ -20,12 +20,24 @@ data class ServerInfo(val name: String, val domain: String, val version: String?
 data class UserInfo(
     val id: String, val name: String, val siteRights: Long,
     val links: Map<String, Long> = emptyMap(), val removeRights: Long? = null,
+    val email: String? = null, val realName: String? = null,
+    /** Seconds since 1970, as the server keeps them. / Segundos desde 1970, como los guarda el servidor. */
+    val createdSec: Long? = null, val lastLoginSec: Long? = null,
+    /** It must choose a new password at its next sign-in. / Tiene que poner contraseña nueva al entrar. */
+    val mustChangePassword: Boolean = false,
+    /** Some second factor is on (the server sends a mark, never the secret). / Tiene algún doble factor (el servidor manda una marca). */
+    val hasTwoFactor: Boolean = false,
 ) {
     val isFullAdministrator: Boolean get() = siteRights == 0xFFFFFFFFL
+    /** It cannot sign in (siteadmin bit 32). / No puede entrar (bit 32 de siteadmin). */
+    val isLocked: Boolean get() = !isFullAdministrator && siteRights and SiteRights.LOCKED != 0L
 
     internal companion object {
         fun from(o: JsonObject) = UserInfo(o.str("_id").orEmpty(), o.str("name") ?: o.str("_id").orEmpty(), o.long("siteadmin") ?: 0,
-            links(o), o.long("removeRights"))
+            links(o), o.long("removeRights"),
+            o.str("email"), o.str("realname"), o.long("creation")?.takeIf { it > 0 }, o.long("login")?.takeIf { it > 0 },
+            o.long("passchange") == -1L,
+            listOf("otpsecret", "otpkeys", "otphkeys", "otpekey", "otpduo", "otpdev").any { (o.long(it) ?: 0) > 0 })
     }
 }
 

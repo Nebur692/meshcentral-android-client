@@ -67,6 +67,9 @@ class MeshSession private constructor(
     /** The groups last listed, for working out rights. / Los últimos grupos listados, para calcular permisos. */
     @Volatile internal var groups: Map<String, DeviceGroup> = emptyMap()
 
+    /** The device groups last listed. / Los grupos de equipos listados la última vez. */
+    val knownGroups: Collection<DeviceGroup> get() = groups.values
+
     /** The two cookies a relay tunnel needs (browser side and agent side). / Las dos cookies de un túnel de relé (lado navegador y lado agente). */
     internal class RelayCookies(val cookie: String, val relayCookie: String)
 

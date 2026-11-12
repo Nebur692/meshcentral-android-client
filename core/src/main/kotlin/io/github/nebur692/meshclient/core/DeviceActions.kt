@@ -77,7 +77,7 @@ suspend fun MeshSession.events(nodeId: String, limit: Int = 50): List<DeviceEven
     }.orEmpty()
 }
 
-private fun parseTime(t: String): Long? = try { java.time.Instant.parse(t).toEpochMilli() } catch (_: java.time.format.DateTimeParseException) { null }
+internal fun parseTime(t: String): Long? = try { java.time.Instant.parse(t).toEpochMilli() } catch (_: java.time.format.DateTimeParseException) { null }
 
 /**
  * Everything for the sheet at once; a part that fails or that this account may not see is left out, never the whole.

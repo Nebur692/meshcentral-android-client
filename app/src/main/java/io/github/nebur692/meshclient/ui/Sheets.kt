@@ -93,9 +93,18 @@ fun MoreSheet(vm: AppViewModel, d: Device, onCopy: () -> Unit) {
     Sheet(d.name, null, { vm.sheet = null }) {
         if (can.edit) SheetOption(R.drawable.ic_edit, stringResource(R.string.edit_device), null) { vm.sheet = DeviceSheet.Edit }
         SheetOption(R.drawable.ic_copy, stringResource(R.string.copy_details), stringResource(R.string.copy_details_hint), onClick = onCopy)
+        if (vm.moveTargets(d).isNotEmpty()) SheetOption(R.drawable.ic_folder, stringResource(R.string.move_device), stringResource(R.string.move_device_hint)) { vm.sheet = DeviceSheet.Move }
         if (can.uninstall || can.remove) HorizontalDivider(Modifier.padding(vertical = 4.dp))
         if (can.uninstall) SheetOption(R.drawable.ic_uninstall, stringResource(R.string.uninstall), null, danger = true) { vm.sheet = DeviceSheet.ConfirmUninstall }
         if (can.remove) SheetOption(R.drawable.ic_trash, stringResource(R.string.remove), null, danger = true) { vm.sheet = DeviceSheet.ConfirmRemove }
+    }
+}
+
+/** Another device group of the same kind, where this account may move it. / Otro grupo del mismo tipo donde puede moverlo. */
+@Composable
+fun MoveSheet(vm: AppViewModel, d: Device) {
+    Sheet(stringResource(R.string.move_device), d.name, { vm.sheet = null }) {
+        vm.moveTargets(d).forEach { g -> SheetOption(R.drawable.ic_folder, g.name, g.description, enabled = !vm.actionBusy) { vm.moveDevice(d, g) } }
     }
 }
 
