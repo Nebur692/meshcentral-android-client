@@ -93,5 +93,7 @@
     else if (m.t === 'focus') term.focus();
     else if (m.t === 'text-request') send({ t: 'text', text: allText() });
   };
+  // Keys from a hardware keyboard go to the terminal from the start. / Las teclas de un teclado físico van a la terminal desde el principio.
+  term.focus();
   send({ t: 'ready', cols: term.cols, rows: term.rows });
 })();

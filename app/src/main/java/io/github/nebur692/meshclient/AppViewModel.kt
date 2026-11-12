@@ -173,6 +173,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var backgroundJob: Job? = null
     private var paused = false
     private var visible = true
+    private var visibleSince = 0L
 
     // Every property above this line: init runs in order, and pick() already uses them (a crash on the POCO with a
     // saved server). / Todas las propiedades por encima: init corre en orden y pick() ya las usa (se cerraba en el POCO).
@@ -482,6 +483,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         const val REMEMBER_DAYS = 90
         // Long enough for switching apps for a moment. / Lo bastante para cambiar de app un momento.
         const val BACKGROUND_GRACE_MS = 60_000L
+        /** A drop this soon after coming back is the frozen app's. / Un corte tan pronto al volver es de la app congelada. */
+        const val JUST_BACK_MS = 10_000L
     }
 
     fun acceptCertificate() {
@@ -573,7 +576,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         s.devices().forEach { devices[it.id] = it }
         watching = viewModelScope.launch {
             launch { s.deviceChanges.collect(::apply) }
-            launch { s.closedReason.filterNotNull().collect { lost = true } }
+            launch { s.closedReason.filterNotNull().collect { dropped() } }
+        }
+    }
+
+    /**
+     * The connection dropped. Android freezes a hidden app within seconds: its pings go unanswered and, back on screen,
+     * the connection gives up on the one it missed. That is not a loss to show: out of sight, or just back, it reconnects
+     * quietly; only a drop while the person is using the app says so.
+     * Se cortó la conexión. Android congela una app oculta en segundos: sus pings se quedan sin contestar y, al volver,
+     * la conexión da por perdido el que faltó. Eso no es una pérdida que enseñar: fuera de la vista, o recién vuelta,
+     * se reconecta sin avisar; solo un corte mientras se usa la app lo dice.
+     */
+    private fun dropped() {
+        when {
+            !visible -> paused = true
+            android.os.SystemClock.elapsedRealtime() - visibleSince < JUST_BACK_MS -> reconnect()
+            else -> lost = true
         }
     }
 
@@ -747,6 +766,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Back on screen: a closed connection opens again, quietly. / De vuelta: la conexión cerrada se abre otra vez, sin avisar. */
     fun onForeground() {
         visible = true
+        visibleSince = android.os.SystemClock.elapsedRealtime()
         desktop?.onScreen(true)
         backgroundJob?.cancel()
         refreshBiometrics()

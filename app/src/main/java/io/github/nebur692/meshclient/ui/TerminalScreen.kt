@@ -326,6 +326,11 @@ private fun TerminalPage(t: TerminalModel, dark: Boolean, modifier: Modifier, on
                 // The page never goes anywhere else. / La página nunca va a otro sitio.
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = true
 
+                // The focus on the terminal, not on the back arrow: with a hardware keyboard, Space "pressed" the focused
+                // arrow and closed it. / El foco en la terminal y no en la flecha: con un teclado físico, el espacio
+                // «pulsaba» la flecha enfocada y la cerraba.
+                override fun onPageFinished(view: WebView, url: String) { view.requestFocus() }
+
                 // Its process died (out of memory, or killed): a new page instead of closing the app. / Murió su proceso: otra página en vez de cerrar la app.
                 override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
                     t.toPage = null
