@@ -1,5 +1,9 @@
 package io.github.nebur692.meshclient.core
 
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.put
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import kotlinx.coroutines.runBlocking
@@ -132,5 +136,27 @@ class SessionIntegrationTest {
         val o = h.last().toInt() and 0x0F
         val n = ((h[o].toInt() and 0x7F) shl 24) or ((h[o + 1].toInt() and 0xFF) shl 16) or ((h[o + 2].toInt() and 0xFF) shl 8) or (h[o + 3].toInt() and 0xFF)
         return "%06d".format(n % 1_000_000)
+    }
+
+    @Test fun `a notification another session broadcasts arrives as text`() = runBlocking {
+        need()
+        val me = MeshSession.connect(server, PasswordCredentials("admin", "Admin-Pass-1234"), CertificateTrust(cert))
+        val other = MeshSession.connect(server, PasswordCredentials("admin", "Admin-Pass-1234"), CertificateTrust(cert))
+        try {
+            val got = kotlinx.coroutines.CompletableDeferred<ServerNotification>()
+            val watch = launch(kotlinx.coroutines.Dispatchers.IO) { me.notifications.collect { got.complete(it) } }
+            delay(300)
+            // What the website's "Notify" and the Windows app send. / Lo que mandan el «Notificar» de la web y la app de Windows.
+            val id = MeshSession.newId()
+            val r = other.request(kotlinx.serialization.json.buildJsonObject {
+                put("action", "userbroadcast"); put("msg", "Hola desde la otra sesión"); put("responseid", id)
+            }, { it.str("responseid") == id }, "t", "l")
+            assertEquals("ok", r.str("result"))
+            val n = withTimeout(15_000) { got.await() }
+            assertEquals("Hola desde la otra sesión", n.text)
+            watch.cancel()
+        } finally {
+            me.close(); other.close()
+        }
     }
 }

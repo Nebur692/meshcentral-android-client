@@ -107,6 +107,14 @@ class MainActivity : ComponentActivity() {
                         ) notifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                     }
                     vm.biometricOffer?.let { BiometricOfferSheet(it, vm::answerBiometricOffer) }
+                    vm.serverNotice?.let { n ->
+                        AlertDialog(
+                            onDismissRequest = { vm.serverNotice = null },
+                            title = { Text(stringResource(R.string.notice_from, n.title.ifBlank { stringResource(R.string.notice_server) })) },
+                            text = { Text(n.text) },
+                            confirmButton = { TextButton(onClick = { vm.serverNotice = null }) { Text(stringResource(R.string.close)) } },
+                        )
+                    }
                     vm.biometricProblem?.let { p ->
                         AlertDialog(
                             onDismissRequest = { vm.biometricProblem = null },

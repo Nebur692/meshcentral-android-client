@@ -162,6 +162,9 @@ sealed interface DeviceChange {
 
 /** A MeshCentral login token: [tokenPass] only right after creating it. [expire] in ms since 1970, 0 = never.
  *  Un token de entrada de MeshCentral: [tokenPass] solo al crearlo. [expire] en ms desde 1970, 0 = nunca. */
+/** A notification the server sends this person (another person, or the server). / Un aviso que el servidor manda a esta persona. */
+data class ServerNotification(val title: String, val text: String)
+
 data class LoginToken(val name: String, val tokenUser: String, val tokenPass: String?, val created: Long, val expire: Long) {
     internal companion object {
         fun from(o: JsonObject): LoginToken? {

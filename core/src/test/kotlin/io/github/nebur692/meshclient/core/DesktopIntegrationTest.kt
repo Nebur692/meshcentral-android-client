@@ -31,6 +31,22 @@ class DesktopIntegrationTest {
         fail("no online agent"); error("")
     }
 
+    @Test fun `the device's clipboard takes a text and gives it back`() = runBlocking {
+        assumeTrue("no test server with a screen", !url.isNullOrEmpty() && !cert.isNullOrEmpty() && withScreen)
+        val s = admin()
+        try {
+            var d = s.agent()
+            repeat(60) { if (!d.canOpenDesktop) { delay(1000); d = s.agent() } }
+            val text = "portapapeles ñ " + System.nanoTime()
+            s.setDeviceClipboard(d, text)
+            var back: String? = null
+            repeat(10) { if (back != text) { back = s.deviceClipboard(d); if (back != text) delay(500) } }
+            assertEquals(text, back)
+        } finally {
+            s.close()
+        }
+    }
+
     @Test fun `the screen comes as its size and JPEG tiles, and a click and keys do not cut it`() = runBlocking {
         assumeTrue("no test server with a screen", !url.isNullOrEmpty() && !cert.isNullOrEmpty() && withScreen)
         val s = admin()

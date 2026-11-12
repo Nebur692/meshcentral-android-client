@@ -18,6 +18,8 @@ import io.github.nebur692.meshclient.core.RemotePaths
 import io.github.nebur692.meshclient.core.TerminalKeys
 import io.github.nebur692.meshclient.core.TerminalSession
 import io.github.nebur692.meshclient.core.TunnelProtocol
+import io.github.nebur692.meshclient.core.deviceClipboard
+import io.github.nebur692.meshclient.core.setDeviceClipboard
 import java.io.ByteArrayOutputStream
 import java.util.Base64
 import kotlinx.coroutines.CancellationException
@@ -343,7 +345,7 @@ sealed interface DesktopState {
 /** Out of sight, one frame every so many milliseconds. / Fuera de la vista, una imagen cada tantos milisegundos. */
 private const val HIDDEN_FRAME_MS = 2000
 
-class DesktopModel(private val session: MeshSession, val device: Device, private val scope: CoroutineScope) {
+class DesktopModel(private val session: () -> MeshSession?, val device: Device, private val scope: CoroutineScope) {
     var state by mutableStateOf<DesktopState>(DesktopState.Connecting)
         private set
     /** The remote screen, drawn on the main thread. / La pantalla remota, pintada en el hilo principal. */
@@ -376,7 +378,8 @@ class DesktopModel(private val session: MeshSession, val device: Device, private
         if (job != null) return
         job = scope.launch {
             try {
-                val d = io.github.nebur692.meshclient.core.DesktopSession.open(session, device.id, scope)
+                val d = io.github.nebur692.meshclient.core.DesktopSession.open(
+                    session() ?: throw MeshClientException(MeshFailure.ConnectionLost, "tunel/abrir-detalle/conexion-cortada", "no session"), device.id, scope)
                 desk = d
                 d.setQuality(quality.quality, quality.scaling, quality.frameMs)
                 if (hidden) onScreen(false)
@@ -498,6 +501,39 @@ class DesktopModel(private val session: MeshSession, val device: Device, private
         val d = desk ?: return
         d.setPaused(!visible)
         d.setQuality(quality.quality, quality.scaling, if (visible) quality.frameMs else HIDDEN_FRAME_MS)
+    }
+
+    /** What a clipboard action did, shown for a moment. / Lo que hizo una acción del portapapeles, un momento. */
+    var clipNotice by mutableStateOf<Notice?>(null)
+
+    /**
+     * The phone's text to the device's clipboard (MeshCentral's own: text only), to paste there with Ctrl+V.
+     * El texto del móvil al portapapeles del equipo (el de MeshCentral: solo texto), para pegarlo allí con Ctrl+V.
+     */
+    fun pasteToDevice(text: String?) {
+        if (text.isNullOrEmpty()) { clipNotice = Notice(R.string.desk_clip_empty); return }
+        scope.launch {
+            clipNotice = try {
+                val s = session() ?: throw MeshClientException(MeshFailure.ConnectionLost, "portapapeles/sincronizar/conexion-cortada", "no session")
+                s.setDeviceClipboard(device, text)
+                Notice(R.string.desk_clip_sent)
+            } catch (e: MeshClientException) {
+                Notice(R.string.action_failed, UiError(e.failure, e.key, e.httpStatus))
+            }
+        }
+    }
+
+    /** The device's clipboard text, handed to [onText] for the phone's. / El texto del portapapeles del equipo, para el del móvil. */
+    fun copyFromDevice(onText: (String) -> Unit) {
+        scope.launch {
+            clipNotice = try {
+                val s = session() ?: throw MeshClientException(MeshFailure.ConnectionLost, "portapapeles/sincronizar/conexion-cortada", "no session")
+                val text = s.deviceClipboard(device)
+                if (text.isNullOrEmpty()) Notice(R.string.desk_clip_device_empty) else { onText(text); Notice(R.string.desk_clip_got) }
+            } catch (e: MeshClientException) {
+                Notice(R.string.action_failed, UiError(e.failure, e.key, e.httpStatus))
+            }
+        }
     }
 
     fun changeQuality(q: DesktopQuality) { quality = q; desk?.setQuality(q.quality, q.scaling, q.frameMs) }

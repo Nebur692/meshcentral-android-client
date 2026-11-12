@@ -48,6 +48,9 @@ class MeshSession private constructor(
     /** Live device changes. / Cambios de equipos en vivo. */
     val deviceChanges: SharedFlow<DeviceChange> get() = listener.changes
 
+    /** Notifications for this person while connected. / Avisos para esta persona mientras está conectada. */
+    val notifications: SharedFlow<ServerNotification> get() = listener.notifications
+
     /** Why it ended, once it has (never set by [close]). / Por qué acabó, cuando acaba (nunca por [close]). */
     val closedReason: StateFlow<MeshClientException?> get() = listener.closedReason
 
@@ -154,6 +157,7 @@ class MeshSession private constructor(
         private val waiters = mutableListOf<Waiter>()
         val opened = CompletableDeferred<Unit>()
         val changes = MutableSharedFlow<DeviceChange>(extraBufferCapacity = 512)
+        val notifications = MutableSharedFlow<ServerNotification>(extraBufferCapacity = 64)
         val closedReason = MutableStateFlow<MeshClientException?>(null)
         @Volatile var open = false
         @Volatile var closing = false
@@ -177,6 +181,12 @@ class MeshSession private constructor(
             }
             hit.forEach { it.result.complete(o) }
             if (o.str("action") == "event") (o["event"] as? JsonObject)?.let(::onEvent)
+            // Replies to this app's own requests carry a titleid and are answered where they were asked (as Windows).
+            // Las respuestas a peticiones de la propia app llevan titleid y se contestan donde se pidieron (como Windows).
+            if (o.str("action") == "msg" && o.str("type") == "notify" && o["titleid"] == null) {
+                val text = o.str("value").orEmpty()
+                if (text.isNotBlank()) notifications.tryEmit(ServerNotification(o.str("title") ?: o.str("username").orEmpty(), text))
+            }
         }
 
         private fun onEvent(e: JsonObject) {
@@ -222,13 +232,36 @@ class MeshSession private constructor(
         const val DEFAULT_TIMEOUT_MS = 20_000L
         private val json = Json { ignoreUnknownKeys = true }
         private val random = SecureRandom()
-        private val baseClient: OkHttpClient by lazy { OkHttpClient() }
+        @Volatile private var baseClient: OkHttpClient = OkHttpClient()
+
+        /**
+         * The phone changed network (Wi-Fi, mobile data): every kept connection and route belongs to the old one, and a
+         * connection on a network that is gone does not always fail, it can hang until the timeout (seen on a phone that
+         * came home on mobile data: no sign-in on Wi-Fi until the app was closed). New sessions start on a new client.
+         * El móvil cambió de red (wifi, datos): todo lo guardado es de la anterior, y una conexión en una red que ya no
+         * está no siempre falla, puede quedarse colgada hasta el tiempo límite (visto en un móvil que llegó a casa con
+         * datos: sin entrar con wifi hasta cerrar la app). Las sesiones nuevas empiezan con un cliente nuevo.
+         */
+        fun networkChanged() {
+            val old = baseClient
+            baseClient = OkHttpClient()
+            old.connectionPool.evictAll()
+        }
 
         /** Signs in with username, password and, if asked, the second factor. / Entra con usuario, contraseña y, si se pide, el doble factor. */
         suspend fun connect(
             server: ServerAddress, credentials: PasswordCredentials, trust: CertificateTrust,
             userAgent: String = "MeshCentralAndroidClient", timeoutMs: Long = DEFAULT_TIMEOUT_MS,
-        ): MeshSession = connectCore(server, trust, userAgent, timeoutMs, { it.header("x-meshauth", credentials.header()) }) { loginFailure(it, credentials) }
+        ): MeshSession = retryFresh { connectCore(server, trust, userAgent, timeoutMs, { it.header("x-meshauth", credentials.header()) }) { loginFailure(it, credentials) } }
+
+        /** One more go on fresh connections when the first never reached the server. / Otro intento con conexiones nuevas si el primero no llegó. */
+        private suspend fun retryFresh(connect: suspend () -> MeshSession): MeshSession = try {
+            connect()
+        } catch (e: MeshClientException) {
+            if (!e.neverConnected) throw e
+            networkChanged()
+            connect()
+        }
 
         /**
          * Signs in with the session cookies ("xid", "xid.sig") MeshCentral gave a browser after a single sign-on. The
@@ -242,7 +275,7 @@ class MeshSession private constructor(
         ): MeshSession {
             if ("xid" !in cookies) throw MeshClientException(MeshFailure.SessionExpired, "conexion/iniciar-sesion/sesion-cerrada", "There is no MeshCentral session to use.")
             val header = cookies.entries.joinToString("; ") { (k, v) -> "$k=$v" }
-            return connectCore(server, trust, userAgent, timeoutMs, { it.header("Cookie", header) }, ::sessionFailure)
+            return retryFresh { connectCore(server, trust, userAgent, timeoutMs, { it.header("Cookie", header) }, ::sessionFailure) }
         }
 
         /** Reads a browser's cookie line ("a=1; b=2") into names and values. / Lee la línea de cookies de un navegador. */
@@ -268,8 +301,11 @@ class MeshSession private constructor(
             server: ServerAddress, trust: CertificateTrust, userAgent: String, timeoutMs: Long,
             authenticate: (Request.Builder) -> Request.Builder, onClose: (JsonObject) -> MeshClientException,
         ): MeshSession {
+            // Two goes at most (retryFresh): each one waits 3/5 of the limit to connect, so a server that is really
+            // unreachable says so in ~24 s, not 40. / Dos intentos como mucho: cada uno espera 3/5 del límite para conectar.
+            val openMs = timeoutMs * 3 / 5
             val client = trust.applyTo(baseClient.newBuilder())
-                .connectTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                .connectTimeout(openMs, TimeUnit.MILLISECONDS)
                 .readTimeout(0, TimeUnit.MILLISECONDS)
                 .pingInterval(30, TimeUnit.SECONDS)
                 .build()
@@ -284,10 +320,10 @@ class MeshSession private constructor(
             val request = authenticate(Request.Builder().url(server.controlUrl).header("User-Agent", userAgent)).build()
             session.socket = client.newWebSocket(request, listener)
             try {
-                withTimeout(timeoutMs) { listener.opened.await() }
+                withTimeout(openMs) { listener.opened.await() }
             } catch (e: TimeoutCancellationException) {
                 session.socket.cancel()
-                throw MeshClientException(MeshFailure.Timeout, "conexion/iniciar-sesion/tiempo-agotado", "The server did not answer in time.")
+                throw MeshClientException(MeshFailure.Timeout, "conexion/iniciar-sesion/tiempo-agotado", "The server did not answer in time.").apply { neverConnected = true }
             }
             try {
                 val first = withTimeout(timeoutMs) { serverInfo.result.await() }
@@ -341,7 +377,7 @@ class MeshSession private constructor(
             if (generateSequence(t) { it.cause }.any { it is UnknownHostException })
                 return MeshClientException(MeshFailure.NameNotResolved, "conexion/iniciar-sesion/dns", "The server name could not be found.", t)
             if (t is IOException && t.message?.contains("timeout", ignoreCase = true) == true)
-                return MeshClientException(MeshFailure.Timeout, "conexion/iniciar-sesion/tiempo-agotado", "The server did not answer in time.", t)
+                return MeshClientException(MeshFailure.Timeout, "conexion/iniciar-sesion/tiempo-agotado", "The server did not answer in time.", t).apply { neverConnected = true }
             return MeshClientException(MeshFailure.ServerUnreachable, "conexion/iniciar-sesion/sin-conexion", "Could not connect to the server.", t)
         }
 

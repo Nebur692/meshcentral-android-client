@@ -577,6 +577,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         watching = viewModelScope.launch {
             launch { s.deviceChanges.collect(::apply) }
             launch { s.closedReason.filterNotNull().collect { dropped() } }
+            launch { s.notifications.collect(::arrived) }
         }
     }
 
@@ -594,6 +595,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             android.os.SystemClock.elapsedRealtime() - visibleSince < JUST_BACK_MS -> reconnect()
             else -> lost = true
         }
+    }
+
+    /** The last notification from the server, shown in a window until closed. / El último aviso del servidor, en una ventana. */
+    var serverNotice by mutableStateOf<io.github.nebur692.meshclient.core.ServerNotification?>(null)
+
+    private fun arrived(n: io.github.nebur692.meshclient.core.ServerNotification) {
+        serverNotice = n
+        // Out of sight, Android's own notification too; in sight, the permission is asked once. / Fuera, también la de Android.
+        if (!visible) ServerNotices.post(getApplication(), session?.serverInfo?.name?.ifBlank { null } ?: session?.server?.host.orEmpty(), n)
+        else if (!notificationsAsked) { notificationsAsked = true; askNotifications = true }
     }
 
     private fun apply(change: DeviceChange) {
@@ -791,7 +802,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val d = devices[id] ?: return
         desktop?.close()
         sheet = null
-        desktop = DesktopModel(s, d, viewModelScope).also { it.open() }
+        desktop = DesktopModel({ session }, d, viewModelScope).also { it.open() }
         keep(d, R.string.act_desktop)
         screen = Screen.Desktop(id)
     }
@@ -843,6 +854,35 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (!notificationsAsked) { notificationsAsked = true; askNotifications = true }
     }
 
+    /**
+     * Android's default network changed (Wi-Fi, mobile data): what was open belongs to the old one and may hang instead of
+     * failing. Kept connections go, and the live connection opens again on the new network without a word.
+     * Cambió la red por defecto de Android (wifi, datos): lo abierto es de la anterior y puede colgarse en vez de fallar.
+     * Lo guardado se tira y la conexión en vivo se abre otra vez en la red nueva, sin avisar.
+     */
+    private val networks = object : android.net.ConnectivityManager.NetworkCallback() {
+        private var current: android.net.Network? = null
+        override fun onAvailable(network: android.net.Network) {
+            val before = current
+            current = network
+            if (before == null || before == network) return
+            MeshSession.networkChanged()
+            viewModelScope.launch { onNetworkChanged() }
+        }
+    }
+
+    private fun onNetworkChanged() {
+        if (session == null) return
+        if (!visible) { paused = true; return }
+        lost = false
+        reconnect()
+    }
+
+    init {
+        val connectivity = getApplication<Application>().getSystemService(android.net.ConnectivityManager::class.java)
+        runCatching { connectivity.registerDefaultNetworkCallback(networks) }
+    }
+
     init {
         // "Disconnect" in the notification closes the tool, as the back arrow does. / «Desconectar» la cierra, como la flecha.
         viewModelScope.launch { RemoteSessionService.disconnectRequests.collect {
@@ -879,6 +919,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        runCatching { getApplication<Application>().getSystemService(android.net.ConnectivityManager::class.java).unregisterNetworkCallback(networks) }
         closeTools()
         session?.close()
     }

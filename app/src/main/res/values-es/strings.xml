@@ -324,4 +324,15 @@
     <string name="keep_channel">Conexión abierta con un equipo</string>
     <string name="keep_title">Conectado a %1$s</string>
     <string name="keep_disconnect">Desconectar</string>
+    <!-- Portapapeles en el escritorio remoto -->
+    <string name="desk_clip_to">Pegar mi portapapeles en el equipo</string>
+    <string name="desk_clip_from">Copiar el portapapeles del equipo</string>
+    <string name="desk_clip_sent">Enviado: pégalo en el equipo con Ctrl+V.</string>
+    <string name="desk_clip_got">Copiado en este móvil.</string>
+    <string name="desk_clip_empty">Tu portapapeles no tiene texto.</string>
+    <string name="desk_clip_device_empty">El portapapeles del equipo no tiene texto.</string>
+    <!-- Avisos del servidor -->
+    <string name="notice_channel">Avisos del servidor</string>
+    <string name="notice_from">Aviso de %1$s</string>
+    <string name="notice_server">el servidor</string>
 </resources>

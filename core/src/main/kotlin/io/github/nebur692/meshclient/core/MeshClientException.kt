@@ -34,6 +34,10 @@ class MeshClientException(
         internal set
     var emailCodeAvailable: Boolean = false
         internal set
+    /** It never reached the server (no connection in time): worth one more go on fresh connections.
+     *  No llegó al servidor (sin conexión a tiempo): merece otro intento con conexiones nuevas. */
+    var neverConnected: Boolean = false
+        internal set
     var smsCodeAvailable: Boolean = false
         internal set
     var emailCodeSent: Boolean = false

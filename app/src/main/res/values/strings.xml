@@ -318,4 +318,15 @@
     <string name="keep_channel">Open connection to a device</string>
     <string name="keep_title">Connected to %1$s</string>
     <string name="keep_disconnect">Disconnect</string>
+    <!-- Clipboard in the remote desktop / Portapapeles en el escritorio remoto -->
+    <string name="desk_clip_to">Paste my clipboard on the device</string>
+    <string name="desk_clip_from">Copy the device\'s clipboard</string>
+    <string name="desk_clip_sent">Sent: paste it on the device with Ctrl+V.</string>
+    <string name="desk_clip_got">Copied to this phone.</string>
+    <string name="desk_clip_empty">Your clipboard has no text.</string>
+    <string name="desk_clip_device_empty">The device\'s clipboard has no text.</string>
+    <!-- Notifications from the server / Avisos del servidor -->
+    <string name="notice_channel">Notifications from the server</string>
+    <string name="notice_from">Notification from %1$s</string>
+    <string name="notice_server">the server</string>
 </resources>

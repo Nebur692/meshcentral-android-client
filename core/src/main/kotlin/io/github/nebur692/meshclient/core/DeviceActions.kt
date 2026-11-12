@@ -201,3 +201,37 @@ fun MeshSession.uninstallAgent(device: Device) {
     if (!can.uninstall) throw if (device.hasAgent) denied("ficha/desinstalar/no-autorizado", "uninstall its agent") else offline("ficha/desinstalar/sin-conexion")
     send(buildJsonObject { put("action", "uninstallagent"); put("nodeids", JsonArray(listOf(JsonPrimitive(device.id)))) }, "ficha/desinstalar/conexion-cortada")
 }
+
+// ------------------------------------------------------------------ clipboard / portapapeles
+
+/**
+ * MeshCentral's own clipboard: text only (meshcore.js setclip). The agent answers {action:'msg', type:'setclip',
+ * success:true}; a server with clipboardset off, or an agent still busy with the previous one, answers nothing.
+ * El portapapeles de MeshCentral: solo texto. El agente contesta success; un servidor con clipboardset desactivado, o un
+ * agente ocupado con el anterior, no contesta nada.
+ */
+suspend fun MeshSession.setDeviceClipboard(device: Device, text: String) {
+    if (!MeshRights.has(rightsOn(device), MeshRights.REMOTE_CONTROL)) throw denied("portapapeles/sincronizar/no-autorizado", "use the clipboard")
+    if (!device.hasAgent) throw offline("portapapeles/sincronizar/sin-conexion")
+    request(buildJsonObject { put("action", "msg"); put("type", "setclip"); put("nodeid", device.id); put("data", text) },
+        { it.str("action") == "msg" && it.str("type") == "setclip" },
+        "portapapeles/sincronizar/tiempo-agotado", "portapapeles/sincronizar/conexion-cortada", 15_000)
+}
+
+/**
+ * The device's text, or null when there is none: the agent does not answer an empty clipboard, nor the server one it
+ * forbids. Tag 3 keeps it out of the device's history, as the Windows app does.
+ * El texto del equipo, o null si no hay: el agente no contesta si está vacío, ni el servidor si lo prohíbe. El tag 3 lo
+ * deja fuera del historial del equipo, como hace la app de Windows.
+ */
+suspend fun MeshSession.deviceClipboard(device: Device): String? {
+    if (!MeshRights.has(rightsOn(device), MeshRights.REMOTE_CONTROL)) throw denied("portapapeles/sincronizar/no-autorizado", "use the clipboard")
+    if (!device.hasAgent) throw offline("portapapeles/sincronizar/sin-conexion")
+    return try {
+        request(buildJsonObject { put("action", "msg"); put("type", "getclip"); put("nodeid", device.id); put("tag", 3) },
+            { it.str("action") == "msg" && it.str("type") == "getclip" },
+            "portapapeles/sincronizar/tiempo-agotado", "portapapeles/sincronizar/conexion-cortada", 8_000).str("data")
+    } catch (e: MeshClientException) {
+        if (e.failure == MeshFailure.Timeout) null else throw e
+    }
+}

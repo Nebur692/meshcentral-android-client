@@ -67,6 +67,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -135,6 +136,11 @@ fun DesktopScreen(vm: AppViewModel) {
                     DesktopState.Open -> when {
                         m.message != null && m.bitmap == null -> DeskBar(m.message!!, false, null) {}
                         m.noImage -> DeskBar(stringResource(R.string.desk_no_image), false, stringResource(R.string.desk_refresh)) { m.refresh() }
+                        m.clipNotice != null -> m.clipNotice!!.let { n ->
+                            // A moment, then gone. / Un momento y se va.
+                            LaunchedEffect(n) { kotlinx.coroutines.delay(4000); if (m.clipNotice === n) m.clipNotice = null }
+                            DeskBar(n.error?.let { stringResource(n.text) + " " + errorText(it) } ?: stringResource(n.text), n.error != null, null) {}
+                        }
                         else -> HorizontalDivider()
                     }
                 }
@@ -167,6 +173,16 @@ private fun DesktopMenu(m: DesktopModel, open: Boolean, dismiss: () -> Unit) {
     DropdownMenu(open, dismiss) {
         DropdownMenuItem(text = { Text(stringResource(R.string.desk_cad)) }, onClick = { m.ctrlAltDel(); dismiss() })
         DropdownMenuItem(text = { Text(stringResource(R.string.desk_refresh)) }, onClick = { m.refresh(); dismiss() })
+        val context = LocalContext.current
+        val clipboard = remember { context.getSystemService(android.content.ClipboardManager::class.java) }
+        DropdownMenuItem(text = { Text(stringResource(R.string.desk_clip_to)) }, onClick = {
+            m.pasteToDevice(clipboard?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString())
+            dismiss()
+        })
+        DropdownMenuItem(text = { Text(stringResource(R.string.desk_clip_from)) }, onClick = {
+            m.copyFromDevice { clipboard?.setPrimaryClip(android.content.ClipData.newPlainText(m.device.name, it)) }
+            dismiss()
+        })
         HorizontalDivider()
         Text(stringResource(R.string.desk_quality), Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
