@@ -22,7 +22,7 @@ dependencies {
 tasks.test {
     // The integration tests read the throwaway server from these (tests/server/run-integration.sh); without them they
     // are skipped. / Las pruebas de integración leen el servidor desechable de estas; sin ellas se saltan.
-    listOf("MESHTEST_URL", "MESHTEST_CERT_SHA256", "MESHTEST_OTP_SECRET", "MESHTEST_GROUP_ID").forEach { name ->
+    listOf("MESHTEST_URL", "MESHTEST_CERT_SHA256", "MESHTEST_OTP_SECRET", "MESHTEST_GROUP_ID", "MESHTEST_DESKTOP").forEach { name ->
         System.getenv(name)?.let { environment(name, it) }
     }
     testLogging { events("passed", "skipped", "failed"); exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }

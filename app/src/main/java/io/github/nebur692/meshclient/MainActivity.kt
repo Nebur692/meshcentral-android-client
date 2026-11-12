@@ -25,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import io.github.nebur692.meshclient.ui.AccountScreen
 import io.github.nebur692.meshclient.ui.BiometricOfferSheet
+import io.github.nebur692.meshclient.ui.DesktopScreen
 import io.github.nebur692.meshclient.ui.DeviceScreen
 import io.github.nebur692.meshclient.ui.FilesScreen
 import io.github.nebur692.meshclient.ui.TerminalScreen
@@ -42,6 +43,9 @@ class MainActivity : ComponentActivity() {
 
     // Out of sight for a while, the live connection is closed; back, it opens again (battery, data).
     // Fuera de la vista un rato se cierra la conexión en vivo; al volver se abre otra vez (batería, datos).
+    // Without it the connection is kept all the same; only the notification is hidden. / Sin él se mantiene igual; solo no se ve el aviso.
+    private val notifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
     override fun onStart() { super.onStart(); vm.onForeground() }
     override fun onStop() { super.onStop(); vm.onBackground() }
 
@@ -89,12 +93,19 @@ class MainActivity : ComponentActivity() {
                         is Screen.DeviceDetail -> DeviceScreen(vm, s.id)
                         is Screen.Terminal -> TerminalScreen(vm)
                         is Screen.Files -> FilesScreen(vm)
+                        is Screen.Desktop -> DesktopScreen(vm)
                         is Screen.SignOn -> {
                             LoginScreen(vm)
                             if (!vm.signOnLaunched) SideEffect { vm.signOnLaunched = true; signOn.launch(SignOnActivity.intent(this@MainActivity, s)) }
                         }
                     }
                     vm.biometricRequest?.let { r -> LaunchedEffect(r) { ask(r) } }
+                    if (vm.askNotifications) LaunchedEffect(Unit) {
+                        vm.askNotifications = false
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                        ) notifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    }
                     vm.biometricOffer?.let { BiometricOfferSheet(it, vm::answerBiometricOffer) }
                     vm.biometricProblem?.let { p ->
                         AlertDialog(

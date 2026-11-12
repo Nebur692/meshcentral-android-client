@@ -303,4 +303,25 @@
     <string name="files_uploaded">Subido.</string>
     <string name="files_downloaded">Bajado.</string>
     <string name="files_failed">No se ha podido hacer.</string>
+    <!-- Remote desktop (phase 3) / Escritorio remoto (fase 3) -->
+    <string name="desk_direct">Tocar donde apunto</string>
+    <string name="desk_touchpad">Touchpad</string>
+    <string name="desk_keyboard">Teclado</string>
+    <string name="desk_closed">El escritorio remoto se ha cerrado.</string>
+    <string name="desk_closed_by_device">El equipo o el servidor ha cerrado el escritorio remoto.</string>
+    <string name="desk_no_image">El equipo no envía la imagen de su pantalla.</string>
+    <string name="desk_refresh">Actualizar la imagen</string>
+    <string name="desk_cad">Ctrl+Alt+Supr</string>
+    <string name="desk_quality">Calidad</string>
+    <string name="desk_quality_high">Alta</string>
+    <string name="desk_quality_balanced">Equilibrada</string>
+    <string name="desk_quality_saver">Ahorro de datos</string>
+    <string name="desk_all_displays">Todas las pantallas</string>
+    <string name="desk_display">Pantalla %1$d</string>
+    <string name="key_win">Tecla Windows</string>
+    <string name="key_del">Supr</string>
+    <!-- Mantener una herramienta conectada en segundo plano -->
+    <string name="keep_channel">Conexión abierta con un equipo</string>
+    <string name="keep_title">Conectado a %1$s</string>
+    <string name="keep_disconnect">Desconectar</string>
 </resources>

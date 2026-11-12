@@ -47,7 +47,7 @@ echo "server $SRV · agent $AGENT · cert ${CERT:0:16}…"
 # The tests call the server by its certificate name, as the app would. / Las pruebas llaman al servidor por el nombre de su certificado.
 docker run --rm --network "$NET" --add-host "mesh.test:$SRV_IP" --cpus 2 --memory 3g \
   -e GRADLE_USER_HOME=/gradle -e MESHTEST_URL="https://mesh.test/" -e MESHTEST_CERT_SHA256="$CERT" \
-  -e MESHTEST_OTP_SECRET="$OTP" -e MESHTEST_GROUP_ID="$GROUP" \
+  -e MESHTEST_OTP_SECRET="$OTP" -e MESHTEST_GROUP_ID="$GROUP" -e MESHTEST_DESKTOP=1 \
   -v "$ROOT:/src" -v "$GRADLE_CACHE:/gradle" -w /src "$JDK_IMAGE" \
   ./gradlew -p core test --no-daemon --rerun-tasks || {
   rc=$?

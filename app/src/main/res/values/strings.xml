@@ -297,4 +297,25 @@
     <string name="files_uploaded">Uploaded.</string>
     <string name="files_downloaded">Downloaded.</string>
     <string name="files_failed">It could not be done.</string>
+    <!-- Remote desktop (phase 3) / Escritorio remoto (fase 3) -->
+    <string name="desk_direct">Tap where you point</string>
+    <string name="desk_touchpad">Touchpad</string>
+    <string name="desk_keyboard">Keyboard</string>
+    <string name="desk_closed">The remote desktop was closed.</string>
+    <string name="desk_closed_by_device">The device or the server closed the remote desktop.</string>
+    <string name="desk_no_image">The device does not send the picture of its screen.</string>
+    <string name="desk_refresh">Refresh the picture</string>
+    <string name="desk_cad">Ctrl+Alt+Del</string>
+    <string name="desk_quality">Quality</string>
+    <string name="desk_quality_high">High</string>
+    <string name="desk_quality_balanced">Balanced</string>
+    <string name="desk_quality_saver">Data saver</string>
+    <string name="desk_all_displays">All displays</string>
+    <string name="desk_display">Display %1$d</string>
+    <string name="key_win">Windows key</string>
+    <string name="key_del">Del</string>
+    <!-- Keeping a tool connected in the background / Mantener una herramienta conectada en segundo plano -->
+    <string name="keep_channel">Open connection to a device</string>
+    <string name="keep_title">Connected to %1$s</string>
+    <string name="keep_disconnect">Disconnect</string>
 </resources>

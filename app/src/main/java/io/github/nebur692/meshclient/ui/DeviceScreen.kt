@@ -216,7 +216,7 @@ private fun Actions(vm: AppViewModel, d: Device, columns: Int) {
     fun has(r: Long) = MeshRights.has(rights, r)
     data class A(val icon: Int, val label: Int, val enabled: Boolean, val soon: Boolean, val onClick: () -> Unit)
     val all = buildList {
-        if (MeshRights.tool(rights, MeshRights.NO_DESKTOP)) add(A(R.drawable.ic_monitor, R.string.act_desktop, false, true) {})
+        if (MeshRights.tool(rights, MeshRights.NO_DESKTOP)) add(A(R.drawable.ic_monitor, R.string.act_desktop, d.canOpenDesktop, false) { vm.openDesktop(d.id) })
         if (MeshRights.tool(rights, MeshRights.NO_TERMINAL)) add(A(R.drawable.ic_terminal, R.string.act_terminal, d.canOpenTerminal, false) { vm.sheet = DeviceSheet.Terminal })
         if (MeshRights.tool(rights, MeshRights.NO_FILES)) add(A(R.drawable.ic_folder, R.string.act_files, d.canOpenFiles, false) { vm.openFiles(d.id) })
         if (has(MeshRights.WAKE) || has(MeshRights.RESET_OFF)) add(A(R.drawable.ic_power, R.string.act_power, can.wake || can.power, false) { vm.sheet = DeviceSheet.Power })

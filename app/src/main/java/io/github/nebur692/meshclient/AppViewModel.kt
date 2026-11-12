@@ -50,6 +50,7 @@ sealed interface Screen {
     data class DeviceDetail(val id: String) : Screen
     data class Terminal(val id: String) : Screen
     data class Files(val id: String) : Screen
+    data class Desktop(val id: String) : Screen
     /** The provider's page, in a browser inside the app. / La página del proveedor, en un navegador dentro de la app. */
     data class SignOn(val method: SingleSignOn, val address: ServerAddress, val pinnedSha256: String?) : Screen
 }
@@ -171,6 +172,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var signOnCookies: Map<String, String>? = null
     private var backgroundJob: Job? = null
     private var paused = false
+    private var visible = true
 
     // Every property above this line: init runs in order, and pick() already uses them (a crash on the POCO with a
     // saved server). / Todas las propiedades por encima: init corre en orden y pick() ya las usa (se cerraba en el POCO).
@@ -728,20 +730,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** The app left the screen: after [BACKGROUND_GRACE_MS], the live connection closes (no pings, no events).
      *  La app dejó la pantalla: pasado ese margen se cierra la conexión en vivo (sin pings ni avisos). */
     fun onBackground() {
-        if (session == null) return
+        visible = false
+        desktop?.onScreen(false)
+        // A terminal, the files or a desktop open stay connected (with the notification) until the person closes them.
+        // Una terminal, los ficheros o un escritorio abiertos siguen conectados (con el aviso) hasta que se cierran.
+        if (session == null || toolOpen) return
         backgroundJob?.cancel()
         backgroundJob = viewModelScope.launch {
             delay(BACKGROUND_GRACE_MS)
             paused = true
             watching?.cancel()
-            // A terminal or files left open would keep the phone's data and battery busy. / Gastarían datos y batería.
-            terminal?.close(); files?.close()
             session?.close()
         }
     }
 
     /** Back on screen: a closed connection opens again, quietly. / De vuelta: la conexión cerrada se abre otra vez, sin avisar. */
     fun onForeground() {
+        visible = true
+        desktop?.onScreen(true)
         backgroundJob?.cancel()
         refreshBiometrics()
         if (!paused) return
@@ -757,6 +763,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var files by mutableStateOf<FilesModel?>(null)
         private set
+    var desktop by mutableStateOf<DesktopModel?>(null)
+        private set
+
+    fun openDesktop(id: String) {
+        val s = session ?: return
+        val d = devices[id] ?: return
+        desktop?.close()
+        sheet = null
+        desktop = DesktopModel(s, d, viewModelScope).also { it.open() }
+        keep(d, R.string.act_desktop)
+        screen = Screen.Desktop(id)
+    }
 
     fun openTerminal(id: String, kind: TunnelProtocol) {
         val s = session ?: return
@@ -764,6 +782,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         terminal?.close()
         sheet = null
         terminal = TerminalModel(s, d, kind, viewModelScope)
+        keep(d, R.string.act_terminal)
         screen = Screen.Terminal(id)
     }
 
@@ -772,13 +791,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val d = devices[id] ?: return
         files?.close()
         sheet = null
-        files = FilesModel(s, d, viewModelScope, getApplication<Application>().contentResolver).also { it.open() }
+        // It asks for the current connection each time: after a reconnection, the old one is closed. / Pide la conexión de ahora cada vez.
+        files = FilesModel({ session }, d, viewModelScope, getApplication<Application>().contentResolver).also { it.open() }
+        keep(d, R.string.act_files)
         screen = Screen.Files(id)
     }
 
     /** Back from a terminal or the files to the device's sheet, closing its tunnel. / De vuelta a la ficha, cerrando su túnel. */
     fun leaveTool() {
-        val id = when (val s = screen) { is Screen.Terminal -> s.id; is Screen.Files -> s.id; else -> null }
+        val id = when (val s = screen) { is Screen.Terminal -> s.id; is Screen.Files -> s.id; is Screen.Desktop -> s.id; else -> null }
         closeTools()
         show(if (id != null && devices[id] != null) Screen.DeviceDetail(id) else Screen.Devices)
     }
@@ -786,6 +807,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun closeTools() {
         terminal?.close(); terminal = null
         files?.close(); files = null
+        desktop?.close(); desktop = null
+        RemoteSessionService.stop(getApplication())
+    }
+
+    private val toolOpen get() = terminal != null || files != null || desktop != null
+
+    /** Wants the notification permission once, the first time a tool opens. / Quiere el permiso de avisos al abrir una. */
+    var askNotifications by mutableStateOf(false)
+    private var notificationsAsked = false
+
+    private fun keep(d: Device, tool: Int) {
+        val app = getApplication<Application>()
+        RemoteSessionService.start(app, d.name, app.getString(tool))
+        if (!notificationsAsked) { notificationsAsked = true; askNotifications = true }
+    }
+
+    init {
+        // "Disconnect" in the notification closes the tool, as the back arrow does. / «Desconectar» la cierra, como la flecha.
+        viewModelScope.launch { RemoteSessionService.disconnectRequests.collect {
+            if (!toolOpen) return@collect
+            leaveTool()
+            // Out of sight, the connection then closes as usual. / Fuera de la vista, la conexión se cierra como siempre.
+            if (!visible) onBackground()
+        } }
     }
 
     fun signOut() {

@@ -188,7 +188,7 @@ data class Transfer(val name: String, val up: Boolean, val done: Long, val total
  * checked by listing again, as the agent does not answer them. / Los ficheros de un equipo: una carpeta cada vez, sus
  * cambios y una copia cada vez con su avance. Cada cambio se comprueba volviendo a listar: el agente no los contesta.
  */
-class FilesModel(private val session: MeshSession, val device: Device, private val scope: CoroutineScope, private val resolver: ContentResolver) {
+class FilesModel(private val session: () -> MeshSession?, val device: Device, private val scope: CoroutineScope, private val resolver: ContentResolver) {
     var path by mutableStateOf(RemotePaths.start(device))
         private set
     var entries by mutableStateOf<List<RemoteEntry>?>(null)
@@ -206,7 +206,9 @@ class FilesModel(private val session: MeshSession, val device: Device, private v
     private var copy: Job? = null
 
     private suspend fun files(): FilesSession =
-        files?.takeIf { it.tunnel.isOpen } ?: FilesSession.open(session, device.id).also { files = it }
+        files?.takeIf { it.tunnel.isOpen } ?: FilesSession.open(
+            session() ?: throw MeshClientException(MeshFailure.ConnectionLost, "tunel/abrir-detalle/conexion-cortada", "no session"), device.id
+        ).also { files = it }
 
     fun open(to: String = path) {
         job?.cancel()
@@ -312,5 +314,200 @@ class FilesModel(private val session: MeshSession, val device: Device, private v
         job?.cancel(); copy?.cancel()
         files?.close()
         files = null
+    }
+}
+
+// ------------------------------------------------------------------ remote desktop / escritorio remoto
+
+enum class DesktopQuality(val quality: Int, val scaling: Int, val frameMs: Int, val label: Int) {
+    // The same three as the Windows app. / Las mismas tres que la app de Windows.
+    High(85, 1024, 50, R.string.desk_quality_high),
+    Balanced(60, 1024, 100, R.string.desk_quality_balanced),
+    Saver(35, 512, 200, R.string.desk_quality_saver),
+}
+
+sealed interface DesktopState {
+    data object Connecting : DesktopState
+    data object Open : DesktopState
+    data class Closed(val error: UiError?) : DesktopState
+}
+
+/**
+ * One remote desktop. The tiles are decoded off the main thread and drawn on a bitmap of the remote screen; [frame]
+ * changes when there is something new to show. Ctrl and Alt of the key bar stay pressed for the next key; a letter or a
+ * digit with them goes as its virtual key, so Ctrl+C or Alt+F4 work whatever the keyboard.
+ * Un escritorio remoto. Las teselas se decodifican fuera del hilo principal y se pintan en un mapa de bits de la
+ * pantalla remota; [frame] cambia cuando hay algo nuevo que enseñar. Ctrl y Alt de la barra se quedan pulsadas para la
+ * tecla siguiente; una letra o un número con ellas va como su tecla virtual, para que Ctrl+C o Alt+F4 funcionen.
+ */
+/** Out of sight, one frame every so many milliseconds. / Fuera de la vista, una imagen cada tantos milisegundos. */
+private const val HIDDEN_FRAME_MS = 2000
+
+class DesktopModel(private val session: MeshSession, val device: Device, private val scope: CoroutineScope) {
+    var state by mutableStateOf<DesktopState>(DesktopState.Connecting)
+        private set
+    /** The remote screen, drawn on the main thread. / La pantalla remota, pintada en el hilo principal. */
+    var bitmap by mutableStateOf<android.graphics.Bitmap?>(null)
+        private set
+    var frame by mutableIntStateOf(0)
+        private set
+    var message by mutableStateOf<String?>(null)
+        private set
+    var noImage by mutableStateOf(false)
+        private set
+    var displays by mutableStateOf<io.github.nebur692.meshclient.core.DesktopEvent.Displays?>(null)
+        private set
+    var quality by mutableStateOf(DesktopQuality.Balanced)
+        private set
+    var ctrl by mutableStateOf(false)
+    var alt by mutableStateOf(false)
+    /** Touchpad: the finger moves a pointer; otherwise a tap clicks where it is. / Touchpad: el dedo mueve un puntero. */
+    var touchpad by mutableStateOf(false)
+    /** The pointer in touchpad mode, in remote pixels. / El puntero en modo touchpad, en píxeles remotos. */
+    var pointer by mutableStateOf(android.graphics.PointF(0f, 0f))
+        private set
+
+    private var desk: io.github.nebur692.meshclient.core.DesktopSession? = null
+    private var job: Job? = null
+    private var closedByPerson = false
+    private var hidden = false
+
+    fun open() {
+        if (job != null) return
+        job = scope.launch {
+            try {
+                val d = io.github.nebur692.meshclient.core.DesktopSession.open(session, device.id, scope)
+                desk = d
+                d.setQuality(quality.quality, quality.scaling, quality.frameMs)
+                if (hidden) onScreen(false)
+                state = DesktopState.Open
+                d.events.collect { e ->
+                    when (e) {
+                        is io.github.nebur692.meshclient.core.DesktopEvent.Size -> newScreen(e.width, e.height)
+                        is io.github.nebur692.meshclient.core.DesktopEvent.Tile -> draw(e)
+                        is io.github.nebur692.meshclient.core.DesktopEvent.Message -> message = e.text
+                        is io.github.nebur692.meshclient.core.DesktopEvent.Displays -> displays = e
+                        io.github.nebur692.meshclient.core.DesktopEvent.NoImage -> noImage = true
+                        else -> Unit
+                    }
+                }
+                end(null)
+            } catch (e: MeshClientException) {
+                end(UiError(e.failure, e.key, e.httpStatus))
+            }
+        }
+    }
+
+    private fun newScreen(w: Int, h: Int) {
+        if (w <= 0 || h <= 0) return
+        val old = bitmap
+        if (old != null && old.width == w && old.height == h) return
+        bitmap = androidx.core.graphics.createBitmap(w, h).apply { eraseColor(android.graphics.Color.BLACK) }
+        pointer = android.graphics.PointF(w / 2f, h / 2f)
+        frame++
+    }
+
+    private suspend fun draw(t: io.github.nebur692.meshclient.core.DesktopEvent.Tile) {
+        val target = bitmap ?: return
+        if (hidden) return // repainted whole on return / se repinta entera al volver
+        // Decoded off the main thread; drawn on it, where the screen reads the bitmap, so no half-drawn piece is shown.
+        // Se decodifica fuera del hilo principal y se pinta en él, donde la pantalla lee el mapa de bits: nada a medias.
+        val piece = withContext(Dispatchers.Default) { android.graphics.BitmapFactory.decodeByteArray(t.jpeg, 0, t.jpeg.size) } ?: return
+        if (bitmap !== target) { piece.recycle(); return }
+        android.graphics.Canvas(target).drawBitmap(piece, t.x.toFloat(), t.y.toFloat(), null)
+        piece.recycle()
+        noImage = false
+        frame++
+    }
+
+    private fun end(error: UiError?) {
+        if (state is DesktopState.Closed) return
+        state = DesktopState.Closed(if (closedByPerson) null else error ?: UiError(MeshFailure.ConnectionLost, "tunel/ver-pantalla/conexion-cortada"))
+    }
+
+    // ------------------------------------------------------------------ input / entrada
+
+    private fun clamp(x: Float, y: Float): Pair<Int, Int> {
+        val b = bitmap ?: return 0 to 0
+        return x.toInt().coerceIn(0, b.width - 1) to y.toInt().coerceIn(0, b.height - 1)
+    }
+
+    fun click(x: Float, y: Float, button: io.github.nebur692.meshclient.core.MouseButton = io.github.nebur692.meshclient.core.MouseButton.Left) {
+        val d = desk ?: return
+        val (px, py) = clamp(x, y)
+        d.mouseMove(px, py); d.mouseButton(button, true, px, py); d.mouseButton(button, false, px, py)
+    }
+
+    fun doubleClick(x: Float, y: Float) { val (px, py) = clamp(x, y); desk?.doubleClick(px, py) }
+
+    fun press(x: Float, y: Float, down: Boolean) {
+        val (px, py) = clamp(x, y)
+        desk?.mouseButton(io.github.nebur692.meshclient.core.MouseButton.Left, down, px, py)
+    }
+
+    fun move(x: Float, y: Float) { val (px, py) = clamp(x, y); desk?.mouseMove(px, py) }
+
+    fun wheel(x: Float, y: Float, delta: Int) { val (px, py) = clamp(x, y); desk?.wheel(px, py, delta) }
+
+    /** Touchpad: moves the pointer by a finger's drag, already in remote pixels. / Touchpad: mueve el puntero. */
+    fun movePointer(dx: Float, dy: Float) {
+        val b = bitmap ?: return
+        pointer = android.graphics.PointF((pointer.x + dx).coerceIn(0f, b.width - 1f), (pointer.y + dy).coerceIn(0f, b.height - 1f))
+        move(pointer.x, pointer.y)
+    }
+
+    /** Text from the phone's keyboard. / Texto del teclado del móvil. */
+    fun type(text: String) {
+        val d = desk ?: return
+        for (c in text) {
+            when {
+                c == '\n' -> tap(13)
+                (ctrl || alt) && (c.isLetterOrDigit() && c.code < 128) -> withModifiers { d.key(c.uppercaseChar().code, true); d.key(c.uppercaseChar().code, false) }
+                else -> { d.char(c); ctrl = false; alt = false }
+            }
+        }
+    }
+
+    /** A key of the bar (Windows virtual key), with Ctrl and Alt if pressed. / Una tecla de la barra con Ctrl y Alt si están pulsadas. */
+    fun tap(virtualKey: Int, extended: Boolean = false) {
+        val d = desk ?: return
+        withModifiers { d.key(virtualKey, true, extended); d.key(virtualKey, false, extended) }
+    }
+
+    private inline fun withModifiers(block: () -> Unit) {
+        val d = desk ?: return
+        val c = ctrl; val a = alt
+        if (c) d.key(17, true); if (a) d.key(18, true)
+        block()
+        if (a) d.key(18, false); if (c) d.key(17, false)
+        ctrl = false; alt = false
+    }
+
+    fun ctrlAltDel() = desk?.ctrlAltDel()
+
+    fun refresh() = desk?.refresh()
+
+    /**
+     * Out of sight the desktop stays connected but costs little: paused (where the agent honours it; Linux's does not),
+     * one frame every [HIDDEN_FRAME_MS] and nothing decoded. Back, its quality again and the whole screen.
+     * Fuera de la vista el escritorio sigue conectado pero gasta poco: en pausa (donde el agente la respeta; el de Linux
+     * no), una imagen cada [HIDDEN_FRAME_MS] y nada decodificado. Al volver, su calidad otra vez y la pantalla entera.
+     */
+    fun onScreen(visible: Boolean) {
+        hidden = !visible
+        val d = desk ?: return
+        d.setPaused(!visible)
+        d.setQuality(quality.quality, quality.scaling, if (visible) quality.frameMs else HIDDEN_FRAME_MS)
+    }
+
+    fun changeQuality(q: DesktopQuality) { quality = q; desk?.setQuality(q.quality, q.scaling, q.frameMs) }
+
+    fun selectDisplay(id: Int) = desk?.selectDisplay(id)
+
+    fun close() {
+        closedByPerson = true
+        job?.cancel()
+        desk?.close()
+        if (state !is DesktopState.Closed) state = DesktopState.Closed(null)
     }
 }
