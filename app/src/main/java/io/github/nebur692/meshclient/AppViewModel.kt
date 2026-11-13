@@ -681,7 +681,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun openLink(link: DeviceLink) {
         val s = session
-        if (s != null && s.server.toString() == link.server) { follow(link); return }
+        if (s != null && s.server.toString() == link.server) {
+            // Closed while out of sight, the connection is opened again as the app comes back, before or after Android hands
+            // the shortcut over: the device waits for the new one (a tool opened on the closed one dropped at once).
+            // Cerrada fuera de la vista, la conexión se vuelve a abrir al volver la app, antes o después de que Android entregue
+            // el acceso: el equipo espera a la nueva (una herramienta abierta sobre la cerrada se cortaba al momento).
+            if (paused || !s.isOpen) pendingLink = link else follow(link)
+            return
+        }
         val server = savedFor(link.server) ?: run { linkProblem = R.string.link_server_gone; return }
         if (s != null) signOut()
         // The first saved account's fingerprint prompt must not come instead. / Que no salga en su lugar la huella de la primera cuenta.
@@ -891,6 +898,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 open(if (c != null) MeshSession.connect(address, c, CertificateTrust(pendingPin), userAgent = userAgent())
                      else MeshSession.connectWithCookies(address, cookies!!, CertificateTrust(pendingPin), userAgent()))
                 (screen as? Screen.DeviceDetail)?.let { loadDetails(it.id) }
+                followPending(address.toString())
             } catch (e: MeshClientException) {
                 // The provider's session ran out: next time, through the provider. / La sesión del proveedor caducó.
                 if (c == null && e.failure == MeshFailure.SessionExpired) signOnCookies = null
