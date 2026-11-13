@@ -91,7 +91,7 @@ private enum class Section(val title: Int) { Summary(R.string.sec_summary), Secu
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DeviceScreen(vm: AppViewModel, id: String) {
+fun DeviceScreen(vm: AppViewModel, id: String, inPane: Boolean = false) {
     val d = vm.devices[id]
     // Removed meanwhile: back to the list. / Borrado mientras tanto: vuelta a la lista.
     if (d == null) { LaunchedEffect(Unit) { vm.show(Screen.Devices) }; return }
@@ -120,7 +120,8 @@ fun DeviceScreen(vm: AppViewModel, id: String) {
                 TopAppBar(expandedHeight = BarHeight,
                     title = { Text(d.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     navigationIcon = {
-                        IconButton(onClick = { vm.show(Screen.Devices) }) { Icon(painterResource(R.drawable.ic_back), stringResource(R.string.back)) }
+                        // Beside the list there is nothing to go back to. / Al lado de la lista no hay adónde volver.
+                        if (!inPane) IconButton(onClick = { vm.show(Screen.Devices) }) { Icon(painterResource(R.drawable.ic_back), stringResource(R.string.back)) }
                     },
                     actions = {
                         if (vm.abilities(d).edit) IconButton(onClick = { vm.sheet = DeviceSheet.Edit }) {
@@ -468,6 +469,7 @@ private fun DeviceSheets(vm: AppViewModel, d: Device, details: DeviceDetails?, c
             context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(d.name, summary(context, d, details, vm.groupNames[d.groupId])))
             vm.sheet = null
         }
+        DeviceSheet.Pin -> PinSheet(vm, d)
         DeviceSheet.Message -> MessageSheet(vm, d)
         DeviceSheet.Run -> RunSheet(vm, d)
         DeviceSheet.Edit -> EditSheet(vm, d)

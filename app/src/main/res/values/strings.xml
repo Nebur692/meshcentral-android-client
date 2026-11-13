@@ -402,6 +402,15 @@
     <string name="done_moved">Device moved.</string>
     <string name="move_device">Move to another group</string>
     <string name="move_device_hint">Its rights become the new group\'s</string>
+    <string name="shortcut_pin">Add to home screen</string>
+    <string name="shortcut_pin_hint">A shortcut that opens it with one tap</string>
+    <string name="shortcut_device">Device sheet</string>
+    <string name="shortcut_not_added">The launcher did not add the shortcut</string>
+    <string name="shortcut_server_gone">Its server is no longer saved in the app</string>
+    <string name="shortcut_device_gone">This device was removed</string>
+    <string name="link_server_gone">This shortcut\'s server is no longer saved in the app. Add it again to use it.</string>
+    <string name="link_device_gone">This shortcut\'s device is no longer on the server, or this account cannot see it.</string>
+    <string name="pane_pick">Pick a device to see it here</string>
     <plurals name="admin_devices_count">
         <item quantity="one">%d device</item>
         <item quantity="other">%d devices</item>

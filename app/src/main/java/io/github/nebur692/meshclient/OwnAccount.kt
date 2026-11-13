@@ -1,6 +1,7 @@
 package io.github.nebur692.meshclient
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.nebur692.meshclient.core.AuthenticatorSetup
@@ -52,7 +53,7 @@ class OwnAccountModel(private val session: () -> MeshSession?, private val scope
     var codes by mutableStateOf<List<BackupCode>?>(null)
     /** A token just created, the only time its password is seen. / Un token recién creado: la única vez que se ve su contraseña. */
     var newToken by mutableStateOf<LoginToken?>(null)
-    var passwordDone by mutableStateOf(0)
+    var passwordDone by mutableIntStateOf(0)
         private set
 
     private fun current() = session() ?: throw MeshClientException(MeshFailure.ConnectionLost, "usuarios/cambiar-ajustes/conexion-cortada", "no session")

@@ -18,6 +18,7 @@ and per-app language on 13, predictive back on 14), in the brand's own colours, 
 | 5 | Groups, users, server events, port mapping and SSH | **done** (0.7.0 administration, 0.8.0 port mapping and SSH) |
 | 6 | Google Play: signing, store listing, closed test, then production | **in closed test** |
 | 7 | What the Windows app already had: actions on several devices, own account (password, authenticator app, backup codes, security keys, login tokens), server state; native copy and paste in terminals and an automatic clipboard on the remote desktop | **done** (0.10.0) |
+| 8 | Made for the phone and the tablet: **shortcuts** (the last devices on a long press of the app's icon; a device's sheet, desktop, terminal or files on the home screen), the list and the sheet **side by side** on a tablet or an open foldable, and a **physical keyboard and mouse** on the remote desktop (shortcuts such as Ctrl+C or Alt+F4, any layout's characters, three buttons and the wheel; Bluetooth, USB or Samsung DeX) | **done** (0.11.0) |
 
 ## Español
 
@@ -35,3 +36,4 @@ temático e idioma por app en la 13, «Atrás» predictivo en la 14), con los co
 | 5 | Grupos, usuarios, sucesos del servidor, redirección de puertos y SSH | **hecha** (0.7.0 administración, 0.8.0 redirección de puertos y SSH) |
 | 6 | Google Play: firma, ficha, prueba cerrada y después producción | **en prueba cerrada** |
 | 7 | Lo que ya tenía la app de Windows: acciones en varios equipos, cuenta propia (contraseña, app de autenticación, códigos de respaldo, llaves de seguridad, tokens de acceso), estado del servidor; copiar y pegar nativo en las terminales y portapapeles automático en el escritorio remoto | **hecha** (0.10.0) |
+| 8 | Hecha para el móvil y la tableta: **accesos directos** (los últimos equipos con una pulsación larga en el icono de la app; la ficha, el escritorio, la terminal o los ficheros de un equipo en la pantalla de inicio), la lista y la ficha **una al lado de la otra** en una tableta o un plegable abierto, y **teclado y ratón físicos** en el escritorio remoto (atajos como Ctrl+C o Alt+F4, los caracteres de cualquier distribución, tres botones y la rueda; Bluetooth, USB o Samsung DeX) | **hecha** (0.11.0) |

@@ -408,6 +408,15 @@
     <string name="done_moved">Equipo movido.</string>
     <string name="move_device">Mover a otro grupo</string>
     <string name="move_device_hint">Sus permisos pasan a ser los del grupo nuevo</string>
+    <string name="shortcut_pin">Añadir a la pantalla de inicio</string>
+    <string name="shortcut_pin_hint">Un acceso directo que lo abre de un toque</string>
+    <string name="shortcut_device">Ficha del equipo</string>
+    <string name="shortcut_not_added">El lanzador no ha añadido el acceso directo</string>
+    <string name="shortcut_server_gone">Su servidor ya no está guardado en la app</string>
+    <string name="shortcut_device_gone">Este equipo se ha borrado</string>
+    <string name="link_server_gone">El servidor de este acceso directo ya no está guardado en la app. Vuelve a añadirlo para usarlo.</string>
+    <string name="link_device_gone">El equipo de este acceso directo ya no está en el servidor o esta cuenta no puede verlo.</string>
+    <string name="pane_pick">Elige un equipo para verlo aquí</string>
     <plurals name="admin_devices_count">
         <item quantity="one">%d equipo</item>
         <item quantity="many">%d equipos</item>

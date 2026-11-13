@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -65,8 +67,33 @@ import io.github.nebur692.meshclient.core.OsFamily
  * lista pasa por debajo de la barra de gestos.
  */
 @OptIn(ExperimentalFoundationApi::class)
+/**
+ * On a tablet or an open foldable: the list on the left and the open device's sheet on the right, instead of one screen
+ * over the other. / En una tableta o un plegable abierto: la lista a la izquierda y la ficha del equipo abierto a la
+ * derecha, en vez de una pantalla encima de otra.
+ */
 @Composable
-fun DevicesScreen(vm: AppViewModel) {
+fun ListDetail(vm: AppViewModel, id: String?) {
+    Row(Modifier.fillMaxSize()) {
+        Box(Modifier.width(380.dp).fillMaxHeight()) { DevicesScreen(vm, current = id) }
+        androidx.compose.material3.VerticalDivider()
+        Box(Modifier.weight(1f).fillMaxHeight()) {
+            if (id != null) androidx.compose.runtime.key(id) { DeviceScreen(vm, id, inPane = true) }
+            else Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(painterResource(R.drawable.ic_monitor), null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.pane_pick), Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+    }
+}
+
+/** Two panes when the window is wide and tall enough (not a phone on its side). / Dos paneles si la ventana es ancha y alta. */
+fun twoPanes(width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp) = width >= 840.dp && height >= 480.dp
+
+/** [current]: the device open beside the list, marked in it. / El equipo abierto al lado de la lista, marcado en ella. */
+@Composable
+fun DevicesScreen(vm: AppViewModel, current: String? = null) {
     // Worked out again only when the devices, the filter, the search or the group names change, not on every redraw
     // of the screen (a live event, the keyboard, a banner). / Se vuelve a calcular solo cuando cambian los equipos, el
     // filtro, la búsqueda o los nombres de los grupos, no en cada repintado de la pantalla.
@@ -131,7 +158,7 @@ fun DevicesScreen(vm: AppViewModel) {
                 }
                 // Online first, then by name. / Primero los que están en línea, luego por nombre.
                 items(list.sortedWith(compareBy<Device>({ !it.isOnline }, { it.name.lowercase() })), key = { it.id }) { d ->
-                    DeviceRow(d, d.id in bulk.selected, onLongClick = { bulk.toggle(d.id) }) {
+                    DeviceRow(d, d.id in bulk.selected, d.id == current, onLongClick = { bulk.toggle(d.id) }) {
                         if (bulk.active) bulk.toggle(d.id) else vm.openDevice(d.id)
                     }
                 }
@@ -226,13 +253,17 @@ fun DeviceTile(d: Device, size: Int = 44) {
 /** A long press picks it for actions on several; while picking, a tap picks or drops it. / Una pulsación larga lo elige. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun DeviceRow(d: Device, selected: Boolean, onLongClick: () -> Unit, onClick: () -> Unit) {
+private fun DeviceRow(d: Device, selected: Boolean, open: Boolean, onLongClick: () -> Unit, onClick: () -> Unit) {
     val state = stringResource(if (d.isOnline) R.string.online else R.string.offline)
     val picked = stringResource(R.string.bulk_picked)
     val pick = stringResource(R.string.bulk_pick)
     Row(
         Modifier.fillMaxWidth().heightIn(min = 64.dp)
-            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent)
+            .background(when {
+                selected -> MaterialTheme.colorScheme.secondaryContainer
+                open -> MaterialTheme.colorScheme.surfaceVariant
+                else -> androidx.compose.ui.graphics.Color.Transparent
+            })
             .combinedClickable(onLongClickLabel = pick, onLongClick = onLongClick, onClick = onClick).padding(horizontal = 20.dp, vertical = 8.dp)
             .semantics(mergeDescendants = true) { contentDescription = if (selected) "${d.name}, $state, $picked" else "${d.name}, $state" },
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),

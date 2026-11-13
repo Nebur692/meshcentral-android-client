@@ -23,7 +23,7 @@ jobs:
         run: tests/server/run-integration.sh "$RUNNER_TEMP/meshtest"
 
   app:
-    name: App (lint, debug and release builds)
+    name: App (unit tests, lint, debug and release builds)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -33,8 +33,8 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v5
-      - name: Lint and build
-        run: ./gradlew :app:lintDebug :app:assembleDebug :app:assembleRelease --no-daemon
+      - name: Unit tests, lint and build
+        run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease --no-daemon
       - uses: actions/upload-artifact@v5
         with:
           name: meshclient-debug-apk

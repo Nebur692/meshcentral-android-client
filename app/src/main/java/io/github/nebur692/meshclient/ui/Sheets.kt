@@ -33,6 +33,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -52,6 +53,7 @@ import io.github.nebur692.meshclient.core.Device
 import io.github.nebur692.meshclient.core.PowerAction
 import io.github.nebur692.meshclient.core.shellFor
 import io.github.nebur692.meshclient.core.TunnelProtocol
+import io.github.nebur692.meshclient.core.rightsOn
 
 /** A panel from the bottom, with the device's name on top. / Un panel desde abajo, con el nombre del equipo arriba. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -95,9 +97,38 @@ fun MoreSheet(vm: AppViewModel, d: Device, onCopy: () -> Unit) {
         SheetOption(R.drawable.ic_copy, stringResource(R.string.copy_details), stringResource(R.string.copy_details_hint), onClick = onCopy)
         if (vm.canRelay(d)) SheetOption(R.drawable.ic_globe, stringResource(R.string.ports_new), stringResource(R.string.ports_new_hint)) { vm.sheet = DeviceSheet.Port }
         if (vm.moveTargets(d).isNotEmpty()) SheetOption(R.drawable.ic_folder, stringResource(R.string.move_device), stringResource(R.string.move_device_hint)) { vm.sheet = DeviceSheet.Move }
+        val context = androidx.compose.ui.platform.LocalContext.current
+        if (remember { io.github.nebur692.meshclient.Shortcuts.canPin(context) })
+            SheetOption(R.drawable.ic_home, stringResource(R.string.shortcut_pin), stringResource(R.string.shortcut_pin_hint)) { vm.sheet = DeviceSheet.Pin }
         if (can.uninstall || can.remove) HorizontalDivider(Modifier.padding(vertical = 4.dp))
         if (can.uninstall) SheetOption(R.drawable.ic_uninstall, stringResource(R.string.uninstall), null, danger = true) { vm.sheet = DeviceSheet.ConfirmUninstall }
         if (can.remove) SheetOption(R.drawable.ic_trash, stringResource(R.string.remove), null, danger = true) { vm.sheet = DeviceSheet.ConfirmRemove }
+    }
+}
+
+/**
+ * What the home screen shortcut opens: the sheet, or a tool this account may use on the device (offered even while it is
+ * off; tapped then, the sheet says so). / Lo que abre el acceso en la pantalla de inicio: la ficha, o una herramienta que
+ * esta cuenta puede usar en el equipo (se ofrece aunque esté apagado; tocado entonces, la ficha lo dice).
+ */
+@Composable
+fun PinSheet(vm: AppViewModel, d: Device) {
+    val rights = vm.session?.rightsOn(d) ?: 0L
+    fun may(no: Long, cap: Int) = io.github.nebur692.meshclient.core.MeshRights.tool(rights, no) && d.capabilities and cap != 0
+    Sheet(stringResource(R.string.shortcut_pin), d.name, { vm.sheet = null }) {
+        @Composable fun option(icon: Int, label: Int, tool: io.github.nebur692.meshclient.LinkTool) {
+            val name = stringResource(label)
+            SheetOption(icon, name, null) { vm.pinShortcut(d, tool, name) }
+        }
+        option(kindIcon(d), R.string.shortcut_device, io.github.nebur692.meshclient.LinkTool.Device)
+        if (may(io.github.nebur692.meshclient.core.MeshRights.NO_DESKTOP, io.github.nebur692.meshclient.core.AgentCaps.DESKTOP))
+            option(R.drawable.ic_monitor, R.string.act_desktop, io.github.nebur692.meshclient.LinkTool.Desktop)
+        if (may(io.github.nebur692.meshclient.core.MeshRights.NO_TERMINAL, io.github.nebur692.meshclient.core.AgentCaps.TERMINAL)) {
+            option(R.drawable.ic_terminal, terminalName(TunnelProtocol.Terminal, d.isWindows), io.github.nebur692.meshclient.LinkTool.Terminal)
+            if (d.isWindows) option(R.drawable.ic_terminal, terminalName(TunnelProtocol.PowerShell, true), io.github.nebur692.meshclient.LinkTool.PowerShell)
+        }
+        if (may(io.github.nebur692.meshclient.core.MeshRights.NO_FILES, io.github.nebur692.meshclient.core.AgentCaps.FILES))
+            option(R.drawable.ic_folder, R.string.act_files, io.github.nebur692.meshclient.LinkTool.Files)
     }
 }
 

@@ -21,7 +21,10 @@ developer receives no data from it.
   screen with "Automatic clipboard" on (it can be turned off in its menu), to send newly copied text to that device, as
   MeshCentral's website does; text the device copies is put on the phone's clipboard. It goes only to that device,
   through the user's MeshCentral server, and is not kept anywhere else.
-- **Deleting it:** "Forget" on a saved server removes it from the phone; uninstalling the app removes everything.
+- **Shortcuts:** the names of the last devices opened, and of the ones the user puts on the home screen, are shown by the
+  phone's launcher, with their server's address inside the shortcut (never a password). They stay on the phone; forgetting
+  a server takes its shortcuts away.
+- **Deleting it:** "Forget" on a saved server removes it and its shortcuts from the phone; uninstalling the app removes everything.
 - There is no telemetry, analytics, advertising or advertising ID, and no account with the developer.
 
 Questions: open an issue at https://github.com/Nebur692/meshcentral-android-client/issues.
@@ -49,7 +52,10 @@ desarrollador no recibe ningún dato de ella.
   escritorio remoto con «Portapapeles automático» activado (se puede desactivar en su menú), para mandar a ese equipo el
   texto recién copiado, como hace la web de MeshCentral; el texto que copia el equipo se pone en el portapapeles del
   teléfono. Solo va a ese equipo, a través del servidor MeshCentral del usuario, y no se guarda en ningún otro sitio.
-- **Borrarlo:** «Olvidar» en un servidor guardado lo quita del teléfono; desinstalar la app lo borra todo.
+- **Accesos directos:** el lanzador del teléfono enseña los nombres de los últimos equipos abiertos y de los que el
+  usuario pone en la pantalla de inicio, con la dirección de su servidor dentro del acceso (nunca una contraseña). Se
+  quedan en el teléfono; olvidar un servidor quita sus accesos.
+- **Borrarlo:** «Olvidar» en un servidor guardado lo quita del teléfono junto con sus accesos directos; desinstalar la app lo borra todo.
 - No hay telemetría, analítica, publicidad ni ID de publicidad, ni cuenta con el desarrollador.
 
 Dudas: abre una incidencia en https://github.com/Nebur692/meshcentral-android-client/issues.

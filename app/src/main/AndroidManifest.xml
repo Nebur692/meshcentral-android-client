@@ -40,6 +40,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Where a launcher shortcut lands, in a task of its own: it hands the device to the app's window and goes, so an open
+             session is kept. / Donde cae un acceso directo, en una tarea propia: pasa el equipo a la ventana de la app y se va,
+             así se conserva una sesión abierta. -->
+        <activity
+            android:name=".ShortcutActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <!-- The single sign-on provider's page, in a process of its own: the browser (Chromium, ~70 MB measured on a
              POCO X5) goes away with it instead of staying in the app. / La página del proveedor, en su propio proceso: el
              navegador (~70 MB medidos en un POCO X5) se va con él en vez de quedarse en la app. -->

@@ -50,6 +50,32 @@ class MainActivity : ComponentActivity() {
     private val localNetwork = registerForActivityResult(ActivityResultContracts.RequestPermission()) { vm.localNetworkGranted(it) }
 
     override fun onStart() { super.onStart(); vm.onForeground() }
+
+    /** A shortcut tapped while the app was already open. / Un acceso directo tocado con la app ya abierta. */
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        Shortcuts.parse(intent)?.let(vm::openLink)
+    }
+
+    /**
+     * A physical keyboard (Bluetooth, USB, a dock, Samsung DeX) goes straight to the remote desktop while it is on screen,
+     * before Android uses Esc as Back or Tab to move the focus. / Un teclado físico va directo al escritorio remoto mientras
+     * está a la vista, antes de que Android use Esc como Atrás o Tab para mover el foco.
+     */
+    // Android's public Activity method; androidx marks only its own override as internal, and it is still called through super.
+    // El método público de Activity de Android; androidx solo marca como interna su propia versión, a la que se sigue llamando.
+    @android.annotation.SuppressLint("RestrictedApi")
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (vm.screen is Screen.Desktop && PhysicalKeyboard.isPhysical(event) && vm.desktop?.physicalKey(event) == true) return true
+        return super.dispatchKeyEvent(event)
+    }
+
+    // Leaving the window with a key held (Alt+Tab on DeX) must not leave it held on the device. / Que no se quede pulsada en el equipo.
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (!hasFocus) vm.desktop?.releaseKeys()
+    }
     override fun onStop() { super.onStop(); vm.onBackground() }
 
     /**
@@ -86,19 +112,24 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Edge to edge on every version, as Android 15 requires. / De borde a borde en todas las versiones.
         enableEdgeToEdge()
+        // Opened by a shortcut; not again when Android rebuilds the window or it comes from the recent apps.
+        // Abierta por un acceso directo; no otra vez si Android rehace la ventana o viene de las apps recientes.
+        if (savedInstanceState == null && intent.flags and android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0) Shortcuts.parse(intent)?.let(vm::openLink)
         setContent {
             MeshTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                  androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+                    val twoPanes = io.github.nebur692.meshclient.ui.twoPanes(maxWidth, maxHeight)
                     when (val s = vm.screen) {
                         Screen.Login -> LoginScreen(vm)
-                        Screen.Devices -> DevicesScreen(vm)
+                        Screen.Devices -> if (twoPanes) io.github.nebur692.meshclient.ui.ListDetail(vm, null) else DevicesScreen(vm)
                         Screen.Account -> AccountScreen(vm)
                         is Screen.Admin -> io.github.nebur692.meshclient.ui.AdminScreen(vm, s.page, s.id)
                         Screen.Ports -> io.github.nebur692.meshclient.ui.PortsScreen(vm)
                         Screen.Security -> io.github.nebur692.meshclient.ui.SecurityScreen(vm)
                         Screen.ServerState -> io.github.nebur692.meshclient.ui.ServerStateScreen(vm)
                         is Screen.Tools -> io.github.nebur692.meshclient.ui.ToolsScreen(vm)
-                        is Screen.DeviceDetail -> DeviceScreen(vm, s.id)
+                        is Screen.DeviceDetail -> if (twoPanes) io.github.nebur692.meshclient.ui.ListDetail(vm, s.id) else DeviceScreen(vm, s.id)
                         is Screen.Terminal -> TerminalScreen(vm)
                         is Screen.Files -> FilesScreen(vm)
                         is Screen.Desktop -> DesktopScreen(vm)
@@ -107,7 +138,15 @@ class MainActivity : ComponentActivity() {
                             if (!vm.signOnLaunched) SideEffect { vm.signOnLaunched = true; signOn.launch(SignOnActivity.intent(this@MainActivity, s)) }
                         }
                     }
+                  }
                     vm.biometricRequest?.let { r -> LaunchedEffect(r) { ask(r) } }
+                    vm.linkProblem?.let { p ->
+                        AlertDialog(
+                            onDismissRequest = { vm.linkProblem = null },
+                            text = { Text(stringResource(p)) },
+                            confirmButton = { TextButton(onClick = { vm.linkProblem = null }) { Text(stringResource(R.string.accept)) } },
+                        )
+                    }
                     if (vm.askNotifications) LaunchedEffect(Unit) {
                         vm.askNotifications = false
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&

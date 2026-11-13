@@ -426,6 +426,7 @@ class DesktopModel(private val session: () -> MeshSession?, val device: Device, 
                         is io.github.nebur692.meshclient.core.DesktopEvent.Message -> message = e.text
                         is io.github.nebur692.meshclient.core.DesktopEvent.Displays -> displays = e
                         io.github.nebur692.meshclient.core.DesktopEvent.NoImage -> noImage = true
+                        is io.github.nebur692.meshclient.core.DesktopEvent.Cursor -> cursor = e.shape
                         else -> Unit
                     }
                 }
@@ -483,6 +484,54 @@ class DesktopModel(private val session: () -> MeshSession?, val device: Device, 
         desk?.mouseButton(io.github.nebur692.meshclient.core.MouseButton.Left, down, px, py)
     }
 
+    // ------------------------------------------------------------------ physical keyboard and mouse / teclado y ratón físicos
+
+    /** The device's pointer shape (MeshCentral's numbers: 2 cross, 3 hand, 5 text). / La forma del puntero del equipo. */
+    var cursor by mutableIntStateOf(0)
+        private set
+    private val keys = PhysicalKeyboard()
+    private var lastMouse = -1 to -1
+
+    /** A physical key; false if it is not for the device (Back, volume). / Una tecla física; false si no es para el equipo. */
+    fun physicalKey(e: android.view.KeyEvent): Boolean {
+        if (desk == null || state != DesktopState.Open) return false
+        val out = when (e.action) {
+            android.view.KeyEvent.ACTION_DOWN -> keys.press(e.keyCode, e.getUnicodeChar(e.metaState), e.repeatCount)
+            android.view.KeyEvent.ACTION_UP -> keys.release(e.keyCode)
+            else -> null
+        } ?: return false
+        send(out)
+        return true
+    }
+
+    /** Nothing stays held on the device. / Nada se queda pulsado en el equipo. */
+    fun releaseKeys() = send(keys.releaseAll())
+
+    private fun send(out: List<KeyOut>) {
+        val d = desk ?: return
+        for (o in out) when (o) {
+            is KeyOut.Key -> d.key(o.vk, o.down, o.extended)
+            is KeyOut.Text -> String(Character.toChars(o.codePoint)).forEach(d::char)
+        }
+    }
+
+    /** A mouse moving over the picture; the same pixel again is not sent. / Un ratón moviéndose; el mismo píxel no se manda otra vez. */
+    fun mouseMove(x: Float, y: Float) {
+        val p = clamp(x, y)
+        if (p == lastMouse) return
+        lastMouse = p
+        if (touchpad) pointer = android.graphics.PointF(p.first.toFloat(), p.second.toFloat())
+        desk?.mouseMove(p.first, p.second)
+    }
+
+    /** A mouse button, with the keyboard's Ctrl or Shift if held. / Un botón del ratón, con Ctrl o Mayús si están pulsadas. */
+    fun mouseButton(x: Float, y: Float, button: io.github.nebur692.meshclient.core.MouseButton, down: Boolean) {
+        send(keys.beforeClick())
+        val (px, py) = clamp(x, y)
+        desk?.mouseMove(px, py)
+        desk?.mouseButton(button, down, px, py)
+    }
+
     fun move(x: Float, y: Float) { val (px, py) = clamp(x, y); desk?.mouseMove(px, py) }
 
     fun wheel(x: Float, y: Float, delta: Int) { val (px, py) = clamp(x, y); desk?.wheel(px, py, delta) }
@@ -533,6 +582,7 @@ class DesktopModel(private val session: () -> MeshSession?, val device: Device, 
      */
     fun onScreen(visible: Boolean) {
         hidden = !visible
+        if (!visible) releaseKeys()
         if (visible) startClipboard() else stopClipboard()
         val d = desk ?: return
         d.setPaused(!visible)

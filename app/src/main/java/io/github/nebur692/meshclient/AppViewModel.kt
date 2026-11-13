@@ -106,7 +106,7 @@ sealed interface BiometricRequest {
 enum class BiometricProblem { KeyChanged, Unavailable, Locked, Stale }
 
 /** A panel of the device's sheet. / Un panel de la ficha del equipo. */
-enum class DeviceSheet { Terminal, Power, More, Move, Ssh, Port, Message, Run, Edit, ConfirmRestart, ConfirmPowerOff, ConfirmUninstall, ConfirmRemove }
+enum class DeviceSheet { Terminal, Power, More, Pin, Move, Ssh, Port, Message, Run, Edit, ConfirmRestart, ConfirmPowerOff, ConfirmUninstall, ConfirmRemove }
 
 /** A short word after an action, or its failure. / Una palabra corta tras una acción, o su fallo. */
 data class Notice(val text: Int, val error: UiError? = null)
@@ -188,6 +188,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var visible = true
     private var visibleSince = 0L
 
+    /** Why a shortcut could not open its device, said once. / Por qué un acceso directo no pudo abrir su equipo. */
+    var linkProblem by mutableStateOf<Int?>(null)
+
+    /** A shortcut's device, opened once its server is signed in. / El equipo de un acceso, que se abre al entrar en su servidor. */
+    private var pendingLink: DeviceLink? = null
+
     // Every property above this line: init runs in order, and pick() already uses them (a crash on the POCO with a
     // saved server). / Todas las propiedades por encima: init corre en orden y pick() ya las usa (se cerraba en el POCO).
     init {
@@ -228,6 +234,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun pick(server: SavedServer) {
+        // Another server picked by hand: a shortcut's device no longer waits. / Otro servidor elegido a mano: el del acceso ya no espera.
+        if (pendingLink?.server != server.address) pendingLink = null
         // With the fingerprint set, the password never reaches the form. / Con la huella, la contraseña nunca llega al formulario.
         form = form.copy(server = server.address, username = server.username,
             password = if (server.hasBiometric) "" else saved.password(server).orEmpty(),
@@ -263,6 +271,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun forget(server: SavedServer) {
         saved.forget(server.address)
+        Shortcuts.forgetServer(getApplication(), server.address, getApplication<Application>().getString(R.string.shortcut_server_gone))
         savedServers = saved.all()
         // Forgetting the server on the form also takes its password off the screen. / Olvidar el servidor del formulario también quita su contraseña de la pantalla.
         if (form.server == server.address) {
@@ -453,6 +462,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 open(s)
                 form = form.copy(busy = false, username = s.user.name, password = "", expanded = false)
                 screen = Screen.Devices
+                followPending(how.address.toString())
                 // With a fingerprint, the fingerprint is offered (it keeps the token); without, the token alone, as the Windows app.
                 // Con huella se ofrece la huella (guarda el token); sin ella, solo el token, como la app de Windows.
                 val known = savedFor(how.address.toString())
@@ -547,6 +557,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 open(s)
                 form = form.copy(busy = false, password = if (typed && form.remember) form.password else "", expanded = false)
                 screen = Screen.Devices
+                followPending(address.toString())
                 // Typed in by hand, with a fingerprint on the phone and none here yet: offered once.
                 // Escrita a mano, con huella en el móvil y aquí aún sin ella: se ofrece una vez.
                 val known = savedFor(address.toString())
@@ -651,6 +662,70 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         sheet = null
         commandOutput = null
         loadDetails(id)
+        val s = session ?: return
+        val d = devices[id] ?: return
+        val app = getApplication<Application>()
+        // First among the launcher's recent devices; drawing its icon is kept off the screen's thread. / Fuera del hilo de la pantalla.
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            Shortcuts.recent(app, s.server.toString(), s.serverInfo.name.ifBlank { s.server.host }, d)
+        }
+    }
+
+    // ------------------------------------------------------------------ shortcuts / accesos directos
+
+    /**
+     * A shortcut was tapped. Signed in to its server, its device opens now; otherwise the saved account signs in as it
+     * always does (fingerprint, remembered password, provider or the form) and the device opens after.
+     * Se tocó un acceso directo. Con su servidor ya abierto, el equipo se abre ahora; si no, la cuenta guardada entra como
+     * siempre (huella, contraseña recordada, proveedor o el formulario) y el equipo se abre después.
+     */
+    fun openLink(link: DeviceLink) {
+        val s = session
+        if (s != null && s.server.toString() == link.server) { follow(link); return }
+        val server = savedFor(link.server) ?: run { linkProblem = R.string.link_server_gone; return }
+        if (s != null) signOut()
+        // The first saved account's fingerprint prompt must not come instead. / Que no salga en su lugar la huella de la primera cuenta.
+        autoUnlockTried = true
+        form = LoginForm()
+        pick(server)
+        pendingLink = link
+        signInSaved(server)
+    }
+
+    private fun followPending(address: String) {
+        val link = pendingLink ?: return
+        pendingLink = null
+        if (link.server == address) follow(link)
+    }
+
+    /** What the link asks, if this account may; else the device's sheet, which says why. / Lo que pide, si se puede; si no, la ficha. */
+    private fun follow(link: DeviceLink) {
+        val d = devices[link.deviceId]
+        if (d == null) { closeTools(); show(Screen.Devices); linkProblem = R.string.link_device_gone; return }
+        val rights = session?.rightsOn(d) ?: 0L
+        fun may(no: Long) = io.github.nebur692.meshclient.core.MeshRights.tool(rights, no)
+        val target = when (link.tool) {
+            LinkTool.Desktop -> if (d.canOpenDesktop && may(io.github.nebur692.meshclient.core.MeshRights.NO_DESKTOP)) Screen.Desktop(d.id) else null
+            LinkTool.Terminal, LinkTool.PowerShell -> if (d.canOpenTerminal && may(io.github.nebur692.meshclient.core.MeshRights.NO_TERMINAL)) Screen.Terminal(d.id) else null
+            LinkTool.Files -> if (d.canOpenFiles && may(io.github.nebur692.meshclient.core.MeshRights.NO_FILES)) Screen.Files(d.id) else null
+            LinkTool.Device -> null
+        }
+        // Already on it (back from the home screen): left as it is. / Ya está en ello: se deja como está.
+        if (screen == (target ?: Screen.DeviceDetail(d.id))) return
+        closeTools()
+        when (target) {
+            is Screen.Desktop -> openDesktop(d.id)
+            is Screen.Terminal -> openTerminal(d.id, if (link.tool == LinkTool.PowerShell && d.isWindows) TunnelProtocol.PowerShell else TunnelProtocol.Terminal)
+            is Screen.Files -> openFiles(d.id)
+            else -> openDevice(d.id)
+        }
+    }
+
+    /** Asks the launcher to put [tool] of [d] on the home screen. / Pide al lanzador poner [tool] de [d] en la pantalla de inicio. */
+    fun pinShortcut(d: Device, tool: LinkTool, toolName: String) {
+        val s = session ?: return
+        sheet = null
+        if (!Shortcuts.pin(getApplication(), DeviceLink(s.server.toString(), d.id, tool), d, toolName)) notice = Notice(R.string.shortcut_not_added)
     }
 
     /** Inventory, network, last contact, notes and history, all at once; each part may come empty. / Todo a la vez. */
@@ -750,6 +825,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun remove(d: Device) = act(R.string.done_removed) {
         it.removeDevice(d)
         devices.remove(d.id)
+        Shortcuts.forgetDevice(getApplication(), it.server.toString(), d.id, getApplication<Application>().getString(R.string.shortcut_device_gone))
         screen = Screen.Devices
     }
 

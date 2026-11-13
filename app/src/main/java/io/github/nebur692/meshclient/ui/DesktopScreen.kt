@@ -67,6 +67,14 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.isPrimaryPressed
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.isTertiaryPressed
+import kotlin.math.roundToInt
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -268,6 +276,11 @@ private fun DesktopMenu(m: DesktopModel, open: Boolean, dismiss: () -> Unit) {
  * right-clicks and a two-finger drag scrolls. / La pantalla remota, ajustada al principio. Directo: un toque hace clic
  * donde toca, mantener es clic derecho, arrastrar arrastra, dos dedos amplían y mueven. Touchpad: el dedo mueve un
  * puntero, un toque hace clic ahí, un toque con dos dedos es clic derecho y arrastrar con dos desplaza.
+ *
+ * A mouse (Bluetooth, USB, DeX) works as on the device in either mode: it points where it is, its three buttons press and
+ * release, and its wheel scrolls; the phone's pointer takes the device's shape (hand, text). / Un ratón funciona como en el
+ * equipo en los dos modos: apunta donde está, sus tres botones pulsan y sueltan, y su rueda desplaza; el puntero del móvil
+ * toma la forma del del equipo (mano, texto).
  */
 @Composable
 private fun RemoteScreen(m: DesktopModel, modifier: Modifier) {
@@ -290,10 +303,37 @@ private fun RemoteScreen(m: DesktopModel, modifier: Modifier) {
     val originNow = rememberUpdatedState { origin() }
     val current = rememberUpdatedState(m)
     val scaleNow = rememberUpdatedState(scale)
-    Canvas(modifier.onSizeChanged { view = it }.semantics { contentDescription = m.device.name }.pointerInput(m) {
+    val icon = when (m.cursor) { 2 -> PointerIcon.Crosshair; 3 -> PointerIcon.Hand; 5 -> PointerIcon.Text; else -> PointerIcon.Default }
+    Canvas(modifier.onSizeChanged { view = it }.semantics { contentDescription = m.device.name }.pointerHoverIcon(icon).pointerInput(m) {
+        // Seen first, before the touch gestures: a mouse is never taken for a finger. / Antes que los gestos: un ratón nunca es un dedo.
+        awaitPointerEventScope {
+            var buttons = 0
+            while (true) {
+                val e = awaitPointerEvent(PointerEventPass.Initial)
+                val c = e.changes.firstOrNull { it.type == PointerType.Mouse } ?: continue
+                val model = current.value
+                val r = toRemote.value(c.position)
+                if (e.type == PointerEventType.Scroll) {
+                    // Android: down is positive; Windows: up is, 120 per notch. / Android: abajo es positivo; Windows: arriba, 120 por paso.
+                    val notches = c.scrollDelta.y
+                    if (notches != 0f) model.wheel(r.x, r.y, -(notches * 120).roundToInt())
+                } else {
+                    val now = (if (e.buttons.isPrimaryPressed) 1 else 0) or (if (e.buttons.isSecondaryPressed) 2 else 0) or (if (e.buttons.isTertiaryPressed) 4 else 0)
+                    if (now != buttons) {
+                        for ((bit, b) in MOUSE_BUTTONS) if ((now xor buttons) and bit != 0) model.mouseButton(r.x, r.y, b, now and bit != 0)
+                        buttons = now
+                    } else model.mouseMove(r.x, r.y)
+                }
+                // Taken here: Android would turn a right click nobody took into Back. / Tomado aquí: Android haría Atrás de un clic derecho.
+                e.changes.forEach { it.consume() }
+            }
+        }
+    }.pointerInput(m) {
         val slop = viewConfiguration.touchSlop
         awaitEachGesture {
             val first = awaitFirstDown(requireUnconsumed = false)
+            // The mouse has its own handling above. / El ratón se atiende arriba.
+            if (first.type == PointerType.Mouse) return@awaitEachGesture
             val start = first.position
             val t0 = first.uptimeMillis
             var moved = false; var dragging = false; var two = false; var twoMoved = false; var scrolled = 0f
@@ -363,6 +403,8 @@ private fun RemoteScreen(m: DesktopModel, modifier: Modifier) {
         }
     }
 }
+
+private val MOUSE_BUTTONS = listOf(1 to MouseButton.Left, 2 to MouseButton.Right, 4 to MouseButton.Middle)
 
 /**
  * Takes the phone keyboard's letters, backspace and Enter and sends them to the device; asked as a visible password
