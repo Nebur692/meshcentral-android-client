@@ -1,5 +1,6 @@
 package io.github.nebur692.meshclient.ui
 
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -59,3 +60,10 @@ fun MeshTheme(content: @Composable () -> Unit) {
         MaterialTheme(colorScheme = scheme, content = content)
     }
 }
+
+/**
+ * The top bars, lower than Material's 64 dp: the screen is for the device, not for the bar (he: «La app tiene que ocupar
+ * el máximo posible de la pantalla»). 52 dp still fits a title and its subtitle and a 48 dp touch target.
+ * Las barras de arriba, más bajas que los 64 dp de Material: la pantalla es para el equipo, no para la barra.
+ */
+val BarHeight = 52.dp

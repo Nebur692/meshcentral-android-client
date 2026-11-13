@@ -59,7 +59,7 @@ fun AccountScreen(vm: AppViewModel) {
     val uri = LocalUriHandler.current
     val saved = vm.savedServers.firstOrNull { it.address == s.server.toString() }
     Scaffold(topBar = {
-        TopAppBar(
+        TopAppBar(expandedHeight = BarHeight,
             title = { Text(stringResource(R.string.tab_account)) },
             navigationIcon = { IconButton(onClick = { vm.show(Screen.Devices) }) { Icon(painterResource(R.drawable.ic_back), stringResource(R.string.back)) } },
         )

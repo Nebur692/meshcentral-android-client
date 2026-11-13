@@ -46,6 +46,9 @@ class MainActivity : ComponentActivity() {
     // Without it the connection is kept all the same; only the notification is hidden. / Sin él se mantiene igual; solo no se ve el aviso.
     private val notifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
+    // Android 17: to talk to a server on the phone's own network. / Android 17: para hablar con un servidor de la red del móvil.
+    private val localNetwork = registerForActivityResult(ActivityResultContracts.RequestPermission()) { vm.localNetworkGranted(it) }
+
     override fun onStart() { super.onStart(); vm.onForeground() }
     override fun onStop() { super.onStop(); vm.onBackground() }
 
@@ -92,6 +95,7 @@ class MainActivity : ComponentActivity() {
                         Screen.Account -> AccountScreen(vm)
                         is Screen.Admin -> io.github.nebur692.meshclient.ui.AdminScreen(vm, s.page, s.id)
                         Screen.Ports -> io.github.nebur692.meshclient.ui.PortsScreen(vm)
+                        is Screen.Tools -> io.github.nebur692.meshclient.ui.ToolsScreen(vm)
                         is Screen.DeviceDetail -> DeviceScreen(vm, s.id)
                         is Screen.Terminal -> TerminalScreen(vm)
                         is Screen.Files -> FilesScreen(vm)
@@ -109,6 +113,14 @@ class MainActivity : ComponentActivity() {
                         ) notifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                     }
                     vm.biometricOffer?.let { BiometricOfferSheet(it, vm::answerBiometricOffer) }
+                    if (vm.localNetworkPrompt) AlertDialog(
+                        onDismissRequest = { vm.answerLocalNetworkPrompt(false) },
+                        title = { Text(stringResource(R.string.local_network_title)) },
+                        text = { Text(stringResource(R.string.local_network_text)) },
+                        confirmButton = { TextButton(onClick = { vm.answerLocalNetworkPrompt(true) }) { Text(stringResource(R.string.local_network_go)) } },
+                        dismissButton = { TextButton(onClick = { vm.answerLocalNetworkPrompt(false) }) { Text(stringResource(R.string.cancel)) } },
+                    )
+                    if (vm.askLocalNetwork) LaunchedEffect(Unit) { localNetwork.launch(io.github.nebur692.meshclient.LocalNetwork.PERMISSION) }
                     vm.hostKeyPrompt?.let { io.github.nebur692.meshclient.ui.HostKeyDialog(it, vm::answerHostKey) }
                     vm.serverNotice?.let { n ->
                         AlertDialog(

@@ -54,6 +54,8 @@ sealed interface Screen {
     data class Admin(val page: AdminPage, val id: String? = null) : Screen
     /** The port mappings open now. / Las redirecciones de puertos abiertas. */
     data object Ports : Screen
+    /** A device's processes or services. / Los procesos o servicios de un equipo. */
+    data class Tools(val id: String) : Screen
     data class DeviceDetail(val id: String) : Screen
     data class Terminal(val id: String) : Screen
     data class Files(val id: String) : Screen
@@ -208,6 +210,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (signOnFor == address.toString()) return
         discovering = viewModelScope.launch {
             if (!now) delay(700)
+            // On the local network without the permission, the look-up would only time out: Connect asks first.
+            // En la red local sin el permiso, la consulta solo agotaría el tiempo: Conectar pregunta antes.
+            if (!localNetworkAllowed(address, ask = false)) return@launch
             val pin = savedFor(address.toString())?.pinnedSha256 ?: acceptedPins[address.toString()]
             val trust = CertificateTrust(pin)
             val found = SignInMethods.discover(address, trust, userAgent())
@@ -432,6 +437,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         screen = Screen.Login
         form = form.copy(busy = true, error = null)
         viewModelScope.launch {
+            if (!localNetworkAllowed(how.address)) { form = form.copy(busy = false, error = localNetworkError()); return@launch }
             try {
                 val s = MeshSession.connectWithCookies(how.address, cookies, CertificateTrust(how.pinnedSha256), userAgent())
                 credentials = null
@@ -523,6 +529,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun attempt(address: ServerAddress, creds: PasswordCredentials, viaToken: SingleSignOn? = null, viaBiometric: Boolean = false) {
         form = form.copy(busy = true, error = null)
         viewModelScope.launch {
+            if (!localNetworkAllowed(address)) { form = form.copy(busy = false, error = localNetworkError()); return@launch }
+            if (signOnFor != address.toString()) discoverSignOn(now = true)
             try {
                 val s = MeshSession.connect(address, creds, CertificateTrust(pendingPin), userAgent = userAgent())
                 // A second-factor code is single-use: a reconnection asks for a new one. / El código es de un solo uso.
@@ -741,6 +749,47 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         screen = Screen.Devices
     }
 
+    // ------------------------------------------------------------------ local network / red local
+
+    /** The explanation before Android's own question, while it is on screen. / La explicación antes de la pregunta de Android. */
+    var localNetworkPrompt by mutableStateOf(false)
+        private set
+    /** The activity asks Android now. / La actividad pregunta ya a Android. */
+    var askLocalNetwork by mutableStateOf(false)
+    private var localNetworkAnswer: kotlinx.coroutines.CompletableDeferred<Boolean>? = null
+    private var localNetworkRefused = false
+
+    /** The person's answer to the explanation: go on to Android's question, or not. / La respuesta a la explicación. */
+    fun answerLocalNetworkPrompt(goOn: Boolean) {
+        localNetworkPrompt = false
+        if (goOn) askLocalNetwork = true else { localNetworkRefused = true; localNetworkAnswer?.complete(false) }
+    }
+
+    /** Android's answer. / La respuesta de Android. */
+    fun localNetworkGranted(granted: Boolean) {
+        askLocalNetwork = false
+        if (!granted) localNetworkRefused = true
+        localNetworkAnswer?.complete(granted)
+    }
+
+    /**
+     * True when the server can be reached: Android before 17, the permission given, or the server not on the phone's
+     * local network now. Otherwise the person is asked (once per run; [ask] false only looks).
+     * True si se puede llegar al servidor: Android anterior al 17, el permiso dado, o el servidor fuera de la red local del
+     * móvil ahora. Si no, se pregunta a la persona (una vez por ejecución; [ask] false solo mira).
+     */
+    private suspend fun localNetworkAllowed(address: ServerAddress, ask: Boolean = true): Boolean {
+        val app = getApplication<Application>()
+        if (!LocalNetwork.missing(app) || !LocalNetwork.isLocal(app, address.host)) return true
+        if (!ask || localNetworkRefused) return false
+        val answer = kotlinx.coroutines.CompletableDeferred<Boolean>()
+        localNetworkAnswer = answer
+        localNetworkPrompt = true
+        return answer.await()
+    }
+
+    private fun localNetworkError() = UiError(MeshFailure.NotAllowed, LocalNetwork.KEY)
+
     // ------------------------------------------------------------------ connection / conexión
 
     fun reconnect() {
@@ -755,6 +804,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         } ?: signOut()
         lost = false
         viewModelScope.launch {
+            // Moved onto the server's own network (home Wi-Fi) without the permission: said, not timed out.
+            // Pasó a la red del propio servidor sin el permiso: se dice, no se agota el tiempo.
+            if (!localNetworkAllowed(address, ask = visible)) { lost = true; return@launch }
             try {
                 open(if (c != null) MeshSession.connect(address, c, CertificateTrust(pendingPin), userAgent = userAgent())
                      else MeshSession.connectWithCookies(address, cookies!!, CertificateTrust(pendingPin), userAgent()))
@@ -813,6 +865,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun moveTargets(d: Device): List<io.github.nebur692.meshclient.core.DeviceGroup> {
         val s = session ?: return emptyList()
         return s.knownGroups.filter { s.canMove(d, it) }.sortedBy { it.name.lowercase() }
+    }
+
+    /** Processes or services of a device, while their screen is open. / Procesos o servicios, mientras su pantalla está abierta. */
+    var deviceTools by mutableStateOf<DeviceToolsModel?>(null)
+        private set
+
+    fun openDeviceTools(id: String, services: Boolean) {
+        val d = devices[id] ?: return
+        deviceTools?.close()
+        deviceTools = DeviceToolsModel({ session }, d, services, viewModelScope)
+        show(Screen.Tools(id))
+    }
+
+    fun leaveDeviceTools() {
+        val id = deviceTools?.device?.id
+        deviceTools?.close(); deviceTools = null
+        show(if (id != null && devices[id] != null) Screen.DeviceDetail(id) else Screen.Devices)
     }
 
     fun moveDevice(d: Device, target: io.github.nebur692.meshclient.core.DeviceGroup) = act(R.string.done_moved) { it.moveDevice(d, target) }

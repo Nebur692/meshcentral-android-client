@@ -107,7 +107,6 @@
     <string name="on_since">booted %1$s</string>
     <string name="in_group">group %1$s</string>
     <string name="signed_in_user">Signed in: %1$s</string>
-    <string name="soon">Soon</string>
     <string name="act_desktop">Desktop</string>
     <string name="act_terminal">Terminal</string>
     <string name="act_files">Files</string>
@@ -453,4 +452,24 @@
         <item quantity="one">%d connection open</item>
         <item quantity="other">%d connections open</item>
     </plurals>
+    <!-- Processes and services / Procesos y servicios -->
+    <string name="tools_search">Search</string>
+    <string name="tools_no_processes">The device gave no process list.</string>
+    <string name="tools_no_services">The device gave no service list.</string>
+    <string name="tools_kill_title">End the process?</string>
+    <string name="tools_kill_text">%1$s (PID %2$d) will be closed on the device. Anything it had not saved is lost.</string>
+    <string name="tools_kill">End process</string>
+    <string name="tools_killed">Process ended.</string>
+    <string name="tools_kill_failed">The device did not end it: it is still running.</string>
+    <string name="tools_start">Start</string>
+    <string name="tools_stop">Stop</string>
+    <string name="tools_restart">Restart</string>
+    <string name="tools_service_asked">Done: the list shows how the service is now.</string>
+    <string name="tools_running">Running</string>
+    <string name="tools_stopped">Stopped</string>
+    <!-- Local network (Android 17) / Red local (Android 17) -->
+    <string name="local_network_title">Your server is on this network</string>
+    <string name="local_network_text">The server is on the same network as this phone (at home or in the office). Android only lets the app reach it with the "Nearby devices" permission, which it asks for next. The app uses it only to connect to your MeshCentral server.</string>
+    <string name="local_network_go">Continue</string>
+    <string name="err_local_network">Android does not let the app reach your local network: without the "Nearby devices" permission it cannot connect to a server on this Wi-Fi. Give it in Settings › Apps › MeshCentral Client › Permissions, or connect with mobile data.</string>
 </resources>

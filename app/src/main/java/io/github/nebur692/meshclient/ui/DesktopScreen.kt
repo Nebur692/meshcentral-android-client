@@ -103,7 +103,7 @@ fun DesktopScreen(vm: AppViewModel) {
     Scaffold(
         topBar = {
             Column {
-                TopAppBar(
+                TopAppBar(expandedHeight = BarHeight,
                     title = {
                         Column {
                             Text(m.device.name, maxLines = 1, overflow = TextOverflow.Ellipsis)

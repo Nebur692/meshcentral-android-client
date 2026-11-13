@@ -38,7 +38,9 @@ fun ErrorCard(error: UiError) {
 /** The failure in plain words. / El fallo en palabras claras. */
 @Composable
 fun errorText(error: UiError): String =
-    if (error.missingFields) stringResource(R.string.err_missing) else when (error.failure) {
+    if (error.missingFields) stringResource(R.string.err_missing)
+    else if (error.key == io.github.nebur692.meshclient.LocalNetwork.KEY) stringResource(R.string.err_local_network)
+    else when (error.failure) {
         MeshFailure.NotAllowed -> stringResource(R.string.err_not_allowed)
         MeshFailure.NotFound -> stringResource(R.string.err_not_found)
         MeshFailure.DeviceOffline -> stringResource(R.string.err_device_offline)

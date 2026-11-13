@@ -117,7 +117,7 @@ fun DeviceScreen(vm: AppViewModel, id: String) {
         snackbarHost = { SnackbarHost(snack) },
         topBar = {
             Column {
-                TopAppBar(
+                TopAppBar(expandedHeight = BarHeight,
                     title = { Text(d.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     navigationIcon = {
                         IconButton(onClick = { vm.show(Screen.Devices) }) { Icon(painterResource(R.drawable.ic_back), stringResource(R.string.back)) }
@@ -188,12 +188,12 @@ private fun Header(vm: AppViewModel, d: Device) {
     }
 }
 
-/** One action button of the grid. [soon]: coming in a later version. / Un botón de la cuadrícula; [soon]: llega más adelante. */
+/** One action button of the grid. / Un botón de la cuadrícula. */
 @Composable
-private fun ActionButton(icon: Int, label: Int, enabled: Boolean, modifier: Modifier, soon: Boolean = false, onClick: () -> Unit = {}) {
-    // What works carries colour; what is coming or not possible now stays grey. / Lo que funciona, con color; lo demás, gris.
-    val bg = if (soon || !enabled) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.primaryContainer
-    val fg = if (soon || !enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimaryContainer
+private fun ActionButton(icon: Int, label: Int, enabled: Boolean, modifier: Modifier, onClick: () -> Unit = {}) {
+    // What works carries colour; what is not possible now stays grey. / Lo que funciona, con color; lo que no se puede ahora, gris.
+    val bg = if (!enabled) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.primaryContainer
+    val fg = if (!enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimaryContainer
     Column(
         modifier.heightIn(min = 88.dp).clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -204,7 +204,6 @@ private fun ActionButton(icon: Int, label: Int, enabled: Boolean, modifier: Modi
         }
         Text(stringResource(label), style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center,
             color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-        if (soon) Text(stringResource(R.string.soon), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -214,22 +213,24 @@ private fun Actions(vm: AppViewModel, d: Device, columns: Int) {
     val rights = vm.session?.rightsOn(d) ?: 0
     val can = vm.abilities(d)
     fun has(r: Long) = MeshRights.has(rights, r)
-    data class A(val icon: Int, val label: Int, val enabled: Boolean, val soon: Boolean, val onClick: () -> Unit)
+    data class A(val icon: Int, val label: Int, val enabled: Boolean, val onClick: () -> Unit)
     val all = buildList {
-        if (MeshRights.tool(rights, MeshRights.NO_DESKTOP)) add(A(R.drawable.ic_monitor, R.string.act_desktop, d.canOpenDesktop, false) { vm.openDesktop(d.id) })
-        if (MeshRights.tool(rights, MeshRights.NO_TERMINAL)) add(A(R.drawable.ic_terminal, R.string.act_terminal, d.canOpenTerminal, false) { vm.sheet = DeviceSheet.Terminal })
-        if (MeshRights.tool(rights, MeshRights.NO_FILES)) add(A(R.drawable.ic_folder, R.string.act_files, d.canOpenFiles, false) { vm.openFiles(d.id) })
-        if (has(MeshRights.WAKE) || has(MeshRights.RESET_OFF)) add(A(R.drawable.ic_power, R.string.act_power, can.wake || can.power, false) { vm.sheet = DeviceSheet.Power })
-        if (has(MeshRights.REMOTE_CONTROL)) add(A(R.drawable.ic_processes, R.string.act_processes, false, true) {})
-        if (has(MeshRights.REMOTE_CONTROL) && d.isWindows) add(A(R.drawable.ic_services, R.string.act_services, false, true) {})
-        if (has(MeshRights.CHAT_NOTIFY) || has(MeshRights.REMOTE_CONTROL)) add(A(R.drawable.ic_chat, R.string.act_message, can.anyMessage, false) { vm.sheet = DeviceSheet.Message })
-        if (has(MeshRights.REMOTE_COMMAND)) add(A(R.drawable.ic_run, R.string.act_run, can.runCommands, false) { vm.sheet = DeviceSheet.Run })
+        if (MeshRights.tool(rights, MeshRights.NO_DESKTOP)) add(A(R.drawable.ic_monitor, R.string.act_desktop, d.canOpenDesktop) { vm.openDesktop(d.id) })
+        if (MeshRights.tool(rights, MeshRights.NO_TERMINAL)) add(A(R.drawable.ic_terminal, R.string.act_terminal, d.canOpenTerminal) { vm.sheet = DeviceSheet.Terminal })
+        if (MeshRights.tool(rights, MeshRights.NO_FILES)) add(A(R.drawable.ic_folder, R.string.act_files, d.canOpenFiles) { vm.openFiles(d.id) })
+        if (has(MeshRights.WAKE) || has(MeshRights.RESET_OFF)) add(A(R.drawable.ic_power, R.string.act_power, can.wake || can.power) { vm.sheet = DeviceSheet.Power })
+        // What the website's desktop tools ask with remote control or view only; services, on Windows (as the website).
+        // Lo que piden las herramientas de la web con control remoto o solo ver; los servicios, en Windows (como la web).
+        if (has(MeshRights.REMOTE_CONTROL) || has(MeshRights.REMOTE_VIEW_ONLY)) add(A(R.drawable.ic_processes, R.string.act_processes, d.hasAgent) { vm.openDeviceTools(d.id, services = false) })
+        if ((has(MeshRights.REMOTE_CONTROL) || has(MeshRights.REMOTE_VIEW_ONLY)) && d.isWindows) add(A(R.drawable.ic_services, R.string.act_services, d.hasAgent) { vm.openDeviceTools(d.id, services = true) })
+        if (has(MeshRights.CHAT_NOTIFY) || has(MeshRights.REMOTE_CONTROL)) add(A(R.drawable.ic_chat, R.string.act_message, can.anyMessage) { vm.sheet = DeviceSheet.Message })
+        if (has(MeshRights.REMOTE_COMMAND)) add(A(R.drawable.ic_run, R.string.act_run, can.runCommands) { vm.sheet = DeviceSheet.Run })
     }
     if (all.isEmpty()) return
     Column(Modifier.padding(horizontal = 8.dp)) {
         all.chunked(columns).forEach { row ->
             Row(Modifier.fillMaxWidth()) {
-                row.forEach { a -> ActionButton(a.icon, a.label, a.enabled, Modifier.weight(1f), a.soon, a.onClick) }
+                row.forEach { a -> ActionButton(a.icon, a.label, a.enabled, Modifier.weight(1f), a.onClick) }
                 repeat(columns - row.size) { Box(Modifier.weight(1f)) }
             }
         }

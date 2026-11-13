@@ -53,6 +53,13 @@ class PortMapping private constructor(private val session: () -> MeshSession?, v
 
     private fun publish() { _stats.value = PortMappingStats(active.get(), total.get(), up.get(), down.get(), lastError) }
 
+    private val publishing = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    private fun publishSoon() {
+        if (!publishing.compareAndSet(false, true)) return
+        scope.launch { kotlinx.coroutines.delay(500); publishing.set(false); publish() }
+    }
+
     private fun accept() = scope.launch {
         while (isActive) {
             val client = try { server.accept() } catch (_: IOException) { return@launch }
@@ -69,18 +76,11 @@ class PortMapping private constructor(private val session: () -> MeshSession?, v
                     val s = session() ?: throw MeshSession.lost("redireccion/llevar-conexion/conexion-cortada", null)
                     TcpRelay.open(s, target.nodeId, target.remotePort, target.remoteHost)
                 } catch (e: MeshClientException) { lastError = e; publish(); return }
-                var seenUp = 0L
-                var seenDown = 0L
-                val watch = scope.launch {
-                    while (isActive) {
-                        val u = relay.bytesUp; val d = relay.bytesDown
-                        if (u != seenUp || d != seenDown) { up.addAndGet(u - seenUp); down.addAndGet(d - seenDown); seenUp = u; seenDown = d; publish() }
-                        kotlinx.coroutines.delay(500)
-                    }
-                }
+                // Counted as the bytes pass and told at most twice a second: nothing wakes up while nothing moves (it
+                // used to look every 500 ms). / Se cuentan al pasar y se dicen dos veces por segundo como mucho: nada
+                // se despierta mientras no pasa nada (antes se miraba cada 500 ms).
+                relay.onTraffic = { u, d -> up.addAndGet(u.toLong()); down.addAndGet(d.toLong()); publishSoon() }
                 relay.pump(c.getInputStream(), c.getOutputStream()) { runCatching { c.close() } }
-                watch.cancel()
-                up.addAndGet(relay.bytesUp - seenUp); down.addAndGet(relay.bytesDown - seenDown)
             }
         } finally {
             active.decrementAndGet(); publish()

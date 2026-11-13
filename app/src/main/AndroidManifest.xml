@@ -5,6 +5,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- To notice a change of network (Wi-Fi, mobile data) and reconnect on the new one. / Para notar un cambio de red y reconectar en la nueva. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Android 17 blocks an app's traffic to its own local network without it (a MeshCentral at home or in the office: the
+         sign-in timed out with nothing reaching the server). / Android 17 bloquea sin él el tráfico de la app a su propia red local
+         (un MeshCentral en casa o en la oficina: la entrada agotaba el tiempo sin llegar nada al servidor). -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <!-- Only to ask Android for the fingerprint prompt; the app never sees the fingerprint. / Solo para pedir a Android el aviso de huella; la app nunca ve la huella. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <!-- A terminal, the files or a desktop stays connected while you use another app, with a notification saying so.

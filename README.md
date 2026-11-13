@@ -19,7 +19,12 @@ The Android sibling of [MeshCentral Windows Client](https://github.com/Nebur692/
 [MeshCentral](https://github.com/Ylianst/MeshCentral) through the same channels as the official website, so it works with
 **any** installation, with no plugin and no server change. Kotlin, Jetpack Compose and Material 3, for Android 10 and newer.
 
-> Unofficial project, not affiliated with the MeshCentral authors. **In development**: see [the plan](docs/PLAN.md).
+> Unofficial project, not affiliated with the MeshCentral authors. What it does, phase by phase: [the plan](docs/PLAN.md).
+
+### Get it
+
+**Download it from [Google Play](https://play.google.com/store/apps/details?id=io.github.nebur692.meshclient)** ("MeshCentral Client"): it updates by itself. It is in closed testing for
+now, so Google Play shows it only to the testers until it opens to everyone. The code here is to read and to build.
 
 ### Build and test
 
@@ -41,7 +46,13 @@ La hermana Android de [MeshCentral Windows Client](https://github.com/Nebur692/m
 **cualquier** instalación, sin plugins y sin tocar el servidor. Kotlin, Jetpack Compose y Material 3, para Android 10 o
 más nuevo.
 
-> Proyecto no oficial, sin relación con los autores de MeshCentral. **En desarrollo**: mira [el plan](docs/PLAN.md).
+> Proyecto no oficial, sin relación con los autores de MeshCentral. Qué hace, fase a fase: [el plan](docs/PLAN.md).
+
+### Descárgala
+
+**Descárgala de [Google Play](https://play.google.com/store/apps/details?id=io.github.nebur692.meshclient)** («Cliente MeshCentral»): se actualiza sola. Por ahora está en prueba cerrada,
+así que Google Play solo la enseña a quienes la prueban hasta que se abra a todo el mundo. El código de aquí es para
+leerlo y compilarlo.
 
 ### Compilar y probar
 

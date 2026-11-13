@@ -109,7 +109,6 @@
     <string name="on_since">encendido %1$s</string>
     <string name="in_group">grupo %1$s</string>
     <string name="signed_in_user">Sesión iniciada: %1$s</string>
-    <string name="soon">Pronto</string>
     <string name="act_desktop">Escritorio</string>
     <string name="act_terminal">Terminal</string>
     <string name="act_files">Ficheros</string>
@@ -463,4 +462,24 @@
         <item quantity="many">%d conexiones abiertas</item>
         <item quantity="other">%d conexiones abiertas</item>
     </plurals>
+    <!-- Procesos y servicios -->
+    <string name="tools_search">Buscar</string>
+    <string name="tools_no_processes">El equipo no ha dado la lista de procesos.</string>
+    <string name="tools_no_services">El equipo no ha dado la lista de servicios.</string>
+    <string name="tools_kill_title">¿Terminar el proceso?</string>
+    <string name="tools_kill_text">%1$s (PID %2$d) se cerrará en el equipo. Lo que no hubiera guardado se pierde.</string>
+    <string name="tools_kill">Terminar proceso</string>
+    <string name="tools_killed">Proceso terminado.</string>
+    <string name="tools_kill_failed">El equipo no lo ha terminado: sigue en marcha.</string>
+    <string name="tools_start">Iniciar</string>
+    <string name="tools_stop">Detener</string>
+    <string name="tools_restart">Reiniciar</string>
+    <string name="tools_service_asked">Hecho: la lista enseña cómo está ahora el servicio.</string>
+    <string name="tools_running">En marcha</string>
+    <string name="tools_stopped">Detenido</string>
+    <!-- Red local (Android 17) -->
+    <string name="local_network_title">Tu servidor está en esta red</string>
+    <string name="local_network_text">El servidor está en la misma red que este móvil (en casa o en la oficina). Android solo deja a la app llegar a él con el permiso de «Dispositivos cercanos», que te pide a continuación. La app lo usa solo para conectar con tu servidor MeshCentral.</string>
+    <string name="local_network_go">Continuar</string>
+    <string name="err_local_network">Android no deja a la app llegar a tu red local: sin el permiso de «Dispositivos cercanos» no puede conectar con un servidor de esta wifi. Dáselo en Ajustes › Aplicaciones › Cliente MeshCentral › Permisos, o conecta con datos móviles.</string>
 </resources>

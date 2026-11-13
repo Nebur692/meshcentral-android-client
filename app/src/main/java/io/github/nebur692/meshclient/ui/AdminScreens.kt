@@ -118,7 +118,7 @@ fun AdminScreen(vm: AppViewModel, page: AdminPage, id: String?) {
     Scaffold(
         topBar = {
             Column {
-                TopAppBar(
+                TopAppBar(expandedHeight = BarHeight,
                     title = { Text(item ?: stringResource(title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     navigationIcon = { IconButton(onClick = back) { Icon(painterResource(R.drawable.ic_back), stringResource(R.string.back)) } },
                     actions = { IconButton(onClick = { a.load(page) }) { Icon(painterResource(R.drawable.ic_refresh), stringResource(R.string.refresh)) } },

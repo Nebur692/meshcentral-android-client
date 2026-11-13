@@ -35,6 +35,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
@@ -63,31 +66,34 @@ import io.github.nebur692.meshclient.core.OsFamily
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DevicesScreen(vm: AppViewModel) {
-    val all = vm.devices.values.toList()
-    val shown = all.filter { d ->
-        when (vm.filter) {
-            DeviceFilter.All -> true
-            DeviceFilter.Online -> d.isOnline
-            DeviceFilter.Windows -> d.osFamily == OsFamily.Windows
-            DeviceFilter.Linux -> d.osFamily == OsFamily.Linux
-            DeviceFilter.Mac -> d.osFamily == OsFamily.Mac
-        } && d.matches(vm.query, vm.groupNames[d.groupId])
-    }
-    val byGroup = shown.groupBy { vm.groupNames[it.groupId] ?: it.groupId }.toSortedMap(String.CASE_INSENSITIVE_ORDER)
+    // Worked out again only when the devices, the filter, the search or the group names change, not on every redraw
+    // of the screen (a live event, the keyboard, a banner). / Se vuelve a calcular solo cuando cambian los equipos, el
+    // filtro, la búsqueda o los nombres de los grupos, no en cada repintado de la pantalla.
+    val view by remember(vm) { derivedStateOf {
+        val all = vm.devices.values.toList()
+        val shown = all.filter { d ->
+            when (vm.filter) {
+                DeviceFilter.All -> true
+                DeviceFilter.Online -> d.isOnline
+                DeviceFilter.Windows -> d.osFamily == OsFamily.Windows
+                DeviceFilter.Linux -> d.osFamily == OsFamily.Linux
+                DeviceFilter.Mac -> d.osFamily == OsFamily.Mac
+            } && d.matches(vm.query, vm.groupNames[d.groupId])
+        }
+        val counts = mapOf(DeviceFilter.All to all.size, DeviceFilter.Online to all.count { it.isOnline },
+            DeviceFilter.Windows to all.count { it.osFamily == OsFamily.Windows }, DeviceFilter.Linux to all.count { it.osFamily == OsFamily.Linux },
+            DeviceFilter.Mac to all.count { it.osFamily == OsFamily.Mac })
+        ListView(all.isEmpty(), shown.isEmpty(), counts, shown.groupBy { vm.groupNames[it.groupId] ?: it.groupId }.toSortedMap(String.CASE_INSENSITIVE_ORDER))
+    } }
+    val byGroup = view.byGroup
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.background(MaterialTheme.colorScheme.background).statusBarsPadding().padding(top = 4.dp)) {
             SearchBar(vm)
             if (vm.lost) LostBanner(vm)
-            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                fun count(f: DeviceFilter) = when (f) {
-                    DeviceFilter.All -> all.size
-                    DeviceFilter.Online -> all.count { it.isOnline }
-                    DeviceFilter.Windows -> all.count { it.osFamily == OsFamily.Windows }
-                    DeviceFilter.Linux -> all.count { it.osFamily == OsFamily.Linux }
-                    DeviceFilter.Mac -> all.count { it.osFamily == OsFamily.Mac }
-                }
+            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                fun count(f: DeviceFilter) = view.counts[f] ?: 0
                 // A system with no device here is not offered. / Un sistema sin equipos aquí no se ofrece.
                 items(DeviceFilter.entries.filter { it == DeviceFilter.All || it == DeviceFilter.Online || count(it) > 0 || vm.filter == it }) { f ->
                     FilterChip(vm.filter == f, { vm.filter = f }, { Text(stringResource(when (f) {
@@ -100,10 +106,10 @@ fun DevicesScreen(vm: AppViewModel) {
                 }
             }
         }
-        if (shown.isEmpty()) {
+        if (view.noneShown) {
             Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
                 // Without a search, it was the filter that left nothing. / Sin búsqueda, lo que no deja nada es el filtro.
-                Text(stringResource(when { all.isEmpty() -> R.string.no_devices; vm.query.isBlank() -> R.string.no_match_filter; else -> R.string.no_match }),
+                Text(stringResource(when { view.noDevices -> R.string.no_devices; vm.query.isBlank() -> R.string.no_match_filter; else -> R.string.no_match }),
                     color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
             }
             return@Column
@@ -227,3 +233,6 @@ private fun DeviceRow(d: Device, onClick: () -> Unit) {
         if (d.isOnline) Text(state, style = MaterialTheme.typography.labelMedium, color = LocalStatusColors.current.online)
     }
 }
+
+/** What the list shows, worked out in one go. / Lo que enseña la lista, calculado de una vez. */
+private class ListView(val noDevices: Boolean, val noneShown: Boolean, val counts: Map<DeviceFilter, Int>, val byGroup: Map<String, List<Device>>)

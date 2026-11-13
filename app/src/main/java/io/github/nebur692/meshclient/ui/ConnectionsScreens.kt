@@ -157,7 +157,7 @@ fun PortsScreen(vm: AppViewModel) {
     BackHandler(onBack = back)
     Scaffold(topBar = {
         Column {
-            TopAppBar(
+            TopAppBar(expandedHeight = BarHeight,
                 title = { Text(stringResource(R.string.ports_title)) },
                 navigationIcon = { IconButton(onClick = back) { Icon(painterResource(R.drawable.ic_back), stringResource(R.string.back)) } },
             )

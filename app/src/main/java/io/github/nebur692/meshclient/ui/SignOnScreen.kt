@@ -57,7 +57,7 @@ fun SignOnScreen(how: Screen.SignOn, onCancel: () -> Unit, onDone: (Map<String, 
     // Back goes back inside the provider's pages first. / Atrás vuelve primero dentro de las páginas del proveedor.
     BackHandler { view?.takeIf { it.canGoBack() }?.goBack() ?: onCancel() }
     Scaffold(topBar = {
-        TopAppBar(
+        TopAppBar(expandedHeight = BarHeight,
             title = {
                 Column {
                     Text(stringResource(R.string.signon_title, how.method.displayName), maxLines = 1, overflow = TextOverflow.Ellipsis)

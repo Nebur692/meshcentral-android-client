@@ -44,9 +44,13 @@ class TcpRelay private constructor() {
     val bytesUp: Long get() = up.get()
     val bytesDown: Long get() = down.get()
 
+    /** Told the bytes as they pass (up, down), on the thread that moved them. / Se le dicen los bytes al pasar. */
+    @Volatile var onTraffic: ((Int, Int) -> Unit)? = null
+
     fun send(bytes: ByteArray, count: Int = bytes.size) {
         if (ended.get() || !socket.send(bytes.toByteString(0, count))) throw MeshSession.lost(LOST, null)
         up.addAndGet(count.toLong())
+        onTraffic?.invoke(count, 0)
     }
 
     /** The next bytes from the device, or null when it ended. / Los siguientes bytes del equipo, o null si acabó. */
@@ -114,6 +118,7 @@ class TcpRelay private constructor() {
         override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
             if (!hello.isCompleted) return
             down.addAndGet(bytes.size.toLong())
+            onTraffic?.invoke(0, bytes.size)
             inbox.trySend(bytes.toByteArray())
         }
 

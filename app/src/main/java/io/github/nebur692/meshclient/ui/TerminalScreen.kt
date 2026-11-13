@@ -127,7 +127,7 @@ fun TerminalScreen(vm: AppViewModel) {
         snackbarHost = { SnackbarHost(snack) },
         topBar = {
             Column {
-                TopAppBar(
+                TopAppBar(expandedHeight = BarHeight,
                     title = {
                         Column {
                             Text(t.title ?: t.device.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
