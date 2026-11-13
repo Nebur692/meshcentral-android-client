@@ -17,6 +17,10 @@ developer receives no data from it.
   trust is kept by its fingerprint. For SSH, the identities (fingerprints) of the SSH servers the user accepted, and the
   last machine, port and user name used on each device; never the SSH password, and a private key only while it is
   being used. None of this is copied to backups or to other devices.
+- **The clipboard:** the app reads the phone's clipboard only when the user pastes, and, while a remote desktop is on
+  screen with "Automatic clipboard" on (it can be turned off in its menu), to send newly copied text to that device, as
+  MeshCentral's website does; text the device copies is put on the phone's clipboard. It goes only to that device,
+  through the user's MeshCentral server, and is not kept anywhere else.
 - **Deleting it:** "Forget" on a saved server removes it from the phone; uninstalling the app removes everything.
 - There is no telemetry, analytics, advertising or advertising ID, and no account with the developer.
 
@@ -41,6 +45,10 @@ desarrollador no recibe ningún dato de ella.
   (huellas) de los servidores SSH que el usuario aceptó y la última máquina, puerto y usuario usados en cada equipo;
   nunca la contraseña SSH, y una clave privada solo mientras se usa. Nada de esto va a las copias de seguridad ni a
   otros dispositivos.
+- **El portapapeles:** la app lee el portapapeles del teléfono solo cuando el usuario pega y, mientras se ve un
+  escritorio remoto con «Portapapeles automático» activado (se puede desactivar en su menú), para mandar a ese equipo el
+  texto recién copiado, como hace la web de MeshCentral; el texto que copia el equipo se pone en el portapapeles del
+  teléfono. Solo va a ese equipo, a través del servidor MeshCentral del usuario, y no se guarda en ningún otro sitio.
 - **Borrarlo:** «Olvidar» en un servidor guardado lo quita del teléfono; desinstalar la app lo borra todo.
 - No hay telemetría, analítica, publicidad ni ID de publicidad, ni cuenta con el desarrollador.
 

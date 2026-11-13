@@ -27,6 +27,8 @@ fun MeshSession.rightsOn(device: Device): Long = MeshRights.ofDevice(user, serve
 fun MeshSession.abilitiesOn(device: Device): DeviceAbilities = DeviceAbilities.of(rightsOn(device), device)
 
 private fun denied(key: String, what: String) = MeshClientException(MeshFailure.NotAllowed, key, "This account has no rights to $what on this device.")
+/** The server's clipboardget / clipboardset is off (features2). / El servidor tiene apagado el portapapeles. */
+private fun serverForbidsClipboard() = MeshClientException(MeshFailure.NotAllowed, "portapapeles/sincronizar/no-autorizado", "This server does not allow the device's clipboard.")
 private fun offline(key: String) = MeshClientException(MeshFailure.DeviceOffline, key, "The device's agent is not connected.")
 private fun refused(key: String, result: String?) =
     MeshClientException(MeshFailure.Rejected, key, "The server said: $result.").apply { serverMessage = result }
@@ -109,11 +111,19 @@ suspend fun MeshSession.changeDevice(device: Device, name: String? = null, descr
     r.str("result")?.takeIf { it != "ok" }?.let { throw refused("ficha/cambiar-ajustes/rechazo-remoto", it) }
 }
 
+private fun ids(devices: List<Device>) = JsonArray(devices.map { JsonPrimitive(it.id) })
+
+private fun requireSome(devices: List<Device>) = require(devices.isNotEmpty()) { "no devices" }
+
 /** Wake-on-LAN, sent by other agents of its network. Returns what the server says. / Lo mandan otros agentes de su red. */
-suspend fun MeshSession.wake(device: Device): String {
-    if (!MeshRights.has(rightsOn(device), MeshRights.WAKE)) throw denied("acciones/accionar-dispositivo/no-autorizado", "wake it")
+suspend fun MeshSession.wake(device: Device): String = wake(listOf(device))
+
+/** Several at once: every one must allow it, or none is sent. / Varios a la vez: todos tienen que permitirlo, o no se manda ninguno. */
+suspend fun MeshSession.wake(devices: List<Device>): String {
+    requireSome(devices)
+    for (d in devices) if (!MeshRights.has(rightsOn(d), MeshRights.WAKE)) throw denied("acciones/accionar-dispositivo/no-autorizado", "wake it")
     val id = MeshSession.newId()
-    val r = request(buildJsonObject { put("action", "wakedevices"); put("nodeids", JsonArray(listOf(JsonPrimitive(device.id)))); put("responseid", id) },
+    val r = request(buildJsonObject { put("action", "wakedevices"); put("nodeids", ids(devices)); put("responseid", id) },
         { it.str("action") == "wakedevices" && it.str("responseid") == id },
         "acciones/accionar-dispositivo/tiempo-agotado", "acciones/accionar-dispositivo/conexion-cortada")
     val result = r.str("result").orEmpty()
@@ -123,23 +133,33 @@ suspend fun MeshSession.wake(device: Device): String {
 }
 
 /** Power off, restart or sleep, done by the agent. / Apagar, reiniciar o suspender, lo hace el agente. */
-suspend fun MeshSession.power(device: Device, action: PowerAction) {
-    if (!MeshRights.has(rightsOn(device), MeshRights.RESET_OFF)) throw denied("acciones/accionar-dispositivo/no-autorizado", "power it off or restart it")
-    if (!device.hasAgent) throw offline("acciones/accionar-dispositivo/sin-conexion")
+suspend fun MeshSession.power(device: Device, action: PowerAction) = power(listOf(device), action)
+
+suspend fun MeshSession.power(devices: List<Device>, action: PowerAction) {
+    requireSome(devices)
+    for (d in devices) {
+        if (!MeshRights.has(rightsOn(d), MeshRights.RESET_OFF)) throw denied("acciones/accionar-dispositivo/no-autorizado", "power it off or restart it")
+        if (!d.hasAgent) throw offline("acciones/accionar-dispositivo/sin-conexion")
+    }
     val id = MeshSession.newId()
     request(buildJsonObject {
-        put("action", "poweraction"); put("nodeids", JsonArray(listOf(JsonPrimitive(device.id)))); put("actiontype", action.code); put("responseid", id)
+        put("action", "poweraction"); put("nodeids", ids(devices)); put("actiontype", action.code); put("responseid", id)
     }, { it.str("action") == "poweraction" && it.str("responseid") == id },
         "acciones/accionar-dispositivo/tiempo-agotado", "acciones/accionar-dispositivo/conexion-cortada")
 }
 
 /** A system notification on the device (toast). / Una notificación del sistema en el equipo. */
-suspend fun MeshSession.notify(device: Device, title: String, message: String) {
-    if (!MeshRights.has(rightsOn(device), MeshRights.CHAT_NOTIFY)) throw denied("acciones/enviar-mensaje/no-autorizado", "send notifications")
-    if (!device.hasAgent) throw offline("acciones/enviar-mensaje/sin-conexion")
+suspend fun MeshSession.notify(device: Device, title: String, message: String) = notify(listOf(device), title, message)
+
+suspend fun MeshSession.notify(devices: List<Device>, title: String, message: String) {
+    requireSome(devices)
+    for (d in devices) {
+        if (!MeshRights.has(rightsOn(d), MeshRights.CHAT_NOTIFY)) throw denied("acciones/enviar-mensaje/no-autorizado", "send notifications")
+        if (!d.hasAgent) throw offline("acciones/enviar-mensaje/sin-conexion")
+    }
     val id = MeshSession.newId()
     val r = request(buildJsonObject {
-        put("action", "toast"); put("nodeids", JsonArray(listOf(JsonPrimitive(device.id)))); put("title", title); put("msg", message); put("responseid", id)
+        put("action", "toast"); put("nodeids", ids(devices)); put("title", title); put("msg", message); put("responseid", id)
     }, { it.str("action") == "toast" && it.str("responseid") == id }, "acciones/enviar-mensaje/tiempo-agotado", "acciones/enviar-mensaje/conexion-cortada")
     if (!r.str("result").equals("ok", ignoreCase = true)) throw refused("acciones/enviar-mensaje/rechazo-remoto", r.str("result"))
 }
@@ -212,6 +232,7 @@ fun MeshSession.uninstallAgent(device: Device) {
  */
 suspend fun MeshSession.setDeviceClipboard(device: Device, text: String) {
     if (!MeshRights.has(rightsOn(device), MeshRights.REMOTE_CONTROL)) throw denied("portapapeles/sincronizar/no-autorizado", "use the clipboard")
+    if (!serverInfo.clipboardSetAllowed) throw serverForbidsClipboard()
     if (!device.hasAgent) throw offline("portapapeles/sincronizar/sin-conexion")
     request(buildJsonObject { put("action", "msg"); put("type", "setclip"); put("nodeid", device.id); put("data", text) },
         { it.str("action") == "msg" && it.str("type") == "setclip" },
@@ -224,13 +245,14 @@ suspend fun MeshSession.setDeviceClipboard(device: Device, text: String) {
  * El texto del equipo, o null si no hay: el agente no contesta si está vacío, ni el servidor si lo prohíbe. El tag 3 lo
  * deja fuera del historial del equipo, como hace la app de Windows.
  */
-suspend fun MeshSession.deviceClipboard(device: Device): String? {
+suspend fun MeshSession.deviceClipboard(device: Device, timeoutMs: Long = 8_000): String? {
     if (!MeshRights.has(rightsOn(device), MeshRights.REMOTE_CONTROL)) throw denied("portapapeles/sincronizar/no-autorizado", "use the clipboard")
+    if (!serverInfo.clipboardGetAllowed) throw serverForbidsClipboard()
     if (!device.hasAgent) throw offline("portapapeles/sincronizar/sin-conexion")
     return try {
         request(buildJsonObject { put("action", "msg"); put("type", "getclip"); put("nodeid", device.id); put("tag", 3) },
-            { it.str("action") == "msg" && it.str("type") == "getclip" },
-            "portapapeles/sincronizar/tiempo-agotado", "portapapeles/sincronizar/conexion-cortada", 8_000).str("data")
+            { it.str("action") == "msg" && it.str("type") == "getclip" && (it.str("nodeid") == null || it.str("nodeid") == device.id) },
+            "portapapeles/sincronizar/tiempo-agotado", "portapapeles/sincronizar/conexion-cortada", timeoutMs).str("data")
     } catch (e: MeshClientException) {
         if (e.failure == MeshFailure.Timeout) null else throw e
     }

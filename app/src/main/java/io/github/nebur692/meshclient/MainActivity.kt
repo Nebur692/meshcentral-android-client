@@ -95,6 +95,8 @@ class MainActivity : ComponentActivity() {
                         Screen.Account -> AccountScreen(vm)
                         is Screen.Admin -> io.github.nebur692.meshclient.ui.AdminScreen(vm, s.page, s.id)
                         Screen.Ports -> io.github.nebur692.meshclient.ui.PortsScreen(vm)
+                        Screen.Security -> io.github.nebur692.meshclient.ui.SecurityScreen(vm)
+                        Screen.ServerState -> io.github.nebur692.meshclient.ui.ServerStateScreen(vm)
                         is Screen.Tools -> io.github.nebur692.meshclient.ui.ToolsScreen(vm)
                         is Screen.DeviceDetail -> DeviceScreen(vm, s.id)
                         is Screen.Terminal -> TerminalScreen(vm)
@@ -160,6 +162,7 @@ class MainActivity : ComponentActivity() {
                     }
                     // Back inside the app before leaving it (predictive on Android 14+). / Atrás dentro de la app antes de salir.
                     BackHandler(enabled = vm.screen is Screen.DeviceDetail || vm.screen == Screen.Account) { vm.show(Screen.Devices) }
+                    BackHandler(enabled = vm.screen == Screen.Security || vm.screen == Screen.ServerState) { vm.show(Screen.Account) }
                 }
             }
         }

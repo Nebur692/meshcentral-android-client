@@ -15,6 +15,7 @@ import io.github.nebur692.meshclient.core.MeshSession
 import io.github.nebur692.meshclient.core.RemoteEntry
 import io.github.nebur692.meshclient.core.RemoteEntryKind
 import io.github.nebur692.meshclient.core.RemotePaths
+import io.github.nebur692.meshclient.core.rightsOn
 import io.github.nebur692.meshclient.core.TerminalKeys
 import io.github.nebur692.meshclient.core.TerminalConnection
 import io.github.nebur692.meshclient.core.TunnelProtocol
@@ -77,6 +78,17 @@ class TerminalModel(
     /** Posts to the page; set by the screen while it has one. / Manda a la página; lo pone la pantalla mientras tiene una. */
     var toPage: ((String) -> Unit)? = null
 
+    // The phone's clipboard, set by the screen: a finger selection (where it ended, in page pixels), a copy from a hardware
+    // keyboard, a paste asked from it. / El portapapeles del móvil, lo pone la pantalla: una selección con el dedo, una
+    // copia desde un teclado físico, un pegado pedido desde él.
+    var onSelection: ((text: String, x: Float, y: Float) -> Unit)? = null
+    var onSelectionGone: (() -> Unit)? = null
+    var onCopy: ((String) -> Unit)? = null
+    var onPasteRequest: (() -> Unit)? = null
+
+    /** Ctrl+V pastes, as in Windows Terminal: the device's own shells on Windows, not SSH. / Ctrl+V pega en las shells de Windows. */
+    val windowsKeys: Boolean get() = device.isWindows && !label.startsWith("SSH")
+
     private var term: TerminalConnection? = null
     private var reading: Job? = null
     private val kept = ByteArrayOutputStream()
@@ -90,6 +102,10 @@ class TerminalModel(
             "title" -> title = (m["title"] as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
             "font" -> m.int("size")?.let { fontSize = it }
             "text" -> selection = (m["text"] as? JsonPrimitive)?.content.orEmpty()
+            "selection" -> onSelection?.invoke((m["text"] as? JsonPrimitive)?.content.orEmpty(), m.float("x"), m.float("y"))
+            "selection-gone" -> onSelectionGone?.invoke()
+            "copy" -> (m["text"] as? JsonPrimitive)?.content?.takeIf { it.isNotEmpty() }?.let { onCopy?.invoke(it) }
+            "paste-request" -> onPasteRequest?.invoke()
             "error" -> android.util.Log.e("MeshTerminal", "page: " + (m["text"] as? JsonPrimitive)?.content)
         }
     }
@@ -165,6 +181,10 @@ class TerminalModel(
 
     fun requestText() = toPage?.invoke("""{"t":"text-request"}""")
 
+    fun selectAll(x: Float, y: Float) = toPage?.invoke(buildJsonObject { put("t", "select-all"); put("x", x); put("y", y) }.toString())
+
+    fun clearSelection() = toPage?.invoke("""{"t":"clear-selection"}""")
+
     fun focus() = toPage?.invoke("""{"t":"focus"}""")
 
     fun setDark(dark: Boolean) = toPage?.invoke(buildJsonObject { put("t", "theme"); put("dark", dark) }.toString())
@@ -183,6 +203,7 @@ class TerminalModel(
     }
 
     private fun JsonObject.int(k: String) = (this[k] as? JsonPrimitive)?.intOrNull
+    private fun JsonObject.float(k: String) = (this[k] as? JsonPrimitive)?.content?.toFloatOrNull() ?: 0f
 
     companion object {
         const val KEEP = 2 * 1024 * 1024
@@ -353,6 +374,10 @@ sealed interface DesktopState {
  */
 /** Out of sight, one frame every so many milliseconds. / Fuera de la vista, una imagen cada tantos milisegundos. */
 private const val HIDDEN_FRAME_MS = 2000
+/** How often the device's clipboard is asked while on screen (the website asks every second). / Cada cuánto se pregunta. */
+private const val CLIP_POLL_MS = 2000L
+/** An empty clipboard gets no answer from the agent: waited this long. / Un portapapeles vacío no recibe respuesta: se espera esto. */
+private const val CLIP_WAIT_MS = 2500L
 
 class DesktopModel(private val session: () -> MeshSession?, val device: Device, private val scope: CoroutineScope) {
     var state by mutableStateOf<DesktopState>(DesktopState.Connecting)
@@ -393,6 +418,7 @@ class DesktopModel(private val session: () -> MeshSession?, val device: Device, 
                 d.setQuality(quality.quality, quality.scaling, quality.frameMs)
                 if (hidden) onScreen(false)
                 state = DesktopState.Open
+                startClipboard()
                 d.events.collect { e ->
                     when (e) {
                         is io.github.nebur692.meshclient.core.DesktopEvent.Size -> newScreen(e.width, e.height)
@@ -507,6 +533,7 @@ class DesktopModel(private val session: () -> MeshSession?, val device: Device, 
      */
     fun onScreen(visible: Boolean) {
         hidden = !visible
+        if (visible) startClipboard() else stopClipboard()
         val d = desk ?: return
         d.setPaused(!visible)
         d.setQuality(quality.quality, quality.scaling, if (visible) quality.frameMs else HIDDEN_FRAME_MS)
@@ -514,6 +541,62 @@ class DesktopModel(private val session: () -> MeshSession?, val device: Device, 
 
     /** What a clipboard action did, shown for a moment. / Lo que hizo una acción del portapapeles, un momento. */
     var clipNotice by mutableStateOf<Notice?>(null)
+
+    /**
+     * The clipboard follows both ways while the desktop is on screen, as the website's "Automatic Clipboard": what the
+     * device copies is asked every [CLIP_POLL_MS] (tag 3, out of the device's history; the agent has no push), and what
+     * the phone copies goes at once. [lastSynced] is what both sides hold, so nothing bounces back. The first reading is
+     * only a starting point: what the device had before is not poured onto the phone.
+     * El portapapeles va en los dos sentidos mientras se ve el escritorio, como el «Automatic Clipboard» de la web: lo que
+     * copia el equipo se pregunta cada [CLIP_POLL_MS] (el agente no avisa), y lo que copia el móvil va al momento.
+     * [lastSynced] es lo que tienen los dos lados, para que nada rebote. La primera lectura solo es el punto de partida.
+     */
+    var autoClipboard by mutableStateOf(true)
+        private set
+    /** Set by the screen: the device copied this text. / Lo pone la pantalla: el equipo copió este texto. */
+    var onDeviceCopied: ((String) -> Unit)? = null
+    @Volatile private var lastSynced: String? = null
+    private var clipJob: Job? = null
+    private var baseline = false
+
+    private fun clipboardAllowed(get: Boolean): Boolean {
+        val s = session() ?: return false
+        return io.github.nebur692.meshclient.core.MeshRights.has(s.rightsOn(device), io.github.nebur692.meshclient.core.MeshRights.REMOTE_CONTROL) &&
+            (if (get) s.serverInfo.clipboardGetAllowed else s.serverInfo.clipboardSetAllowed)
+    }
+
+    private fun startClipboard() {
+        if (clipJob != null || !autoClipboard || hidden || state != DesktopState.Open || !clipboardAllowed(get = true)) return
+        clipJob = scope.launch {
+            while (true) {
+                val text = try { session()?.deviceClipboard(device, CLIP_WAIT_MS) } catch (e: MeshClientException) { null }
+                if (!baseline) { baseline = true; if (lastSynced == null) lastSynced = text }
+                else if (!text.isNullOrEmpty() && text != lastSynced) { lastSynced = text; onDeviceCopied?.invoke(text) }
+                kotlinx.coroutines.delay(CLIP_POLL_MS)
+            }
+        }
+    }
+
+    private fun stopClipboard() { clipJob?.cancel(); clipJob = null }
+
+    fun changeAutoClipboard(on: Boolean) {
+        autoClipboard = on
+        if (on) startClipboard() else stopClipboard()
+    }
+
+    /** The phone's clipboard has new text: to the device, unless it came from there. / El móvil tiene texto nuevo: al equipo, si no vino de allí. */
+    fun phoneCopied(text: String?) {
+        if (!autoClipboard || text.isNullOrEmpty() || text == lastSynced || state != DesktopState.Open || !clipboardAllowed(get = false)) return
+        lastSynced = text
+        scope.launch {
+            clipNotice = try {
+                session()?.setDeviceClipboard(device, text)
+                Notice(R.string.desk_clip_synced)
+            } catch (e: MeshClientException) {
+                Notice(R.string.action_failed, UiError(e.failure, e.key, e.httpStatus))
+            }
+        }
+    }
 
     /**
      * The phone's text to the device's clipboard (MeshCentral's own: text only), to paste there with Ctrl+V.
@@ -551,6 +634,7 @@ class DesktopModel(private val session: () -> MeshSession?, val device: Device, 
 
     fun close() {
         closedByPerson = true
+        stopClipboard()
         job?.cancel()
         desk?.close()
         if (state !is DesktopState.Closed) state = DesktopState.Closed(null)

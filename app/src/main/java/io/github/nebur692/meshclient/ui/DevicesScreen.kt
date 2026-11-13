@@ -3,7 +3,8 @@ package io.github.nebur692.meshclient.ui
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -87,10 +88,14 @@ fun DevicesScreen(vm: AppViewModel) {
     } }
     val byGroup = view.byGroup
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val bulk = vm.bulk
+    // Back first stops picking. / Atrás primero deja de elegir.
+    BackHandler(enabled = bulk.active) { bulk.clear() }
 
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.background(MaterialTheme.colorScheme.background).statusBarsPadding().padding(top = 4.dp)) {
-            SearchBar(vm)
+            if (bulk.active) BulkBar(bulk, byGroup.values.flatten().map { it.id }) else SearchBar(vm)
+            BulkNotice(bulk)
             if (vm.lost) LostBanner(vm)
             LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 fun count(f: DeviceFilter) = view.counts[f] ?: 0
@@ -126,11 +131,14 @@ fun DevicesScreen(vm: AppViewModel) {
                 }
                 // Online first, then by name. / Primero los que están en línea, luego por nombre.
                 items(list.sortedWith(compareBy<Device>({ !it.isOnline }, { it.name.lowercase() })), key = { it.id }) { d ->
-                    DeviceRow(d) { vm.openDevice(d.id) }
+                    DeviceRow(d, d.id in bulk.selected, onLongClick = { bulk.toggle(d.id) }) {
+                        if (bulk.active) bulk.toggle(d.id) else vm.openDevice(d.id)
+                    }
                 }
             }
         }
     }
+    BulkSheets(vm, bulk)
 }
 
 /** The search bar is the screen's header: it says which server and holds the account. / El buscador es la cabecera. */
@@ -215,15 +223,25 @@ fun DeviceTile(d: Device, size: Int = 44) {
     }
 }
 
+/** A long press picks it for actions on several; while picking, a tap picks or drops it. / Una pulsación larga lo elige. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun DeviceRow(d: Device, onClick: () -> Unit) {
+private fun DeviceRow(d: Device, selected: Boolean, onLongClick: () -> Unit, onClick: () -> Unit) {
     val state = stringResource(if (d.isOnline) R.string.online else R.string.offline)
+    val picked = stringResource(R.string.bulk_picked)
+    val pick = stringResource(R.string.bulk_pick)
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 8.dp)
-            .semantics(mergeDescendants = true) { contentDescription = "${d.name}, $state" },
+        Modifier.fillMaxWidth().heightIn(min = 64.dp)
+            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent)
+            .combinedClickable(onLongClickLabel = pick, onLongClick = onLongClick, onClick = onClick).padding(horizontal = 20.dp, vertical = 8.dp)
+            .semantics(mergeDescendants = true) { contentDescription = if (selected) "${d.name}, $state, $picked" else "${d.name}, $state" },
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        DeviceTile(d)
+        if (selected) Box(Modifier.size(46.dp), contentAlignment = Alignment.Center) {
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(44.dp)) {
+                Box(contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.ic_check), null, Modifier.size(24.dp)) }
+            }
+        } else DeviceTile(d)
         Column(Modifier.weight(1f)) {
             Text(d.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(listOfNotNull(d.osDescription, d.address).joinToString(" · "), style = MaterialTheme.typography.bodySmall,

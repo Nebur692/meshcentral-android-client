@@ -472,4 +472,125 @@
     <string name="local_network_text">The server is on the same network as this phone (at home or in the office). Android only lets the app reach it with the "Nearby devices" permission, which it asks for next. The app uses it only to connect to your MeshCentral server.</string>
     <string name="local_network_go">Continue</string>
     <string name="err_local_network">Android does not let the app reach your local network: without the "Nearby devices" permission it cannot connect to a server on this Wi-Fi. Give it in Settings › Apps › MeshCentral Client › Permissions, or connect with mobile data.</string>
+    <!-- 0.10.0: several devices at once / varios equipos a la vez -->
+    <string name="bulk_stop">Stop selecting</string>
+    <plurals name="bulk_selected">
+        <item quantity="one">%d selected</item>
+        <item quantity="other">%d selected</item>
+    </plurals>
+    <string name="bulk_select_all">Select all shown</string>
+    <string name="bulk_notify">Notification</string>
+    <string name="bulk_pick">select</string>
+    <string name="bulk_picked">selected</string>
+    <plurals name="bulk_went">
+        <item quantity="one">(%d device)</item>
+        <item quantity="other">(%d devices)</item>
+    </plurals>
+    <plurals name="bulk_left_out">
+        <item quantity="one">%d left out: offline or without rights.</item>
+        <item quantity="other">%d left out: offline or without rights.</item>
+    </plurals>
+    <string name="bulk_none">None of the selected devices allows it: they are offline or you have no rights on them.</string>
+    <string name="bulk_reach">Goes to %1$d of %2$d: the others are offline or you have no rights on them.</string>
+    <string name="bulk_run_hint">Runs on each device as its agent, all at the same time; cmd or PowerShell only applies to the Windows ones.</string>
+    <plurals name="bulk_confirm_restart">
+        <item quantity="one">Restart %d device?</item>
+        <item quantity="other">Restart %d devices?</item>
+    </plurals>
+    <plurals name="bulk_confirm_off">
+        <item quantity="one">Power off %d device?</item>
+        <item quantity="other">Power off %d devices?</item>
+    </plurals>
+    <string name="bulk_confirm_text">They restart now. Whoever is using them may lose what they have not saved.</string>
+    <string name="bulk_confirm_off_text">They power off now. Whoever is using them may lose what they have not saved, and turning them on again needs wake-on-LAN or someone there.</string>
+
+    <!-- 0.10.0: the own account / la cuenta propia -->
+    <string name="acc_security">Password and two-factor</string>
+    <string name="acc_security_on">Two-factor on · login tokens</string>
+    <string name="acc_security_off">Two-factor off · login tokens</string>
+    <string name="acc_locked">An administrator has locked this account\'s settings: the password and two-factor cannot be changed here.</string>
+    <string name="acc_password">Password</string>
+    <string name="acc_password_change">Change the password</string>
+    <string name="acc_password_change_short">Change</string>
+    <string name="acc_password_current">Current password</string>
+    <string name="acc_password_new">New password</string>
+    <string name="acc_password_again">New password again</string>
+    <string name="acc_password_mismatch">The two new passwords are not the same.</string>
+    <string name="acc_password_done">Password changed.</string>
+    <string name="acc_two_factor">Two-factor authentication</string>
+    <string name="acc_auth_app">Authenticator app</string>
+    <string name="acc_on">On</string>
+    <string name="acc_off">Off</string>
+    <string name="acc_auth_add_hint">Signing in will also ask for a code from an app such as Google Authenticator, Microsoft Authenticator or Aegis.</string>
+    <string name="acc_auth_remove_hint">Tap to remove it.</string>
+    <string name="acc_auth_add">Add an authenticator app</string>
+    <string name="acc_auth_steps">Open the authenticator app on this phone with the button (or copy the key into it), then type the 6-digit code it shows.</string>
+    <string name="acc_auth_open">Open in the authenticator app</string>
+    <string name="acc_auth_copy">Copy the key</string>
+    <string name="acc_auth_no_app">No authenticator app on this phone opened it: copy the key into yours.</string>
+    <string name="acc_auth_code">6-digit code</string>
+    <string name="acc_auth_wrong">That code is not right: check the phone\'s time and try the next one.</string>
+    <string name="acc_auth_confirm">Turn on</string>
+    <string name="acc_auth_done">Authenticator app on: signing in will ask for its code.</string>
+    <string name="acc_auth_removed">Authenticator app removed.</string>
+    <string name="acc_auth_remove_title">Remove the authenticator app?</string>
+    <string name="acc_auth_remove_text">Signing in will not ask for its code any more.</string>
+    <string name="remove_it">Remove</string>
+    <string name="acc_codes">Backup codes</string>
+    <string name="acc_codes_some">Some unused · tap to see them</string>
+    <string name="acc_codes_none">None · tap to make them</string>
+    <string name="acc_codes_hint">Each code signs in once instead of the app\'s code. Keep them somewhere safe; crossed out ones are used.</string>
+    <string name="acc_codes_copy">Copy the unused ones</string>
+    <string name="acc_codes_new">Make new ones</string>
+    <string name="acc_codes_new_title">Make new backup codes?</string>
+    <string name="acc_codes_new_text">Ten new codes; any you had stop working.</string>
+    <string name="acc_codes_clear">Remove them all</string>
+    <string name="acc_codes_cleared">Backup codes removed.</string>
+    <string name="acc_keys">Security keys</string>
+    <string name="acc_key">Security key</string>
+    <string name="acc_keys_hint">Tap one to remove it. Security keys are added from the server\'s website, in a browser.</string>
+    <string name="acc_key_remove_title">Remove this security key?</string>
+    <string name="acc_key_removed">Security key removed.</string>
+    <string name="acc_tokens">Login tokens</string>
+    <string name="acc_tokens_hint">A separate user name and password for scripts and tools such as meshctrl; they sign in as you without the second factor. Tap one to remove it.</string>
+    <string name="acc_token_until">Until %1$s</string>
+    <string name="acc_token_forever">Never expires</string>
+    <string name="acc_token_new">New login token</string>
+    <string name="acc_token_name">Name</string>
+    <string name="acc_token_expires">Expires in</string>
+    <plurals name="acc_token_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <string name="acc_token_create">Create</string>
+    <string name="acc_token_made">Login token created</string>
+    <string name="acc_token_made_hint">Copy them now: the password is not shown again.</string>
+    <string name="acc_copy_user">Copy the user name</string>
+    <string name="acc_copy_password">Copy the password</string>
+    <string name="acc_token_saved">I have saved it</string>
+    <string name="acc_token_remove_title">Remove the login token?</string>
+    <string name="acc_token_remove_text">%1$s will not be able to sign in any more.</string>
+    <string name="acc_token_removed">Login token removed.</string>
+
+    <!-- 0.10.0: the server's live state / el estado en vivo del servidor -->
+    <string name="srv_state">Server state</string>
+    <string name="srv_state_hint">Memory, load and who is connected, live</string>
+    <string name="srv_waiting">Waiting for the server…</string>
+    <string name="srv_memory">Memory</string>
+    <string name="srv_memory_used">%1$s of %2$s GB in use</string>
+    <string name="srv_load">Load</string>
+    <string name="srv_load_values">%1$s · %2$s · %3$s (1, 5 and 15 minutes)</string>
+    <string name="srv_now">Now</string>
+    <string name="srv_users_connected">People connected</string>
+    <string name="srv_user_sessions">Their sessions</string>
+    <string name="srv_agents">Agents connected</string>
+    <string name="srv_relays">Relay sessions</string>
+    <string name="srv_accounts">Accounts</string>
+    <string name="srv_groups">Device groups</string>
+    <string name="srv_errors">Errors</string>
+    <string name="srv_relay_errors">Relay errors</string>
+
+    <!-- 0.10.0: automatic clipboard / portapapeles automático -->
+    <string name="desk_clip_auto">Automatic clipboard</string>
+    <string name="desk_clip_synced">Your clipboard is on the device: paste it there with Ctrl+V.</string>
 </resources>

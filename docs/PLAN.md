@@ -17,6 +17,7 @@ and per-app language on 13, predictive back on 14), in the brand's own colours, 
 | 4 | **Device actions** (wake, sleep, restart, power off, message, run commands, edit, uninstall, remove), **single sign-on**, notifications from the server | **done** (0.3.0; notifications 0.6.0) |
 | 5 | Groups, users, server events, port mapping and SSH | **done** (0.7.0 administration, 0.8.0 port mapping and SSH) |
 | 6 | Google Play: signing, store listing, closed test, then production | **in closed test** |
+| 7 | What the Windows app already had: actions on several devices, own account (password, authenticator app, backup codes, security keys, login tokens), server state; native copy and paste in terminals and an automatic clipboard on the remote desktop | **done** (0.10.0) |
 
 ## Español
 
@@ -33,3 +34,4 @@ temático e idioma por app en la 13, «Atrás» predictivo en la 14), con los co
 | 4 | **Acciones sobre el equipo** (despertar, suspender, reiniciar, apagar, mensaje, ejecutar órdenes, editar, desinstalar, borrar), **inicio de sesión único**, avisos del servidor | **hecha** (0.3.0; avisos 0.6.0) |
 | 5 | Grupos, usuarios, sucesos del servidor, redirección de puertos y SSH | **hecha** (0.7.0 administración, 0.8.0 redirección de puertos y SSH) |
 | 6 | Google Play: firma, ficha, prueba cerrada y después producción | **en prueba cerrada** |
+| 7 | Lo que ya tenía la app de Windows: acciones en varios equipos, cuenta propia (contraseña, app de autenticación, códigos de respaldo, llaves de seguridad, tokens de acceso), estado del servidor; copiar y pegar nativo en las terminales y portapapeles automático en el escritorio remoto | **hecha** (0.10.0) |

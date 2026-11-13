@@ -50,6 +50,10 @@ sealed interface Screen {
     data object Login : Screen
     data object Devices : Screen
     data object Account : Screen
+    /** The own account's password, second factor and login tokens. / Contraseña, doble factor y tokens de la cuenta propia. */
+    data object Security : Screen
+    /** The server's live state. / El estado en vivo del servidor. */
+    data object ServerState : Screen
     /** The administration: a list, or one of its items. / La administración: una lista, o uno de sus elementos. */
     data class Admin(val page: AdminPage, val id: String? = null) : Screen
     /** The port mappings open now. / Las redirecciones de puertos abiertas. */
@@ -857,6 +861,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openAdminModel() { if (admin == null) admin = AdminModel({ session }, viewModelScope) }
 
+    /** Devices picked in the list for actions on several. / Equipos elegidos en la lista para acciones en varios. */
+    val bulk by lazy { BulkModel({ session }, viewModelScope) }
+
+    /** The own account, made each time its screen opens (it reads the server then). / La cuenta propia, hecha al abrir su pantalla. */
+    var ownAccount by mutableStateOf<OwnAccountModel?>(null)
+        private set
+    val serverState by lazy { ServerStateModel({ session }, viewModelScope) }
+
+    fun openSecurity() {
+        ownAccount = OwnAccountModel({ session }, viewModelScope).also { it.load() }
+        show(Screen.Security)
+    }
+
     /** The administration, made the first time it opens. / La administración, creada la primera vez que se abre. */
     var admin by mutableStateOf<AdminModel?>(null)
         private set
@@ -1095,6 +1112,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         closeMappings()
         closeTools()
         admin = null
+        ownAccount = null
+        bulk.clear()
+        serverState.stop()
         watching?.cancel()
         detailsJob?.cancel()
         session?.close()

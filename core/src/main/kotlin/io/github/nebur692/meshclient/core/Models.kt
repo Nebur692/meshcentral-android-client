@@ -7,11 +7,21 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
 
-/** [manageAllDeviceGroups]: this account manages every group (a server setting). / Esta cuenta gestiona todos los grupos. */
-data class ServerInfo(val name: String, val domain: String, val version: String?, val manageAllDeviceGroups: Boolean = false) {
+/**
+ * [manageAllDeviceGroups]: this account manages every group (a server setting). [features2]: the website's switches; the
+ * clipboard ones are 0x800 (reading the device's is off) and 0x1000 (writing it is off), as meshuser.js sets them.
+ * [manageAllDeviceGroups]: esta cuenta gestiona todos los grupos. [features2]: los interruptores de la web; los del
+ * portapapeles son 0x800 (leer el del equipo, apagado) y 0x1000 (escribirlo, apagado).
+ */
+data class ServerInfo(val name: String, val domain: String, val version: String?, val manageAllDeviceGroups: Boolean = false, val features2: Long = 0) {
+    /** The server lets the device's clipboard be read. / El servidor deja leer el portapapeles del equipo. */
+    val clipboardGetAllowed: Boolean get() = features2 and 0x800L == 0L
+    /** The server lets the device's clipboard be written. / El servidor deja escribir el portapapeles del equipo. */
+    val clipboardSetAllowed: Boolean get() = features2 and 0x1000L == 0L
+
     internal companion object {
         fun from(o: JsonObject) = ServerInfo(o.str("name").orEmpty(), o.str("domain").orEmpty(), o.str("serverVersion") ?: o.str("version"),
-            o.bool("manageAllDeviceGroups"))
+            o.bool("manageAllDeviceGroups"), o.long("features2") ?: 0)
     }
 }
 
@@ -27,6 +37,12 @@ data class UserInfo(
     val mustChangePassword: Boolean = false,
     /** Some second factor is on (the server sends a mark, never the secret). / Tiene algún doble factor (el servidor manda una marca). */
     val hasTwoFactor: Boolean = false,
+    /** An authenticator app (otpsecret). / Una app de autenticación. */
+    val hasAuthenticator: Boolean = false,
+    /** Some backup code is still unused; the server says only that, not how many. / Queda algún código de respaldo sin usar; no dice cuántos. */
+    val hasBackupCodes: Boolean = false,
+    /** How many security keys (otphkeys). / Cuántas llaves de seguridad. */
+    val securityKeys: Int = 0,
 ) {
     val isFullAdministrator: Boolean get() = siteRights == 0xFFFFFFFFL
     /** It cannot sign in (siteadmin bit 32). / No puede entrar (bit 32 de siteadmin). */
@@ -37,7 +53,8 @@ data class UserInfo(
             links(o), o.long("removeRights"),
             o.str("email"), o.str("realname"), o.long("creation")?.takeIf { it > 0 }, o.long("login")?.takeIf { it > 0 },
             o.long("passchange") == -1L,
-            listOf("otpsecret", "otpkeys", "otphkeys", "otpekey", "otpduo", "otpdev").any { (o.long(it) ?: 0) > 0 })
+            listOf("otpsecret", "otpkeys", "otphkeys", "otpekey", "otpduo", "otpdev").any { (o.long(it) ?: 0) > 0 } || !o.str("phone").isNullOrEmpty(),
+            (o.long("otpsecret") ?: 0) > 0, (o.long("otpkeys") ?: 0) > 0, (o.long("otphkeys") ?: 0).toInt())
     }
 }
 

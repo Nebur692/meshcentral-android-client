@@ -8,6 +8,9 @@ import android.net.Uri
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.view.ActionMode
+import android.view.Menu
+import android.view.MenuItem
 import android.webkit.WebView
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
@@ -118,6 +121,27 @@ fun TerminalScreen(vm: AppViewModel) {
         onDispose { t.closedOnPage = null }
     }
     LaunchedEffect(dark) { t.setDark(dark) }
+    // Paste from the phone's clipboard: the bar's button, Android's selection bar and a hardware keyboard all come here.
+    // Pegar del portapapeles del móvil: el botón de la barra, la barra de selección de Android y un teclado físico vienen aquí.
+    val pasteNow: () -> Unit = {
+        val clip = (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).primaryClip
+        val text = clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
+        if (t.state != TerminalState.Open) Unit
+        else if (text.isNullOrEmpty()) scope.launch { snack.showSnackbar(res.getString(R.string.term_paste_empty)) }
+        else if (text.contains('\n') || text.contains('\r')) pasteAsk = text
+        else { t.paste(text); t.focus() }
+    }
+    val copyNow: (String) -> Unit = { text ->
+        (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("terminal", text))
+        t.clearSelection()
+        // Android 13 and newer show their own note on copying. / Android 13 y posteriores enseñan su propio aviso al copiar.
+        if (android.os.Build.VERSION.SDK_INT < 33) scope.launch { snack.showSnackbar(res.getQuantityString(R.plurals.term_copied, text.length, text.length)) }
+    }
+    DisposableEffect(t) {
+        t.onCopy = copyNow
+        t.onPasteRequest = pasteNow
+        onDispose { t.onCopy = null; t.onPasteRequest = null }
+    }
     // The page talks to the app through web messages (WebView 83 or newer). An older one (an Android 10 without updates came with
     // 74) would wait for ever: it is said, with the way to update it. / La página habla con la app por mensajes web (WebView 83 o
     // más nuevo). Uno más viejo (un Android 10 sin actualizar traía el 74) esperaría para siempre: se dice, con cómo actualizarlo.
@@ -137,13 +161,7 @@ fun TerminalScreen(vm: AppViewModel) {
                     },
                     navigationIcon = { IconButton(onClick = vm::leaveTool) { Icon(painterResource(R.drawable.ic_back), stringResource(R.string.back)) } },
                     actions = {
-                        if (webViewReady) IconButton(onClick = {
-                            val clip = (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).primaryClip
-                            val text = clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
-                            if (text.isNullOrEmpty()) scope.launch { snack.showSnackbar(res.getString(R.string.term_paste_empty)) }
-                            else if (text.contains('\n') || text.contains('\r')) pasteAsk = text
-                            else { t.paste(text); t.focus() }
-                        }, enabled = t.state == TerminalState.Open) { Icon(painterResource(R.drawable.ic_paste), stringResource(R.string.term_paste)) }
+                        if (webViewReady) IconButton(onClick = pasteNow, enabled = t.state == TerminalState.Open) { Icon(painterResource(R.drawable.ic_paste), stringResource(R.string.term_paste)) }
                         if (webViewReady) IconButton(onClick = t::requestText) { Icon(painterResource(R.drawable.ic_select), stringResource(R.string.term_select)) }
                     },
                 )
@@ -159,7 +177,7 @@ fun TerminalScreen(vm: AppViewModel) {
         // The page and the key bar sit above the keyboard. / La página y la barra de teclas quedan encima del teclado.
         Column(Modifier.padding(padding).fillMaxSize().windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))) {
             if (webViewReady) {
-                key(page) { TerminalPage(t, dark, Modifier.weight(1f).fillMaxWidth(), onGone = { page++ }) }
+                key(page) { TerminalPage(t, dark, Modifier.weight(1f).fillMaxWidth(), onGone = { page++ }, onCopy = copyNow, onPaste = pasteNow) }
                 KeyBar(t)
             } else OldWebView(Modifier.weight(1f).fillMaxWidth())
         }
@@ -307,7 +325,7 @@ private class TerminalWebView(context: Context) : WebView(context) {
 /** xterm.js in a WebView, served from the app's own files under a fixed https origin. / xterm.js en un WebView. */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun TerminalPage(t: TerminalModel, dark: Boolean, modifier: Modifier, onGone: () -> Unit) {
+private fun TerminalPage(t: TerminalModel, dark: Boolean, modifier: Modifier, onGone: () -> Unit, onCopy: (String) -> Unit, onPaste: () -> Unit) {
     AndroidView(modifier = modifier, factory = { ctx ->
         val loader = WebViewAssetLoader.Builder().setDomain(PAGE_HOST).addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(ctx)).build()
         // Only a debug build can be inspected from a computer. / Solo una compilación de depuración se puede inspeccionar desde un ordenador.
@@ -345,12 +363,49 @@ private fun TerminalPage(t: TerminalModel, dark: Boolean, modifier: Modifier, on
                     message.data?.let(t::fromPage)
                 }
             }
+            // Android's own floating Copy / Paste / Select all bar over a finger selection, as in any text on the phone.
+            // La barra flotante de Copiar / Pegar / Seleccionar todo del propio Android sobre una selección con el dedo.
+            var bar: ActionMode? = null
+            val web = this
+            t.onSelectionGone = { bar?.finish() }
+            t.onSelection = { text, x, y ->
+                bar?.finish()
+                val d = resources.displayMetrics.density
+                val px = (x * d).toInt(); val py = (y * d).toInt()
+                val clipboard = ctx.getSystemService(ClipboardManager::class.java)
+                bar = web.startActionMode(object : ActionMode.Callback2() {
+                    override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
+                        if (text.isNotEmpty()) menu.add(Menu.NONE, 1, 0, android.R.string.copy)
+                        if (clipboard?.hasPrimaryClip() == true && t.state == TerminalState.Open) menu.add(Menu.NONE, 2, 1, android.R.string.paste)
+                        menu.add(Menu.NONE, 3, 2, android.R.string.selectAll)
+                        return true
+                    }
+                    override fun onPrepareActionMode(mode: ActionMode, menu: Menu) = false
+                    override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
+                        when (item.itemId) {
+                            1 -> onCopy(text)
+                            2 -> { t.clearSelection(); onPaste() }
+                            3 -> t.selectAll(x, y)
+                        }
+                        mode.finish()
+                        return true
+                    }
+                    override fun onDestroyActionMode(mode: ActionMode) { if (bar === mode) bar = null }
+                    override fun onGetContentRect(mode: ActionMode, view: android.view.View, outRect: android.graphics.Rect) {
+                        val h = (24 * d).toInt()
+                        outRect.set(px - h, py - h, px + h, py)
+                    }
+                }, ActionMode.TYPE_FLOATING)
+            }
             val url = Uri.Builder().scheme("https").authority(PAGE_HOST).path("/assets/terminal/terminal.html")
-                .appendQueryParameter("dark", if (dark) "1" else "0").appendQueryParameter("font", t.fontSize.toString()).build()
+                .appendQueryParameter("dark", if (dark) "1" else "0").appendQueryParameter("font", t.fontSize.toString())
+                .appendQueryParameter("win", if (t.windowsKeys) "1" else "0").build()
             loadUrl(url.toString())
         }
     }, onRelease = { view ->
         t.toPage = null
+        t.onSelection = null
+        t.onSelectionGone = null
         view.destroy()
     })
 }

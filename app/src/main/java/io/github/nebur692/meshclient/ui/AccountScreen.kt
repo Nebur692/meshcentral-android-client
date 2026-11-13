@@ -41,6 +41,7 @@ import io.github.nebur692.meshclient.Screen
 import io.github.nebur692.meshclient.AdminPage
 import io.github.nebur692.meshclient.core.canManageUserGroups
 import io.github.nebur692.meshclient.core.canManageUsers
+import io.github.nebur692.meshclient.core.canSeeServer
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.runtime.mutableStateOf
@@ -93,6 +94,8 @@ fun AccountScreen(vm: AppViewModel) {
             val pinned = s.trust.pinnedSha256
             Item(R.drawable.ic_shield, stringResource(if (pinned != null) R.string.account_certificate else R.string.account_certificate_server),
                 pinned?.let(CertificateTrust::display) ?: stringResource(R.string.account_certificate_system))
+            // Password, second factor and tokens of the account on the server. / Contraseña, doble factor y tokens de la cuenta en el servidor.
+            Item(R.drawable.ic_lock, stringResource(R.string.acc_security), stringResource(if (s.user.hasTwoFactor) R.string.acc_security_on else R.string.acc_security_off)) { vm.openSecurity() }
 
             // The administration, as far as this account's rights go. / La administración, hasta donde llegan sus permisos.
             val manageUsers = s.canManageUsers
@@ -101,6 +104,7 @@ fun AccountScreen(vm: AppViewModel) {
                 Item(R.drawable.ic_globe, stringResource(R.string.ports_title), pluralStringResource(R.plurals.ports_open, vm.mappings.size, vm.mappings.size)) { vm.show(Screen.Ports) }
             }
             Heading(R.string.admin)
+            if (s.canSeeServer) Item(R.drawable.ic_server, stringResource(R.string.srv_state), stringResource(R.string.srv_state_hint)) { vm.show(Screen.ServerState) }
             Item(R.drawable.ic_info, stringResource(R.string.admin_events), stringResource(R.string.admin_events_hint)) { vm.show(Screen.Admin(AdminPage.Events)) }
             Item(R.drawable.ic_folder, stringResource(R.string.admin_groups), stringResource(R.string.admin_groups_hint)) { vm.show(Screen.Admin(AdminPage.Groups)) }
             if (manageUsers) Item(R.drawable.ic_person, stringResource(R.string.admin_users), stringResource(R.string.admin_users_hint)) { vm.show(Screen.Admin(AdminPage.Users)) }

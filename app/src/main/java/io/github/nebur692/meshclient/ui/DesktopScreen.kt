@@ -49,6 +49,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -100,6 +102,7 @@ fun DesktopScreen(vm: AppViewModel) {
     BackHandler { vm.leaveTool() }
     var keyboard by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
+    PhoneClipboard(m)
     Scaffold(
         topBar = {
             Column {
@@ -168,11 +171,68 @@ private fun DeskBar(text: String, error: Boolean, action: String?, onAction: () 
     }
 }
 
+/**
+ * The phone's side of the automatic clipboard. What the person copies while the desktop is on screen goes to the device
+ * (Android tells only the focused app); coming back from another app, the clipboard is read only when it changed since
+ * last seen (its timestamp), so Android's "pasted from your clipboard" note does not show every time. A clip already old
+ * when the desktop opened is not sent. What the device copies is put on the phone's clipboard.
+ * El lado del móvil del portapapeles automático. Lo que copia la persona con el escritorio a la vista va al equipo
+ * (Android solo avisa a la app con el foco); al volver de otra app, el portapapeles se lee solo si cambió desde la última
+ * vez (por su hora), para que el aviso de Android «ha pegado de tu portapapeles» no salga cada vez. Uno que ya era viejo al
+ * abrir el escritorio no se manda. Lo que copia el equipo se pone en el portapapeles del móvil.
+ */
+@Composable
+private fun PhoneClipboard(m: DesktopModel) {
+    val context = LocalContext.current
+    val clipboard = remember { context.getSystemService(android.content.ClipboardManager::class.java) } ?: return
+    val opened = remember(m) { System.currentTimeMillis() }
+    val seen = remember(m) { longArrayOf(0L) }
+    val check = remember(m) {
+        {
+            val desc = clipboard.primaryClipDescription
+            val stamp = desc?.timestamp ?: 0L
+            if (desc != null && stamp != seen[0] && desc.hasMimeType("text/*")) {
+                val first = seen[0] == 0L
+                seen[0] = stamp
+                if (!first || opened - stamp < FRESH_CLIP_MS) {
+                    m.phoneCopied(clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString())
+                }
+            }
+        }
+    }
+    var resumed by remember { mutableIntStateOf(0) }
+    LifecycleResumeEffect(m) {
+        resumed++
+        onPauseOrDispose { }
+    }
+    // The window has the focus a moment after resuming; before, Android gives an empty clipboard. / La ventana tiene el foco un momento después.
+    LaunchedEffect(resumed, m.autoClipboard, m.state) { if (m.autoClipboard && m.state == DesktopState.Open) { kotlinx.coroutines.delay(300); check() } }
+    DisposableEffect(m) {
+        val listener = android.content.ClipboardManager.OnPrimaryClipChangedListener { check() }
+        clipboard.addPrimaryClipChangedListener(listener)
+        m.onDeviceCopied = { text ->
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText(m.device.name, text))
+            seen[0] = clipboard.primaryClipDescription?.timestamp ?: seen[0]
+            // Android 13 and newer say it themselves. / Android 13 y posteriores lo dicen ellos.
+            if (android.os.Build.VERSION.SDK_INT < 33) m.clipNotice = io.github.nebur692.meshclient.Notice(R.string.desk_clip_got)
+        }
+        onDispose {
+            clipboard.removePrimaryClipChangedListener(listener)
+            m.onDeviceCopied = null
+        }
+    }
+}
+
+/** A clip copied this long before the desktop opened was meant for it. / Un recorte copiado hasta esto antes de abrir era para él. */
+private const val FRESH_CLIP_MS = 120_000L
+
 @Composable
 private fun DesktopMenu(m: DesktopModel, open: Boolean, dismiss: () -> Unit) {
     DropdownMenu(open, dismiss) {
         DropdownMenuItem(text = { Text(stringResource(R.string.desk_cad)) }, onClick = { m.ctrlAltDel(); dismiss() })
         DropdownMenuItem(text = { Text(stringResource(R.string.desk_refresh)) }, onClick = { m.refresh(); dismiss() })
+        DropdownMenuItem(text = { Text(stringResource(R.string.desk_clip_auto)) },
+            leadingIcon = { androidx.compose.material3.Checkbox(m.autoClipboard, null) }, onClick = { m.changeAutoClipboard(!m.autoClipboard); dismiss() })
         val context = LocalContext.current
         val clipboard = remember { context.getSystemService(android.content.ClipboardManager::class.java) }
         DropdownMenuItem(text = { Text(stringResource(R.string.desk_clip_to)) }, onClick = {

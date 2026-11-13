@@ -482,4 +482,131 @@
     <string name="local_network_text">El servidor está en la misma red que este móvil (en casa o en la oficina). Android solo deja a la app llegar a él con el permiso de «Dispositivos cercanos», que te pide a continuación. La app lo usa solo para conectar con tu servidor MeshCentral.</string>
     <string name="local_network_go">Continuar</string>
     <string name="err_local_network">Android no deja a la app llegar a tu red local: sin el permiso de «Dispositivos cercanos» no puede conectar con un servidor de esta wifi. Dáselo en Ajustes › Aplicaciones › Cliente MeshCentral › Permisos, o conecta con datos móviles.</string>
+    <!-- 0.10.0: varios equipos a la vez -->
+    <string name="bulk_stop">Dejar de elegir</string>
+    <plurals name="bulk_selected">
+        <item quantity="one">%d elegido</item>
+        <item quantity="many">%d elegidos</item>
+        <item quantity="other">%d elegidos</item>
+    </plurals>
+    <string name="bulk_select_all">Elegir todos los que se ven</string>
+    <string name="bulk_notify">Aviso</string>
+    <string name="bulk_pick">elegir</string>
+    <string name="bulk_picked">elegido</string>
+    <plurals name="bulk_went">
+        <item quantity="one">(%d equipo)</item>
+        <item quantity="many">(%d equipos)</item>
+        <item quantity="other">(%d equipos)</item>
+    </plurals>
+    <plurals name="bulk_left_out">
+        <item quantity="one">%d se quedó fuera: desconectado o sin permiso.</item>
+        <item quantity="many">%d se quedaron fuera: desconectados o sin permiso.</item>
+        <item quantity="other">%d se quedaron fuera: desconectados o sin permiso.</item>
+    </plurals>
+    <string name="bulk_none">Ninguno de los elegidos lo permite: están desconectados o no tienes permiso en ellos.</string>
+    <string name="bulk_reach">Va a %1$d de %2$d: los demás están desconectados o no tienes permiso en ellos.</string>
+    <string name="bulk_run_hint">Se ejecuta en cada equipo como su agente, en todos a la vez; cmd o PowerShell solo cuenta en los Windows.</string>
+    <plurals name="bulk_confirm_restart">
+        <item quantity="one">¿Reiniciar %d equipo?</item>
+        <item quantity="many">¿Reiniciar %d equipos?</item>
+        <item quantity="other">¿Reiniciar %d equipos?</item>
+    </plurals>
+    <plurals name="bulk_confirm_off">
+        <item quantity="one">¿Apagar %d equipo?</item>
+        <item quantity="many">¿Apagar %d equipos?</item>
+        <item quantity="other">¿Apagar %d equipos?</item>
+    </plurals>
+    <string name="bulk_confirm_text">Se reinician ahora. Quien los esté usando puede perder lo que no tenga guardado.</string>
+    <string name="bulk_confirm_off_text">Se apagan ahora. Quien los esté usando puede perder lo que no tenga guardado, y para volver a encenderlos hará falta despertarlos por red o alguien allí.</string>
+
+    <!-- 0.10.0: la cuenta propia -->
+    <string name="acc_security">Contraseña y doble factor</string>
+    <string name="acc_security_on">Doble factor activado · tokens de acceso</string>
+    <string name="acc_security_off">Doble factor sin activar · tokens de acceso</string>
+    <string name="acc_locked">Un administrador ha bloqueado los ajustes de esta cuenta: la contraseña y el doble factor no se pueden cambiar aquí.</string>
+    <string name="acc_password">Contraseña</string>
+    <string name="acc_password_change">Cambiar la contraseña</string>
+    <string name="acc_password_change_short">Cambiar</string>
+    <string name="acc_password_current">Contraseña actual</string>
+    <string name="acc_password_new">Contraseña nueva</string>
+    <string name="acc_password_again">Repite la contraseña nueva</string>
+    <string name="acc_password_mismatch">Las dos contraseñas nuevas no son iguales.</string>
+    <string name="acc_password_done">Contraseña cambiada.</string>
+    <string name="acc_two_factor">Doble factor</string>
+    <string name="acc_auth_app">App de autenticación</string>
+    <string name="acc_on">Activada</string>
+    <string name="acc_off">Sin activar</string>
+    <string name="acc_auth_add_hint">Al entrar también se pedirá un código de una app como Google Authenticator, Microsoft Authenticator o Aegis.</string>
+    <string name="acc_auth_remove_hint">Tócala para quitarla.</string>
+    <string name="acc_auth_add">Añadir una app de autenticación</string>
+    <string name="acc_auth_steps">Abre la app de autenticación de este móvil con el botón (o copia la clave en ella) y escribe el código de 6 cifras que te enseñe.</string>
+    <string name="acc_auth_open">Abrir en la app de autenticación</string>
+    <string name="acc_auth_copy">Copiar la clave</string>
+    <string name="acc_auth_no_app">Ninguna app de autenticación de este móvil lo ha abierto: copia la clave en la tuya.</string>
+    <string name="acc_auth_code">Código de 6 cifras</string>
+    <string name="acc_auth_wrong">Ese código no es correcto: mira la hora del móvil y prueba con el siguiente.</string>
+    <string name="acc_auth_confirm">Activar</string>
+    <string name="acc_auth_done">App de autenticación activada: al entrar se pedirá su código.</string>
+    <string name="acc_auth_removed">App de autenticación quitada.</string>
+    <string name="acc_auth_remove_title">¿Quitar la app de autenticación?</string>
+    <string name="acc_auth_remove_text">Al entrar ya no se pedirá su código.</string>
+    <string name="remove_it">Quitar</string>
+    <string name="acc_codes">Códigos de respaldo</string>
+    <string name="acc_codes_some">Quedan sin usar · tócalo para verlos</string>
+    <string name="acc_codes_none">Ninguno · tócalo para crearlos</string>
+    <string name="acc_codes_hint">Cada código sirve una vez para entrar en lugar del de la app. Guárdalos en un sitio seguro; los tachados ya se han usado.</string>
+    <string name="acc_codes_copy">Copiar los que quedan</string>
+    <string name="acc_codes_new">Crear otros</string>
+    <string name="acc_codes_new_title">¿Crear códigos de respaldo nuevos?</string>
+    <string name="acc_codes_new_text">Diez códigos nuevos; los que tuvieras dejan de servir.</string>
+    <string name="acc_codes_clear">Borrarlos todos</string>
+    <string name="acc_codes_cleared">Códigos de respaldo borrados.</string>
+    <string name="acc_keys">Llaves de seguridad</string>
+    <string name="acc_key">Llave de seguridad</string>
+    <string name="acc_keys_hint">Toca una para quitarla. Las llaves de seguridad se añaden desde la web del servidor, en un navegador.</string>
+    <string name="acc_key_remove_title">¿Quitar esta llave de seguridad?</string>
+    <string name="acc_key_removed">Llave de seguridad quitada.</string>
+    <string name="acc_tokens">Tokens de acceso</string>
+    <string name="acc_tokens_hint">Un usuario y una contraseña aparte para guiones y herramientas como meshctrl; entran como tú sin el doble factor. Toca uno para quitarlo.</string>
+    <string name="acc_token_until">Hasta el %1$s</string>
+    <string name="acc_token_forever">No caduca</string>
+    <string name="acc_token_new">Token de acceso nuevo</string>
+    <string name="acc_token_name">Nombre</string>
+    <string name="acc_token_expires">Caduca en</string>
+    <plurals name="acc_token_days">
+        <item quantity="one">%d día</item>
+        <item quantity="many">%d días</item>
+        <item quantity="other">%d días</item>
+    </plurals>
+    <string name="acc_token_create">Crear</string>
+    <string name="acc_token_made">Token de acceso creado</string>
+    <string name="acc_token_made_hint">Cópialos ahora: la contraseña no se vuelve a enseñar.</string>
+    <string name="acc_copy_user">Copiar el usuario</string>
+    <string name="acc_copy_password">Copiar la contraseña</string>
+    <string name="acc_token_saved">Ya lo he guardado</string>
+    <string name="acc_token_remove_title">¿Quitar el token de acceso?</string>
+    <string name="acc_token_remove_text">%1$s ya no podrá entrar.</string>
+    <string name="acc_token_removed">Token de acceso quitado.</string>
+
+    <!-- 0.10.0: el estado en vivo del servidor -->
+    <string name="srv_state">Estado del servidor</string>
+    <string name="srv_state_hint">Memoria, carga y quién está conectado, en vivo</string>
+    <string name="srv_waiting">Esperando al servidor…</string>
+    <string name="srv_memory">Memoria</string>
+    <string name="srv_memory_used">%1$s de %2$s GB en uso</string>
+    <string name="srv_load">Carga</string>
+    <string name="srv_load_values">%1$s · %2$s · %3$s (1, 5 y 15 minutos)</string>
+    <string name="srv_now">Ahora</string>
+    <string name="srv_users_connected">Personas conectadas</string>
+    <string name="srv_user_sessions">Sus sesiones</string>
+    <string name="srv_agents">Agentes conectados</string>
+    <string name="srv_relays">Sesiones por el relé</string>
+    <string name="srv_accounts">Cuentas</string>
+    <string name="srv_groups">Grupos de equipos</string>
+    <string name="srv_errors">Errores</string>
+    <string name="srv_relay_errors">Errores del relé</string>
+
+    <!-- 0.10.0: portapapeles automático -->
+    <string name="desk_clip_auto">Portapapeles automático</string>
+    <string name="desk_clip_synced">Tu portapapeles ya está en el equipo: pégalo allí con Ctrl+V.</string>
 </resources>

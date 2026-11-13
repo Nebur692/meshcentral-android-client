@@ -42,8 +42,12 @@ class MeshSession private constructor(
 
     var serverInfo: ServerInfo = ServerInfo("", "", null)
         private set
-    var user: UserInfo = UserInfo("", "", 0)
+    /** This account; kept up to date by its own live changes (a second factor added, rights changed). / Esta cuenta, al día con sus cambios en vivo. */
+    @Volatile var user: UserInfo = UserInfo("", "", 0)
         private set
+
+    /** The server's own state, while [watchServerStats] is on. / El estado del propio servidor, mientras se vigila. */
+    internal val serverStatsFlow: SharedFlow<JsonObject> get() = listener.serverStats
 
     /** Live device changes. / Cambios de equipos en vivo. */
     val deviceChanges: SharedFlow<DeviceChange> get() = listener.changes
@@ -161,6 +165,9 @@ class MeshSession private constructor(
         val opened = CompletableDeferred<Unit>()
         val changes = MutableSharedFlow<DeviceChange>(extraBufferCapacity = 512)
         val notifications = MutableSharedFlow<ServerNotification>(extraBufferCapacity = 64)
+        val serverStats = MutableSharedFlow<JsonObject>(extraBufferCapacity = 8)
+        /** Every account change the server tells (the session keeps its own up to date). / Cada cambio de cuenta que cuenta el servidor. */
+        @Volatile var onAccount: ((JsonObject) -> Unit)? = null
         val closedReason = MutableStateFlow<MeshClientException?>(null)
         @Volatile var open = false
         @Volatile var closing = false
@@ -184,6 +191,7 @@ class MeshSession private constructor(
             }
             hit.forEach { it.result.complete(o) }
             if (o.str("action") == "event") (o["event"] as? JsonObject)?.let(::onEvent)
+            if (o.str("action") == "serverstats") serverStats.tryEmit(o)
             // Replies to this app's own requests carry a titleid and are answered where they were asked (as Windows).
             // Las respuestas a peticiones de la propia app llevan titleid y se contestan donde se pidieron (como Windows).
             if (o.str("action") == "msg" && o.str("type") == "notify" && o["titleid"] == null) {
@@ -193,6 +201,7 @@ class MeshSession private constructor(
         }
 
         private fun onEvent(e: JsonObject) {
+            if (e.str("action") == "accountchange") (e["account"] as? JsonObject)?.let { a -> runCatching { onAccount?.invoke(a) } }
             val change: DeviceChange? = when (e.str("action")) {
                 "addnode" -> (e["node"] as? JsonObject)?.let { DeviceChange.Added(Device.from(it)) }
                 // Moved to another group too: the node comes whole, with its new meshid.
@@ -319,6 +328,7 @@ class MeshSession private constructor(
             val serverInfo = listener.waitFor { it.str("action") == "serverinfo" || it.str("action") == "close" }
             val userInfo = listener.waitFor { it.str("action") == "userinfo" || it.str("action") == "close" }
             val session = MeshSession(server, trust, listener, timeoutMs)
+            listener.onAccount = { a -> if (a.str("_id") == session.user.id && session.user.id.isNotEmpty()) session.user = UserInfo.from(a) }
             session.http = client
             val request = authenticate(Request.Builder().url(server.controlUrl).header("User-Agent", userAgent)).build()
             session.socket = client.newWebSocket(request, listener)
