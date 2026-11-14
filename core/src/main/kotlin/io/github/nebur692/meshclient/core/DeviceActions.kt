@@ -115,6 +115,35 @@ private fun ids(devices: List<Device>) = JsonArray(devices.map { JsonPrimitive(i
 
 private fun requireSome(devices: List<Device>) = require(devices.isNotEmpty()) { "no devices" }
 
+/**
+ * The website offers "Force agent update" only to who has every right on the device (default.handlebars, rights ==
+ * 0xFFFFFFFF), for a device with its agent connected.
+ * La web solo ofrece «Forzar actualización del agente» a quien tiene todos los permisos sobre el equipo, con el agente
+ * conectado.
+ */
+fun MeshSession.canUpdateAgent(device: Device): Boolean = device.hasAgent && rightsOn(device) == MeshRights.FULL
+
+/**
+ * Asks the agents to update themselves from this server ("updateAgents"). The server never answers; an agent that
+ * cannot update says why on its console (measured on 1.3.1: "Self Update Failed because this agent is not an instance
+ * of (meshagent)"), and one that can downloads its new version, restarts and connects again (a device change). Returns,
+ * per device, what its agent said within [waitMs], or null when it said nothing.
+ * Pide a los agentes que se actualicen desde este servidor. El servidor no contesta nunca; un agente que no puede dice
+ * por qué en su consola, y uno que puede baja su versión nueva, se reinicia y vuelve a conectar. Devuelve, por equipo, lo
+ * que dijo su agente en [waitMs], o null si no dijo nada.
+ */
+suspend fun MeshSession.updateAgents(devices: List<Device>, waitMs: Long = 10_000): Map<Device, String?> {
+    requireSome(devices)
+    for (d in devices) {
+        if (!d.hasAgent) throw offline("acciones/actualizar-agente/sin-conexion")
+        if (rightsOn(d) != MeshRights.FULL) throw denied("acciones/actualizar-agente/no-autorizado", "update its agent")
+    }
+    val said = sendAndCollect(buildJsonObject { put("action", "updateAgents"); put("nodeids", ids(devices)) },
+        devices.map { d -> { m: JsonObject -> m.str("action") == "msg" && m.str("type") == "console" && m.str("nodeid") == d.id } },
+        waitMs, "acciones/actualizar-agente/conexion-cortada")
+    return devices.zip(said) { d, m -> d to m?.str("value") }.toMap()
+}
+
 /** Wake-on-LAN, sent by other agents of its network. Returns what the server says. / Lo mandan otros agentes de su red. */
 suspend fun MeshSession.wake(device: Device): String = wake(listOf(device))
 

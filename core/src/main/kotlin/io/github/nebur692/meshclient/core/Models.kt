@@ -13,7 +13,13 @@ import kotlinx.serialization.json.longOrNull
  * [manageAllDeviceGroups]: esta cuenta gestiona todos los grupos. [features2]: los interruptores de la web; los del
  * portapapeles son 0x800 (leer el del equipo, apagado) y 0x1000 (escribirlo, apagado).
  */
-data class ServerInfo(val name: String, val domain: String, val version: String?, val manageAllDeviceGroups: Boolean = false, val features2: Long = 0) {
+data class ServerInfo(val name: String, val domain: String, val version: String?, val manageAllDeviceGroups: Boolean = false, val features2: Long = 0,
+                      /** Consent the server forces on every group (userConsentFlags). / Consentimiento que impone el servidor. */
+                      val forcedConsent: Int = 0,
+                      /** Groups can choose to record their sessions (onlySelectedDeviceGroups). / Los grupos pueden elegir grabar. */
+                      val groupsChooseRecording: Boolean = false) {
+    /** The server does not update agents by itself (noAgentUpdate). / El servidor no actualiza solo los agentes. */
+    val agentsUpdateBySelf: Boolean get() = features2 and 0x10L == 0L
     /** The server lets the device's clipboard be read. / El servidor deja leer el portapapeles del equipo. */
     val clipboardGetAllowed: Boolean get() = features2 and 0x800L == 0L
     /** The server lets the device's clipboard be written. / El servidor deja escribir el portapapeles del equipo. */
@@ -21,7 +27,7 @@ data class ServerInfo(val name: String, val domain: String, val version: String?
 
     internal companion object {
         fun from(o: JsonObject) = ServerInfo(o.str("name").orEmpty(), o.str("domain").orEmpty(), o.str("serverVersion") ?: o.str("version"),
-            o.bool("manageAllDeviceGroups"), o.long("features2") ?: 0)
+            o.bool("manageAllDeviceGroups"), o.long("features2") ?: 0, (o.long("consent") ?: 0).toInt(), o.long("devGroupSessionRecording") == 1L)
     }
 }
 
@@ -61,12 +67,14 @@ data class UserInfo(
 enum class DeviceGroupKind { Unknown, IntelAmtOnly, Agents, LocalDevices, IpKvm }
 
 /** [links]: who has rights on the group, accounts and user groups. / Quién tiene permisos en el grupo. */
-data class DeviceGroup(val id: String, val name: String, val description: String?, val kind: DeviceGroupKind, val links: Map<String, Long> = emptyMap()) {
+data class DeviceGroup(val id: String, val name: String, val description: String?, val kind: DeviceGroupKind, val links: Map<String, Long> = emptyMap(),
+                       val settings: GroupSettings = GroupSettings()) {
     internal companion object {
         fun from(o: JsonObject) = DeviceGroup(
             o.str("_id") ?: o.str("meshid").orEmpty(), o.str("name").orEmpty(), o.str("desc"),
             DeviceGroupKind.entries.getOrElse((o.long("mtype") ?: 0).toInt()) { DeviceGroupKind.Unknown },
             links(o),
+            GroupSettings((o.long("consent") ?: 0).toInt(), (o.long("flags") ?: 0).toInt(), (o.long("expireDevs") ?: 0).toInt()),
         )
     }
 }

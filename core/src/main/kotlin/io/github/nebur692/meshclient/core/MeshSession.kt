@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -39,6 +40,13 @@ class MeshSession private constructor(
 
     /** The client of this session (its pinned certificate), for tunnels. / El cliente de esta sesión (su certificado fijado), para los túneles. */
     internal lateinit var http: OkHttpClient
+
+    /** The web session's cookies, when it came from a single sign-on (null with a password). / Las cookies de la sesión web. */
+    @Volatile internal var webCookies: String? = null
+        private set
+
+    /** It has a web session, which some downloads need (recordings). / Tiene sesión web, que piden algunas descargas. */
+    val hasWebSession: Boolean get() = webCookies != null
 
     var serverInfo: ServerInfo = ServerInfo("", "", null)
         private set
@@ -147,6 +155,24 @@ class MeshSession private constructor(
             throw MeshClientException(MeshFailure.Timeout, timeoutKey, "The server did not answer \"${message.str("action")}\" in ${timeout / 1000} s.")
         } catch (e: MeshClientException) {
             if (e.failure == MeshFailure.ConnectionLost) throw lost(lostKey, e) else throw e
+        }
+    }
+
+    /**
+     * Sends one message the server does not answer and collects, for [waitMs] at most, the first message matching each
+     * of [answers] (null where none came): for what the agents answer on their own, such as their console.
+     * Manda un mensaje que el servidor no contesta y recoge, [waitMs] como mucho, el primero que encaja con cada una de
+     * [answers] (null donde no llegó): para lo que contestan los agentes por su cuenta, como su consola.
+     */
+    internal suspend fun sendAndCollect(message: JsonObject, answers: List<(JsonObject) -> Boolean>, waitMs: Long, lostKey: String): List<JsonObject?> {
+        if (!isOpen) throw lost(lostKey, null)
+        val waits = answers.map { listener.waitFor(it) }
+        if (!socket.send(message.toString())) { waits.forEach(listener::remove); throw lost(lostKey, null) }
+        val deadline = System.currentTimeMillis() + waitMs
+        return waits.map { w ->
+            val got = runCatching { withTimeoutOrNull((deadline - System.currentTimeMillis()).coerceAtLeast(1)) { w.result.await() } }.getOrNull()
+            if (got == null) listener.remove(w)
+            got
         }
     }
 
@@ -288,6 +314,7 @@ class MeshSession private constructor(
             if ("xid" !in cookies) throw MeshClientException(MeshFailure.SessionExpired, "conexion/iniciar-sesion/sesion-cerrada", "There is no MeshCentral session to use.")
             val header = cookies.entries.joinToString("; ") { (k, v) -> "$k=$v" }
             return retryFresh { connectCore(server, trust, userAgent, timeoutMs, { it.header("Cookie", header) }, ::sessionFailure) }
+                .also { it.webCookies = header }
         }
 
         /** Reads a browser's cookie line ("a=1; b=2") into names and values. / Lee la línea de cookies de un navegador. */
