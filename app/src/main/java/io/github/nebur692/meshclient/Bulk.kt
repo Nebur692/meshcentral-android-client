@@ -15,15 +15,17 @@ import io.github.nebur692.meshclient.core.rightsOn
 import io.github.nebur692.meshclient.core.runCommands
 import io.github.nebur692.meshclient.core.shellFor
 import io.github.nebur692.meshclient.core.wake
+import io.github.nebur692.meshclient.core.canUpdateAgent
+import io.github.nebur692.meshclient.core.updateAgents
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 
 /** What can be done to several devices at once. / Lo que se puede hacer a varios equipos a la vez. */
-enum class BulkAction { Wake, Sleep, Restart, PowerOff, Notify, Run }
+enum class BulkAction { Wake, Sleep, Restart, PowerOff, Notify, Run, UpdateAgent }
 
-enum class BulkSheet { Power, Notify, Run, ConfirmRestart, ConfirmPowerOff }
+enum class BulkSheet { Power, Notify, Run, ConfirmRestart, ConfirmPowerOff, ConfirmUpdateAgent }
 
 /** One device's answer to commands run on several. / La respuesta de un equipo a órdenes ejecutadas en varios. */
 data class BulkOutput(val device: Device, val output: String?, val error: UiError?)
@@ -50,6 +52,8 @@ class BulkModel(private val session: () -> MeshSession?, private val scope: Coro
         private set
     var outputs by mutableStateOf<List<BulkOutput>?>(null)
         private set
+    /** What the agents said to the last update, until read. / Lo que dijeron los agentes a la última actualización. */
+    var answers by mutableStateOf<AgentAnswers?>(null)
 
     val active: Boolean get() = selected.isNotEmpty()
 
@@ -70,6 +74,7 @@ class BulkModel(private val session: () -> MeshSession?, private val scope: Coro
                 BulkAction.Sleep, BulkAction.Restart, BulkAction.PowerOff -> d.hasAgent && MeshRights.has(r, MeshRights.RESET_OFF)
                 BulkAction.Notify -> d.hasAgent && MeshRights.has(r, MeshRights.CHAT_NOTIFY)
                 BulkAction.Run -> d.hasAgent && MeshRights.has(r, MeshRights.REMOTE_COMMAND)
+                BulkAction.UpdateAgent -> s.canUpdateAgent(d)
             }
         }
     }
@@ -92,6 +97,7 @@ class BulkModel(private val session: () -> MeshSession?, private val scope: Coro
                     BulkAction.Restart -> s.power(go, PowerAction.Restart)
                     BulkAction.PowerOff -> s.power(go, PowerAction.PowerOff)
                     BulkAction.Notify -> s.notify(go, title, text)
+                    BulkAction.UpdateAgent -> s.updateAgents(go).let { said -> answers = AgentAnswers(go.map { it.name to said[it] }) }
                     BulkAction.Run -> {
                         // Each device answers on its own; one that fails does not stop the others. / Uno que falla no para a los demás.
                         outputs = go.map { d ->
@@ -110,6 +116,7 @@ class BulkModel(private val session: () -> MeshSession?, private val scope: Coro
                     BulkAction.Sleep -> R.string.done_sleep
                     BulkAction.Restart -> R.string.done_restart
                     BulkAction.PowerOff -> R.string.done_power_off
+                    BulkAction.UpdateAgent -> R.string.done_update_agent
                     else -> R.string.done_message
                 })
             } catch (e: MeshClientException) {

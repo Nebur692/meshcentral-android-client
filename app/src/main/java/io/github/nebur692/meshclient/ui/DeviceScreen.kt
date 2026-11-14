@@ -225,6 +225,8 @@ private fun Actions(vm: AppViewModel, d: Device, columns: Int) {
         if (has(MeshRights.REMOTE_CONTROL) || has(MeshRights.REMOTE_VIEW_ONLY)) add(A(R.drawable.ic_processes, R.string.act_processes, d.hasAgent) { vm.openDeviceTools(d.id, services = false) })
         if ((has(MeshRights.REMOTE_CONTROL) || has(MeshRights.REMOTE_VIEW_ONLY)) && d.isWindows) add(A(R.drawable.ic_services, R.string.act_services, d.hasAgent) { vm.openDeviceTools(d.id, services = true) })
         if (has(MeshRights.CHAT_NOTIFY) || has(MeshRights.REMOTE_CONTROL)) add(A(R.drawable.ic_chat, R.string.act_message, can.anyMessage) { vm.sheet = DeviceSheet.Message })
+        // A chat with the person at the device, as the website's "Chat" (chat and notify right). / El chat, como «Chat» de la web.
+        if (has(MeshRights.CHAT_NOTIFY)) add(A(R.drawable.ic_forum, R.string.act_chat, d.hasAgent) { vm.openChat(d.id) })
         if (has(MeshRights.REMOTE_COMMAND)) add(A(R.drawable.ic_run, R.string.act_run, can.runCommands) { vm.sheet = DeviceSheet.Run })
     }
     if (all.isEmpty()) return
@@ -481,6 +483,7 @@ private fun DeviceSheets(vm: AppViewModel, d: Device, details: DeviceDetails?, c
         DeviceSheet.ConfirmPowerOff -> Confirm(vm, R.string.confirm_off_title, if (d.users.isEmpty()) R.string.confirm_off_text else R.string.confirm_off_users,
             whoOrName(d), R.string.power_off) { vm.power(d, io.github.nebur692.meshclient.core.PowerAction.PowerOff) }
         DeviceSheet.ConfirmUninstall -> Confirm(vm, R.string.confirm_uninstall_title, R.string.confirm_uninstall_text, d.name, R.string.uninstall) { vm.uninstall(d) }
+        DeviceSheet.ConfirmUpdateAgent -> Confirm(vm, R.string.update_agent, R.string.confirm_update_agent_text, d.name, R.string.update_agent_do) { vm.updateAgents(listOf(d)) }
         DeviceSheet.ConfirmRemove -> Confirm(vm, R.string.confirm_remove_title, R.string.confirm_remove_text, d.name, R.string.remove) { vm.remove(d) }
         null -> Unit
     }

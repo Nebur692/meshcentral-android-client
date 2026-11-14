@@ -72,12 +72,19 @@ suspend fun MeshSession.recordings(limit: Int = 200, quietMs: Long = 8_000): Lis
  * la cookie del relé (medido en 1.3.1: las dos dan 401). Así que se baja con las cookies del inicio de sesión único o se
  * abre en el navegador.
  */
-fun MeshSession.recordingUrl(r: Recording): okhttp3.HttpUrl =
-    server.resolve("recordings.ashx").newBuilder().addQueryParameter("file", r.fileName).build()
+fun MeshSession.recordingUrl(r: Recording): String =
+    server.resolve("recordings.ashx").newBuilder().addQueryParameter("file", r.fileName).build().toString()
+
+/**
+ * The website's own list of recordings (viewmode 52 of default.handlebars), where the browser signs in if it has to and
+ * then downloads or plays them. / La lista de grabaciones de la propia web, donde el navegador entra si hace falta.
+ */
+fun MeshSession.recordingsPageUrl(): String =
+    server.resolve("").newBuilder().addQueryParameter("viewmode", "52").build().toString()
 
 /** The website's player for a desktop or terminal recording. / El reproductor de la web. */
-fun MeshSession.recordingPlayerUrl(r: Recording): okhttp3.HttpUrl =
-    server.resolve("player.htm").newBuilder().addQueryParameter("stream", r.fileName).build()
+fun MeshSession.recordingPlayerUrl(r: Recording): String =
+    server.resolve("player.htm").newBuilder().addQueryParameter("stream", r.fileName).build().toString()
 
 /**
  * Downloads a recording into [out] with the web session's cookies; [progress] gets the bytes so far. Without a web

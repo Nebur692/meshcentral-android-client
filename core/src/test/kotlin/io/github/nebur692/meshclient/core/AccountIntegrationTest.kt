@@ -130,6 +130,10 @@ class AccountIntegrationTest {
         val admin = connect("admin", "Admin-Pass-1234")
         try {
             assertTrue(admin.canSeeServer)
+            // This class may run first, before the bench's agent has connected: wait for it, as the others do.
+            // Esta clase puede correr la primera, antes de que conecte el agente del banco: se le espera, como en las demás.
+            admin.deviceGroups()
+            for (i in 0 until 60) { if (admin.devices().any { it.hasAgent }) break; delay(1000) }
             val st = withTimeout(15_000) { admin.serverStats(1_000).first() }
             assertTrue("memory ${st.freeMemory}/${st.totalMemory}", st.totalMemory > st.freeMemory && st.freeMemory > 0)
             assertTrue(st.usedMemory in 1..st.totalMemory)

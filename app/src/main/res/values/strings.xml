@@ -602,4 +602,74 @@
     <!-- 0.10.0: automatic clipboard / portapapeles automático -->
     <string name="desk_clip_auto">Automatic clipboard</string>
     <string name="desk_clip_synced">Your clipboard is on the device: paste it there with Ctrl+V.</string>
+    <!-- 0.12.0: chat, agent update, group consent and features, recordings -->
+    <string name="act_chat">Chat</string>
+    <string name="chat_opening">Opening the chat…</string>
+    <string name="chat_waiting">Waiting for the person to open it</string>
+    <string name="chat_waiting_long">The chat is opening in the device\'s browser. As soon as the person there opens it, you can write.</string>
+    <string name="chat_talking">In the chat</string>
+    <string name="chat_writing">Writing…</string>
+    <string name="chat_ended">The chat has ended.</string>
+    <string name="chat_recorded">The server records this chat.</string>
+    <string name="chat_again">Open the chat again</string>
+    <string name="chat_hint">Write a message</string>
+    <string name="chat_hint_waiting">You can write once the person is in</string>
+    <string name="chat_send">Send</string>
+    <string name="update_agent">Update the agent</string>
+    <string name="update_agent_hint">Install this server\'s version of the agent</string>
+    <string name="update_agent_do">Update</string>
+    <string name="confirm_update_agent_text">The agent on %1$s downloads this server\'s version, restarts and connects again. Sessions open on it are cut for a moment.</string>
+    <string name="done_update_agent">Update asked</string>
+    <string name="update_agent_answers">What the agent said</string>
+    <string name="update_agent_silent">Nothing: if there was a new version, it is updating and will connect again in a moment.</string>
+    <plurals name="bulk_confirm_update_agent">
+        <item quantity="one">Update the agent of %d device?</item>
+        <item quantity="other">Update the agent of %d devices?</item>
+    </plurals>
+    <string name="bulk_update_agent_text">Each agent downloads this server\'s version, restarts and connects again. The others are left out: it needs every right on the device and the agent connected.</string>
+    <string name="bulk_update_agent_none">None of the picked devices can be updated: it needs every right on the device and the agent connected.</string>
+    <string name="group_settings">Consent and features</string>
+    <string name="group_settings_none">No consent asked and no features on</string>
+    <string name="group_consent_hint">What the person at the device sees when someone connects.</string>
+    <string name="group_consent_forced">The ticks that cannot be changed are set by the server for every group.</string>
+    <string name="consent_notify">Notify the person</string>
+    <string name="consent_prompt">Ask the person for consent</string>
+    <string name="consent_toolbar">Show the connection bar</string>
+    <string name="consent_registry">Registry</string>
+    <string name="consent_notify_short">notify</string>
+    <string name="consent_prompt_short">ask</string>
+    <string name="consent_toolbar_short">bar</string>
+    <string name="group_features">Features</string>
+    <string name="feature_record">Record sessions</string>
+    <string name="feature_sync_name">Keep the device\'s name equal to its host name</string>
+    <string name="feature_sync_port">Keep the device\'s name equal to its port name</string>
+    <string name="feature_sync_short">Name synced</string>
+    <string name="feature_prefer_agent_name">Prefer the name given to the agent</string>
+    <string name="feature_allow_override">Allow renaming until it connects again</string>
+    <string name="feature_remove_on_disconnect">Remove the device when it disconnects</string>
+    <string name="feature_remove_inactive">Remove inactive devices</string>
+    <string name="feature_remove_inactive_days">Days without connecting</string>
+    <plurals name="feature_remove_inactive_range">
+        <item quantity="one">From 1 to %1$d day</item>
+        <item quantity="other">From 1 to %1$d days</item>
+    </plurals>
+    <plurals name="feature_remove_inactive_short">
+        <item quantity="one">Removed after %1$d day without connecting</item>
+        <item quantity="other">Removed after %1$d days without connecting</item>
+    </plurals>
+    <string name="recordings">Recordings</string>
+    <string name="recordings_hint">Sessions the server recorded</string>
+    <string name="recordings_search">Search device, user or group</string>
+    <string name="recordings_none">There are no recordings.</string>
+    <string name="recordings_gone">file deleted</string>
+    <string name="recordings_downloading">Downloading %1$s: %2$s</string>
+    <string name="recordings_download">Download</string>
+    <string name="recordings_play">Play in the browser</string>
+    <string name="recordings_open_web">Open on the website</string>
+    <string name="chat_person_left">The person closed the chat, or the line to the device dropped.</string>
+    <string name="recordings_open_hint">Download it to this phone, or play it in the browser.</string>
+    <string name="recordings_browser_hint">The server only gives recordings to its own website: its list of recordings opens in the browser, where it may ask you to sign in, and from there they are downloaded or played.</string>
+    <string name="recordings_powershell">PowerShell</string>
+    <string name="recordings_amt">Intel® AMT</string>
+    <string name="recordings_other">Session</string>
 </resources>

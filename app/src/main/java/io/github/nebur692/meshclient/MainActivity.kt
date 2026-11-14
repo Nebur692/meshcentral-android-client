@@ -129,6 +129,8 @@ class MainActivity : ComponentActivity() {
                         Screen.Security -> io.github.nebur692.meshclient.ui.SecurityScreen(vm)
                         Screen.ServerState -> io.github.nebur692.meshclient.ui.ServerStateScreen(vm)
                         is Screen.Tools -> io.github.nebur692.meshclient.ui.ToolsScreen(vm)
+                        is Screen.Chat -> io.github.nebur692.meshclient.ui.ChatScreen(vm)
+                        Screen.Recordings -> io.github.nebur692.meshclient.ui.RecordingsScreen(vm)
                         is Screen.DeviceDetail -> if (twoPanes) io.github.nebur692.meshclient.ui.ListDetail(vm, s.id) else DeviceScreen(vm, s.id)
                         is Screen.Terminal -> TerminalScreen(vm)
                         is Screen.Files -> FilesScreen(vm)
@@ -140,6 +142,8 @@ class MainActivity : ComponentActivity() {
                     }
                   }
                     vm.biometricRequest?.let { r -> LaunchedEffect(r) { ask(r) } }
+                    vm.agentAnswers?.let { a -> io.github.nebur692.meshclient.ui.AgentAnswersDialog(a) { vm.agentAnswers = null } }
+                    vm.bulk.answers?.let { a -> io.github.nebur692.meshclient.ui.AgentAnswersDialog(a) { vm.bulk.answers = null } }
                     vm.linkProblem?.let { p ->
                         AlertDialog(
                             onDismissRequest = { vm.linkProblem = null },

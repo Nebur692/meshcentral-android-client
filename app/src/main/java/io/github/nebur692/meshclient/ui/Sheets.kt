@@ -54,6 +54,7 @@ import io.github.nebur692.meshclient.core.PowerAction
 import io.github.nebur692.meshclient.core.shellFor
 import io.github.nebur692.meshclient.core.TunnelProtocol
 import io.github.nebur692.meshclient.core.rightsOn
+import io.github.nebur692.meshclient.core.canUpdateAgent
 
 /** A panel from the bottom, with the device's name on top. / Un panel desde abajo, con el nombre del equipo arriba. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -96,6 +97,8 @@ fun MoreSheet(vm: AppViewModel, d: Device, onCopy: () -> Unit) {
         if (can.edit) SheetOption(R.drawable.ic_edit, stringResource(R.string.edit_device), null) { vm.sheet = DeviceSheet.Edit }
         SheetOption(R.drawable.ic_copy, stringResource(R.string.copy_details), stringResource(R.string.copy_details_hint), onClick = onCopy)
         if (vm.canRelay(d)) SheetOption(R.drawable.ic_globe, stringResource(R.string.ports_new), stringResource(R.string.ports_new_hint)) { vm.sheet = DeviceSheet.Port }
+        if (vm.session?.canUpdateAgent(d) == true)
+            SheetOption(R.drawable.ic_update, stringResource(R.string.update_agent), stringResource(R.string.update_agent_hint)) { vm.sheet = DeviceSheet.ConfirmUpdateAgent }
         if (vm.moveTargets(d).isNotEmpty()) SheetOption(R.drawable.ic_folder, stringResource(R.string.move_device), stringResource(R.string.move_device_hint)) { vm.sheet = DeviceSheet.Move }
         val context = androidx.compose.ui.platform.LocalContext.current
         if (remember { io.github.nebur692.meshclient.Shortcuts.canPin(context) })
@@ -273,4 +276,30 @@ fun TerminalSheet(vm: AppViewModel, d: Device) {
             modifier = Modifier.clickable { vm.sheet = DeviceSheet.Ssh },
         )
     }
+}
+
+/**
+ * What each agent said after being asked to update. Silence is not failure: an agent that updates restarts and connects
+ * again without a word. / Lo que dijo cada agente al pedirle actualizar. Callar no es fallar: uno que se actualiza se
+ * reinicia y vuelve sin decir nada.
+ */
+@Composable
+fun AgentAnswersDialog(a: io.github.nebur692.meshclient.AgentAnswers, dismiss: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text(stringResource(R.string.update_agent_answers)) },
+        text = {
+            androidx.compose.foundation.layout.Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
+                a.said.forEach { (name, said) ->
+                    androidx.compose.foundation.layout.Column {
+                        Text(name, style = MaterialTheme.typography.titleSmall)
+                        Text(said ?: stringResource(R.string.update_agent_silent), style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.accept)) } },
+    )
 }

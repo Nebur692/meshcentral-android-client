@@ -36,6 +36,7 @@ import io.github.nebur692.meshclient.core.removeDevice
 import io.github.nebur692.meshclient.core.runCommands
 import io.github.nebur692.meshclient.core.setNotes
 import io.github.nebur692.meshclient.core.uninstallAgent
+import io.github.nebur692.meshclient.core.updateAgents
 import io.github.nebur692.meshclient.core.wake
 import io.github.nebur692.meshclient.data.BiometricVault
 import io.github.nebur692.meshclient.data.SavedServer
@@ -60,6 +61,10 @@ sealed interface Screen {
     data object Ports : Screen
     /** A device's processes or services. / Los procesos o servicios de un equipo. */
     data class Tools(val id: String) : Screen
+    /** The chat with the person at the device. / El chat con la persona del equipo. */
+    data class Chat(val id: String) : Screen
+    /** The server's recorded sessions. / Las sesiones grabadas del servidor. */
+    data object Recordings : Screen
     data class DeviceDetail(val id: String) : Screen
     data class Terminal(val id: String) : Screen
     data class Files(val id: String) : Screen
@@ -106,7 +111,10 @@ sealed interface BiometricRequest {
 enum class BiometricProblem { KeyChanged, Unavailable, Locked, Stale }
 
 /** A panel of the device's sheet. / Un panel de la ficha del equipo. */
-enum class DeviceSheet { Terminal, Power, More, Pin, Move, Ssh, Port, Message, Run, Edit, ConfirmRestart, ConfirmPowerOff, ConfirmUninstall, ConfirmRemove }
+enum class DeviceSheet { Terminal, Power, More, Pin, Move, Ssh, Port, Message, Run, Edit, ConfirmRestart, ConfirmPowerOff, ConfirmUninstall, ConfirmRemove, ConfirmUpdateAgent }
+
+/** What the agents said after being asked to update: device name and its words (null = nothing). / Lo que dijeron los agentes. */
+data class AgentAnswers(val said: List<Pair<String, String?>>)
 
 /** A short word after an action, or its failure. / Una palabra corta tras una acción, o su fallo. */
 data class Notice(val text: Int, val error: UiError? = null)
@@ -829,6 +837,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun uninstall(d: Device) = act(R.string.done_uninstall) { it.uninstallAgent(d) }
 
+    /** What the agents answered to the last update, shown until read. / Lo que contestaron los agentes, hasta leerlo. */
+    var agentAnswers by mutableStateOf<AgentAnswers?>(null)
+
+    /** Asks the agents to update and shows what each one said. / Pide actualizar y enseña lo que dijo cada uno. */
+    fun updateAgents(list: List<Device>, then: () -> Unit = {}) = act(R.string.done_update_agent) { s ->
+        val said = s.updateAgents(list)
+        agentAnswers = AgentAnswers(list.map { it.name to said[it] })
+        then()
+    }
+
     fun remove(d: Device) = act(R.string.done_removed) {
         it.removeDevice(d)
         devices.remove(d.id)
@@ -979,6 +997,39 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         show(Screen.Tools(id))
     }
 
+    /** The chat with the person at a device, while its screen is open. / El chat, mientras su pantalla está abierta. */
+    var chat by mutableStateOf<ChatModel?>(null)
+        private set
+
+    fun openChat(id: String) {
+        val d = devices[id] ?: return
+        if (chat?.device?.id == id) { show(Screen.Chat(id)); return }
+        chat?.close()
+        chat = ChatModel({ session }, d, viewModelScope)
+        show(Screen.Chat(id))
+    }
+
+    /** The recordings, while their screen is open. / Las grabaciones, mientras su pantalla está abierta. */
+    var recordings by mutableStateOf<RecordingsModel?>(null)
+        private set
+
+    fun openRecordings() {
+        recordings?.close()
+        recordings = RecordingsModel({ session }, getApplication<Application>().contentResolver, viewModelScope)
+        show(Screen.Recordings)
+    }
+
+    fun leaveRecordings() {
+        recordings?.close(); recordings = null
+        show(Screen.Account)
+    }
+
+    fun leaveChat() {
+        val id = chat?.device?.id
+        chat?.close(); chat = null
+        show(if (id != null && devices[id] != null) Screen.DeviceDetail(id) else Screen.Devices)
+    }
+
     fun leaveDeviceTools() {
         val id = deviceTools?.device?.id
         deviceTools?.close(); deviceTools = null
@@ -1038,6 +1089,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun closeTools() {
+        chat?.close(); chat = null
+        recordings?.close(); recordings = null
         terminal?.close(); terminal = null
         files?.close(); files = null
         desktop?.close(); desktop = null

@@ -234,6 +234,7 @@ private fun GroupPage(vm: AppViewModel, a: AdminModel, s: MeshSession, g: Device
     var adding by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     var inviting by remember { mutableStateOf(false) }
+    var settings by remember { mutableStateOf(false) }
     var member by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
         Row2(g.name, g.description)
@@ -241,6 +242,10 @@ private fun GroupPage(vm: AppViewModel, a: AdminModel, s: MeshSession, g: Device
             if (can.edit) FilledTonalButton(onClick = { editing = true }) { Text(stringResource(R.string.edit)) }
             if (can.addDevices) FilledTonalButton(onClick = { inviting = true }) { Text(stringResource(R.string.admin_invite)) }
         }
+        if (can.edit) OutlinedButton(onClick = { settings = true }, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
+            Text(stringResource(R.string.group_settings))
+        }
+        GroupSummary(g, s.serverInfo)
         a.inviteLink?.let { link ->
             Surface(Modifier.fillMaxWidth().padding(20.dp), shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -267,6 +272,7 @@ private fun GroupPage(vm: AppViewModel, a: AdminModel, s: MeshSession, g: Device
         }
     }
     if (editing) NameDialog(R.string.edit, g.name, g.description.orEmpty(), { editing = false }) { n, d -> a.editGroup(g, n, d); editing = false }
+    if (settings) GroupSettingsDialog(g, s.serverInfo, a.busy, { settings = false }) { new -> a.saveGroupSettings(g, new) { settings = false } }
     if (adding) MemberDialog(null, null, { adding = false }, onRemove = null) { name, r -> a.addMember(g, name, r); adding = false }
     member?.let { who ->
         MemberDialog(who.substringAfterLast('/'), MemberRights.of(g.links[who] ?: 0), { member = null }, onRemove = { a.removeMember(g, who); member = null }) { _, r ->

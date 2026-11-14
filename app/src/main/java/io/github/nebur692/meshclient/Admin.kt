@@ -10,6 +10,7 @@ import io.github.nebur692.meshclient.core.MeshClientException
 import io.github.nebur692.meshclient.core.MeshFailure
 import io.github.nebur692.meshclient.core.MeshRights
 import io.github.nebur692.meshclient.core.MeshSession
+import io.github.nebur692.meshclient.core.saveGroupSettings
 import io.github.nebur692.meshclient.core.NewUser
 import io.github.nebur692.meshclient.core.ServerEvent
 import io.github.nebur692.meshclient.core.UserGroup
@@ -139,6 +140,8 @@ class AdminModel(private val session: () -> MeshSession?, private val scope: Cor
     // ---- groups / grupos
     fun createGroup(name: String, description: String) = change(R.string.done_group_created, AdminPage.Groups) { it.createGroup(name, description.ifBlank { null }) }
     fun editGroup(g: DeviceGroup, name: String, description: String) = change(R.string.done_saved, AdminPage.Groups) { it.editGroup(g, name, description) }
+    fun saveGroupSettings(g: DeviceGroup, settings: io.github.nebur692.meshclient.core.GroupSettings, then: () -> Unit) =
+        change(R.string.done_saved, AdminPage.Groups, then) { it.saveGroupSettings(g, settings) }
     fun deleteGroup(g: DeviceGroup, then: () -> Unit) = change(R.string.done_group_deleted, AdminPage.Groups, then) { it.deleteGroup(g) }
     fun addMember(g: DeviceGroup, userName: String, rights: MemberRights) =
         change(R.string.done_member_added, AdminPage.Groups) { it.addGroupMembers(g, userName.split(',', ' ', ';'), rights.rights) }

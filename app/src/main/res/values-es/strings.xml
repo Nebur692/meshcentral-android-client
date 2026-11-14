@@ -618,4 +618,77 @@
     <!-- 0.10.0: portapapeles automático -->
     <string name="desk_clip_auto">Portapapeles automático</string>
     <string name="desk_clip_synced">Tu portapapeles ya está en el equipo: pégalo allí con Ctrl+V.</string>
+    <!-- 0.12.0: chat, actualizar el agente, consentimiento y funciones del grupo, grabaciones -->
+    <string name="act_chat">Chat</string>
+    <string name="chat_opening">Abriendo el chat…</string>
+    <string name="chat_waiting">Esperando a que la persona lo abra</string>
+    <string name="chat_waiting_long">El chat se está abriendo en el navegador del equipo. En cuanto la persona que está allí lo abra, podrás escribir.</string>
+    <string name="chat_talking">En el chat</string>
+    <string name="chat_writing">Escribiendo…</string>
+    <string name="chat_ended">El chat ha terminado.</string>
+    <string name="chat_recorded">El servidor graba este chat.</string>
+    <string name="chat_again">Volver a abrir el chat</string>
+    <string name="chat_hint">Escribe un mensaje</string>
+    <string name="chat_hint_waiting">Podrás escribir cuando la persona entre</string>
+    <string name="chat_send">Enviar</string>
+    <string name="update_agent">Actualizar el agente</string>
+    <string name="update_agent_hint">Instalar la versión del agente de este servidor</string>
+    <string name="update_agent_do">Actualizar</string>
+    <string name="confirm_update_agent_text">El agente de %1$s baja la versión de este servidor, se reinicia y vuelve a conectarse. Las sesiones abiertas con él se cortan un momento.</string>
+    <string name="done_update_agent">Actualización pedida</string>
+    <string name="update_agent_answers">Lo que ha dicho el agente</string>
+    <string name="update_agent_silent">Nada: si había versión nueva, se está actualizando y volverá a conectarse en un momento.</string>
+    <plurals name="bulk_confirm_update_agent">
+        <item quantity="one">¿Actualizar el agente de %d equipo?</item>
+        <item quantity="many">¿Actualizar el agente de %d equipos?</item>
+        <item quantity="other">¿Actualizar el agente de %d equipos?</item>
+    </plurals>
+    <string name="bulk_update_agent_text">Cada agente baja la versión de este servidor, se reinicia y vuelve a conectarse. Los demás se quedan fuera: hacen falta todos los permisos sobre el equipo y el agente conectado.</string>
+    <string name="bulk_update_agent_none">Ninguno de los equipos elegidos se puede actualizar: hacen falta todos los permisos sobre el equipo y el agente conectado.</string>
+    <string name="group_settings">Consentimiento y funciones</string>
+    <string name="group_settings_none">Sin consentimiento ni funciones activadas</string>
+    <string name="group_consent_hint">Lo que ve la persona del equipo cuando alguien se conecta.</string>
+    <string name="group_consent_forced">Las marcas que no se pueden cambiar las impone el servidor para todos los grupos.</string>
+    <string name="consent_notify">Avisar a la persona</string>
+    <string name="consent_prompt">Pedir permiso a la persona</string>
+    <string name="consent_toolbar">Mostrar la barra de conexión</string>
+    <string name="consent_registry">Registro</string>
+    <string name="consent_notify_short">avisar</string>
+    <string name="consent_prompt_short">pedir permiso</string>
+    <string name="consent_toolbar_short">barra</string>
+    <string name="group_features">Funciones</string>
+    <string name="feature_record">Grabar las sesiones</string>
+    <string name="feature_sync_name">Igualar el nombre del equipo al de su host</string>
+    <string name="feature_sync_port">Igualar el nombre del equipo al de su puerto</string>
+    <string name="feature_sync_short">Nombre sincronizado</string>
+    <string name="feature_prefer_agent_name">Preferir el nombre que se dio al agente</string>
+    <string name="feature_allow_override">Dejar renombrarlo hasta que vuelva a conectarse</string>
+    <string name="feature_remove_on_disconnect">Borrar el equipo al desconectarse</string>
+    <string name="feature_remove_inactive">Borrar los equipos inactivos</string>
+    <string name="feature_remove_inactive_days">Días sin conectarse</string>
+    <plurals name="feature_remove_inactive_range">
+        <item quantity="one">De 1 a %1$d día</item>
+        <item quantity="many">De 1 a %1$d días</item>
+        <item quantity="other">De 1 a %1$d días</item>
+    </plurals>
+    <plurals name="feature_remove_inactive_short">
+        <item quantity="one">Se borran tras %1$d día sin conectarse</item>
+        <item quantity="many">Se borran tras %1$d días sin conectarse</item>
+        <item quantity="other">Se borran tras %1$d días sin conectarse</item>
+    </plurals>
+    <string name="recordings">Grabaciones</string>
+    <string name="recordings_hint">Sesiones que ha grabado el servidor</string>
+    <string name="recordings_search">Buscar equipo, usuario o grupo</string>
+    <string name="recordings_none">No hay grabaciones.</string>
+    <string name="recordings_gone">fichero borrado</string>
+    <string name="recordings_downloading">Bajando %1$s: %2$s</string>
+    <string name="recordings_download">Descargar</string>
+    <string name="recordings_play">Ver en el navegador</string>
+    <string name="recordings_open_web">Abrir en la web</string>
+    <string name="chat_person_left">La persona ha cerrado el chat, o se ha cortado la línea con el equipo.</string>
+    <string name="recordings_open_hint">Descárgala en este móvil o mírala en el navegador.</string>
+    <string name="recordings_browser_hint">El servidor solo da las grabaciones a su propia web: su lista de grabaciones se abre en el navegador, que puede pedirte que inicies sesión, y desde allí se descargan o se ven.</string>
+    <string name="recordings_powershell">PowerShell</string>
+    <string name="recordings_amt">Intel® AMT</string>
+    <string name="recordings_other">Sesión</string>
 </resources>

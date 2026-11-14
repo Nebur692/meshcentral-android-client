@@ -61,6 +61,7 @@ internal fun BulkBar(b: BulkModel, shownIds: List<String>) {
             IconButton(onClick = { b.sheet = BulkSheet.Power }) { Icon(painterResource(R.drawable.ic_power), stringResource(R.string.act_power)) }
             IconButton(onClick = { b.sheet = BulkSheet.Notify }) { Icon(painterResource(R.drawable.ic_chat), stringResource(R.string.bulk_notify)) }
             IconButton(onClick = { b.sheet = BulkSheet.Run }) { Icon(painterResource(R.drawable.ic_run), stringResource(R.string.run_title)) }
+            IconButton(onClick = { b.sheet = BulkSheet.ConfirmUpdateAgent }) { Icon(painterResource(R.drawable.ic_update), stringResource(R.string.update_agent)) }
         }
     }
 }
@@ -163,17 +164,23 @@ internal fun BulkSheets(vm: AppViewModel, b: BulkModel) {
             b.eligible(BulkAction.Restart, picked).size), stringResource(R.string.bulk_confirm_text), R.string.restart) { b.run(BulkAction.Restart, vm.devices) }
         BulkSheet.ConfirmPowerOff -> BulkConfirm(b, pluralStringResource(R.plurals.bulk_confirm_off, b.eligible(BulkAction.PowerOff, picked).size,
             b.eligible(BulkAction.PowerOff, picked).size), stringResource(R.string.bulk_confirm_off_text), R.string.power_off) { b.run(BulkAction.PowerOff, vm.devices) }
+        BulkSheet.ConfirmUpdateAgent -> {
+            val n = b.eligible(BulkAction.UpdateAgent, picked).size
+            BulkConfirm(b, pluralStringResource(R.plurals.bulk_confirm_update_agent, n, n),
+                stringResource(if (n == 0) R.string.bulk_update_agent_none else R.string.bulk_update_agent_text), R.string.update_agent_do,
+                enabled = n > 0) { b.run(BulkAction.UpdateAgent, vm.devices) }
+        }
         null -> Unit
     }
 }
 
 @Composable
-private fun BulkConfirm(b: BulkModel, title: String, text: String, action: Int, onYes: () -> Unit) {
+private fun BulkConfirm(b: BulkModel, title: String, text: String, action: Int, enabled: Boolean = true, onYes: () -> Unit) {
     AlertDialog(
         onDismissRequest = { b.sheet = null },
         title = { Text(title) },
         text = { Text(text) },
-        confirmButton = { TextButton(onClick = onYes, enabled = !b.busy) { Text(stringResource(action), color = MaterialTheme.colorScheme.error) } },
+        confirmButton = { TextButton(onClick = onYes, enabled = !b.busy && enabled) { Text(stringResource(action), color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = { b.sheet = null }) { Text(stringResource(R.string.cancel)) } },
     )
 }

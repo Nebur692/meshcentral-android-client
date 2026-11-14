@@ -42,6 +42,7 @@ import io.github.nebur692.meshclient.AdminPage
 import io.github.nebur692.meshclient.core.canManageUserGroups
 import io.github.nebur692.meshclient.core.canManageUsers
 import io.github.nebur692.meshclient.core.canSeeServer
+import io.github.nebur692.meshclient.core.canSeeRecordings
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.runtime.mutableStateOf
@@ -109,6 +110,7 @@ fun AccountScreen(vm: AppViewModel) {
             Item(R.drawable.ic_folder, stringResource(R.string.admin_groups), stringResource(R.string.admin_groups_hint)) { vm.show(Screen.Admin(AdminPage.Groups)) }
             if (manageUsers) Item(R.drawable.ic_person, stringResource(R.string.admin_users), stringResource(R.string.admin_users_hint)) { vm.show(Screen.Admin(AdminPage.Users)) }
             if (s.canManageUserGroups) Item(R.drawable.ic_person, stringResource(R.string.admin_user_groups), stringResource(R.string.admin_user_groups_hint)) { vm.show(Screen.Admin(AdminPage.UserGroups)) }
+            if (s.canSeeRecordings) Item(R.drawable.ic_record, stringResource(R.string.recordings), stringResource(R.string.recordings_hint)) { vm.openRecordings() }
             if (manageUsers) {
                 var notifying by remember { mutableStateOf(false) }
                 Item(R.drawable.ic_chat, stringResource(R.string.admin_notify), stringResource(R.string.admin_notify_hint)) {
