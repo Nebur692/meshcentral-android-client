@@ -15,6 +15,10 @@ import io.github.nebur692.meshclient.core.MeshSession
 import io.github.nebur692.meshclient.core.RemoteEntry
 import io.github.nebur692.meshclient.core.RemoteEntryKind
 import io.github.nebur692.meshclient.core.RemotePaths
+import io.github.nebur692.meshclient.core.copyTree
+import io.github.nebur692.meshclient.core.deleteAll
+import io.github.nebur692.meshclient.core.isInside
+import io.github.nebur692.meshclient.core.moveTree
 import io.github.nebur692.meshclient.core.rightsOn
 import io.github.nebur692.meshclient.core.TerminalKeys
 import io.github.nebur692.meshclient.core.TerminalConnection
@@ -215,6 +219,9 @@ class TerminalModel(
 /** A copy going on: [up] to the device or down from it. / Una copia en marcha: [up] al equipo o desde él. */
 data class Transfer(val name: String, val up: Boolean, val done: Long, val total: Long)
 
+/** What was copied or cut, waiting to be pasted on the same device. / Lo copiado o cortado, esperando a pegarse en el mismo equipo. */
+data class FilesClip(val folder: String, val entries: List<RemoteEntry>, val cut: Boolean)
+
 /**
  * The files of one device: one folder at a time, its changes, and one copy at a time with its progress. Every change is
  * checked by listing again, as the agent does not answer them. / Los ficheros de un equipo: una carpeta cada vez, sus
@@ -243,6 +250,8 @@ class FilesModel(private val session: () -> MeshSession?, val device: Device, pr
         ).also { files = it }
 
     fun open(to: String = path) {
+        // Another folder, another selection. / Otra carpeta, otra selección.
+        if (to != path) selected = emptySet()
         job?.cancel()
         loading = true
         error = null
@@ -252,6 +261,8 @@ class FilesModel(private val session: () -> MeshSession?, val device: Device, pr
                 path = folder.path.ifEmpty { to }
                 // Folders first, then files; each by name, as a person looks for them. / Carpetas primero y luego ficheros, por nombre.
                 entries = folder.entries.sortedWith(compareBy<RemoteEntry> { it.kind == RemoteEntryKind.File }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+                // What is no longer there is no longer chosen. / Lo que ya no está deja de estar elegido.
+                selected = selected.filterTo(mutableSetOf()) { n -> entries.orEmpty().any { it.name == n } }
             } catch (e: MeshClientException) {
                 error = UiError(e.failure, e.key, e.httpStatus)
             } finally {
@@ -338,6 +349,166 @@ class FilesModel(private val session: () -> MeshSession?, val device: Device, pr
                 if (!ok) withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) { runCatching { android.provider.DocumentsContract.deleteDocument(resolver, to) } }
             }
         }
+    }
+
+    // ------------------------------------------------------------------ several at once / varios a la vez
+
+    /** The chosen names of the folder shown; empty: not choosing. / Los nombres elegidos de la carpeta que se ve; vacío: sin elegir. */
+    var selected by mutableStateOf<Set<String>>(emptySet())
+        private set
+    /** What was copied or cut, until it is pasted. / Lo copiado o cortado, hasta que se pega. */
+    var clip by mutableStateOf<FilesClip?>(null)
+        private set
+
+    val selecting: Boolean get() = selected.isNotEmpty()
+    fun selectedEntries(): List<RemoteEntry> = entries.orEmpty().filter { it.name in selected && it.kind != RemoteEntryKind.Drive }
+
+    /** Drives are places, not things to act on. / Las unidades son lugares, no cosas sobre las que actuar. */
+    fun toggle(e: RemoteEntry) {
+        if (e.kind == RemoteEntryKind.Drive) return
+        selected = if (e.name in selected) selected - e.name else selected + e.name
+    }
+
+    fun selectAll() { selected = entries.orEmpty().filter { it.kind != RemoteEntryKind.Drive }.mapTo(mutableSetOf()) { it.name } }
+    fun clearSelection() { selected = emptySet() }
+
+    fun copySelection(cut: Boolean) {
+        val e = selectedEntries()
+        if (e.isEmpty()) return
+        clip = FilesClip(path, e, cut)
+        selected = emptySet()
+        done = if (cut) R.string.files_cut_ready else R.string.files_copy_ready
+    }
+
+    fun forgetClip() { clip = null }
+
+    /** The clip can go in the folder shown: not the list of drives, not where it was cut, not into itself. / Si se puede pegar aquí. */
+    fun canPasteHere(): Boolean {
+        val c = clip ?: return false
+        if (RemotePaths.isTop(path) && device.isWindows) return false
+        if (c.cut && c.folder == path) return false
+        return c.entries.none { it.kind == RemoteEntryKind.Folder && isInside(path, RemotePaths.join(c.folder, it.name)) }
+    }
+
+    /** Names of the clip that already exist here (they would be replaced). / Los que ya existen aquí (se sustituirían). */
+    fun pasteConflicts(): List<String> = clip?.entries.orEmpty().map { it.name }.filter { n -> entries.orEmpty().any { it.name == n } }
+
+    fun paste() {
+        val c = clip ?: return
+        if (!canPasteHere() || copy?.isActive == true) return
+        val target = path
+        copy = scope.launch {
+            transfer = Transfer(c.entries.joinToString(", ") { it.name }, up = true, done = 0, total = 0)
+            try {
+                if (c.cut) { files().moveTree(c.folder, c.entries, target); clip = null } else files().copyTree(c.folder, c.entries, target)
+                done = if (c.cut) R.string.files_moved else R.string.files_copied
+            } catch (e: MeshClientException) {
+                error = UiError(e.failure, e.key, e.httpStatus)
+            } finally {
+                transfer = null
+            }
+            open()
+        }
+    }
+
+    fun deleteSelected() {
+        val e = selectedEntries()
+        if (e.isEmpty() || copy?.isActive == true) return
+        val folder = path
+        copy = scope.launch {
+            try {
+                files().deleteAll(folder, e)
+                selected = emptySet()
+                done = R.string.files_deleted_several
+            } catch (x: MeshClientException) {
+                error = UiError(x.failure, x.key, x.httpStatus)
+            }
+            open()
+        }
+    }
+
+    /**
+     * The chosen entries, folders included, into a folder of the phone the person chose (the system's folder picker).
+     * Each file is written whole or removed: half a file is worse than none.
+     * Lo elegido, carpetas incluidas, a una carpeta del móvil que eligió la persona. Cada fichero se escribe entero o se
+     * quita: medio fichero es peor que ninguno.
+     */
+    fun downloadSelected(tree: Uri) {
+        val e = selectedEntries()
+        if (e.isEmpty() || copy?.isActive == true) return
+        val folder = path
+        copy = scope.launch {
+            try {
+                val root = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, android.provider.DocumentsContract.getTreeDocumentId(tree))
+                downloadInto(folder, e, root)
+                selected = emptySet()
+                done = R.string.files_downloaded_several
+            } catch (x: MeshClientException) {
+                error = UiError(x.failure, x.key, x.httpStatus)
+            } finally {
+                transfer = null
+            }
+        }
+    }
+
+    private suspend fun downloadInto(remoteFolder: String, entries: List<RemoteEntry>, parent: Uri) {
+        for (e in entries) {
+            val remote = RemotePaths.join(remoteFolder, e.name)
+            if (e.kind == RemoteEntryKind.Folder) {
+                val dir = withContext(Dispatchers.IO) {
+                    runCatching { android.provider.DocumentsContract.createDocument(resolver, parent, android.provider.DocumentsContract.Document.MIME_TYPE_DIR, e.name) }.getOrNull()
+                } ?: throw MeshClientException(MeshFailure.Rejected, "ficheros/descargar/permisos-fichero", "The folder could not be created on this phone.")
+                downloadInto(remote, files().list(remote).entries, dir)
+                continue
+            }
+            val doc = withContext(Dispatchers.IO) {
+                runCatching { android.provider.DocumentsContract.createDocument(resolver, parent, "application/octet-stream", e.name) }.getOrNull()
+            } ?: throw MeshClientException(MeshFailure.Rejected, "ficheros/descargar/permisos-fichero", "The file could not be created on this phone.")
+            transfer = Transfer(e.name, up = false, done = 0, total = e.size)
+            var ok = false
+            try {
+                val written = withContext(Dispatchers.IO) {
+                    resolver.openOutputStream(doc, "wt")?.use { s -> files().download(remote, s) { n -> transfer = Transfer(e.name, false, n, e.size) } } != null
+                }
+                if (!written) throw MeshClientException(MeshFailure.Rejected, "ficheros/descargar/permisos-fichero", "The downloaded file could not be written on this phone.")
+                ok = true
+            } finally {
+                if (!ok) withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) { runCatching { android.provider.DocumentsContract.deleteDocument(resolver, doc) } }
+            }
+        }
+    }
+
+    /** Several files of the phone to the folder shown, one after another. / Varios ficheros del móvil a la carpeta que se ve, uno tras otro. */
+    fun uploadAll(uris: List<Uri>) {
+        if (uris.isEmpty() || copy?.isActive == true) return
+        if (uris.size == 1) return upload(uris[0])
+        val folder = path
+        copy = scope.launch {
+            try {
+                for (uri in uris) uploadOne(uri, folder)
+                done = R.string.files_uploaded_several
+            } catch (e: MeshClientException) {
+                error = UiError(e.failure, e.key, e.httpStatus)
+            } finally {
+                transfer = null
+            }
+            open()
+        }
+    }
+
+    private suspend fun uploadOne(uri: Uri, folder: String) {
+        var name = "file"
+        var size = 0L
+        withContext(Dispatchers.IO) {
+            resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
+                if (c.moveToFirst()) { c.getString(0)?.let { name = it }; if (!c.isNull(1)) size = c.getLong(1) }
+            }
+        }
+        transfer = Transfer(name, up = true, done = 0, total = size)
+        val sent = withContext(Dispatchers.IO) {
+            resolver.openInputStream(uri)?.use { s -> files().upload(folder, name, s, size) { n -> transfer = Transfer(name, true, n, size) } } != null
+        }
+        if (!sent) throw MeshClientException(MeshFailure.Rejected, "ficheros/subir/permisos-fichero", "The file on this phone could not be read.")
     }
 
     fun cancelTransfer() { copy?.cancel() }

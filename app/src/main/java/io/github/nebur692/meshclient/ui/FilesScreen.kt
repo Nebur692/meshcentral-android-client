@@ -51,7 +51,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,6 +71,8 @@ private sealed interface FileAsk {
     data class Rename(val e: RemoteEntry) : FileAsk
     data class Delete(val e: RemoteEntry) : FileAsk
     data object NewFolder : FileAsk
+    data class DeleteSelected(val count: Int) : FileAsk
+    data class Replace(val names: List<String>) : FileAsk
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,9 +82,11 @@ fun FilesScreen(vm: AppViewModel) {
     val snack = remember { SnackbarHostState() }
     var ask by remember { mutableStateOf<FileAsk?>(null) }
     var downloading by remember { mutableStateOf<RemoteEntry?>(null) }
-    BackHandler { if (!f.up()) vm.leaveTool() }
+    // Back first stops choosing, then goes up, then leaves. / Atrás primero deja de elegir, luego sube, luego sale.
+    BackHandler { if (f.selecting) f.clearSelection() else if (!f.up()) vm.leaveTool() }
 
-    val pickToUpload = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(f::upload) }
+    val pickToUpload = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris -> f.uploadAll(uris) }
+    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree -> tree?.let(f::downloadSelected) }
     val pickWhereToSave = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
         val e = downloading
         downloading = null
@@ -97,7 +103,11 @@ fun FilesScreen(vm: AppViewModel) {
         snackbarHost = { SnackbarHost(snack) },
         topBar = {
             Column {
-                TopAppBar(expandedHeight = BarHeight,
+                if (f.selecting) SelectionBar(f.selected.size,
+                    onStop = f::clearSelection, onAll = f::selectAll,
+                    onDownload = { pickFolder.launch(null) }, onCopy = { f.copySelection(cut = false) }, onCut = { f.copySelection(cut = true) },
+                    onDelete = { ask = FileAsk.DeleteSelected(f.selected.size) })
+                else TopAppBar(expandedHeight = BarHeight,
                     title = {
                         Column {
                             Text(f.device.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -120,14 +130,19 @@ fun FilesScreen(vm: AppViewModel) {
             // Its text, said out loud: the animated label of an extended button reaches accessibility with no size (seen with
             // uiautomator: a button with no text). / Su texto, dicho en voz alta: la etiqueta animada llegaba sin tamaño.
             val upload = stringResource(R.string.files_upload)
-            if (f.path.isNotEmpty() && f.transfer == null) ExtendedFloatingActionButton(
+            if (f.path.isNotEmpty() && f.transfer == null && !f.selecting && f.clip == null) ExtendedFloatingActionButton(
                 onClick = { pickToUpload.launch(arrayOf("*/*")) },
                 modifier = Modifier.semantics { contentDescription = upload },
                 icon = { Icon(painterResource(R.drawable.ic_upload), null) },
                 text = { Text(stringResource(R.string.files_upload)) },
             )
         },
-        bottomBar = { f.transfer?.let { TransferBar(it, f::cancelTransfer) } },
+        bottomBar = {
+            val t = f.transfer
+            val c = f.clip
+            if (t != null) TransferBar(t, f::cancelTransfer)
+            else if (c != null && !f.selecting) PasteBar(c, f.canPasteHere(), onPaste = { if (f.pasteConflicts().isEmpty()) f.paste() else ask = FileAsk.Replace(f.pasteConflicts()) }, onForget = f::forgetClip)
+        },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -137,8 +152,10 @@ fun FilesScreen(vm: AppViewModel) {
                 Text(stringResource(R.string.files_empty), Modifier.align(Alignment.Center).padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottom + 88.dp)) {
                 items(entries.orEmpty(), key = { it.kind.name + "/" + it.name }) { e ->
-                    Entry(e, onClick = { if (e.kind == RemoteEntryKind.File) ask = FileAsk.Actions(e) else f.enter(e) },
-                        onLongClick = { if (e.kind != RemoteEntryKind.Drive) ask = FileAsk.Actions(e) })
+                    // A long press starts choosing several; while choosing, a tap chooses. / Una pulsación larga empieza a elegir varios.
+                    Entry(e, chosen = e.name in f.selected, choosing = f.selecting,
+                        onClick = { if (f.selecting) f.toggle(e) else if (e.kind == RemoteEntryKind.File) ask = FileAsk.Actions(e) else f.enter(e) },
+                        onLongClick = { f.toggle(e) })
                 }
             }
         }
@@ -152,6 +169,20 @@ fun FilesScreen(vm: AppViewModel) {
             onDismiss = { ask = null }) { name -> ask = null; if (name != a.e.name) f.rename(a.e, name) }
         FileAsk.NewFolder -> NameDialog(stringResource(R.string.files_new_folder), stringResource(R.string.files_folder_name), "",
             onDismiss = { ask = null }) { name -> ask = null; f.createFolder(name) }
+        is FileAsk.DeleteSelected -> AlertDialog(
+            onDismissRequest = { ask = null },
+            title = { Text(stringResource(R.string.files_delete)) },
+            text = { Text(pluralStringResource(R.plurals.files_delete_several_ask, a.count, a.count)) },
+            confirmButton = { TextButton(onClick = { ask = null; f.deleteSelected() }) { Text(stringResource(R.string.files_delete), color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { ask = null }) { Text(stringResource(R.string.cancel)) } },
+        )
+        is FileAsk.Replace -> AlertDialog(
+            onDismissRequest = { ask = null },
+            title = { Text(stringResource(R.string.files_paste_here)) },
+            text = { Text(stringResource(R.string.files_replace_ask, a.names.joinToString(", "))) },
+            confirmButton = { TextButton(onClick = { ask = null; f.paste() }) { Text(stringResource(R.string.files_replace), color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { ask = null }) { Text(stringResource(R.string.cancel)) } },
+        )
         is FileAsk.Delete -> AlertDialog(
             onDismissRequest = { ask = null },
             title = { Text(stringResource(R.string.files_delete)) },
@@ -165,7 +196,7 @@ fun FilesScreen(vm: AppViewModel) {
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun Entry(e: RemoteEntry, onClick: () -> Unit, onLongClick: () -> Unit) {
+private fun Entry(e: RemoteEntry, chosen: Boolean, choosing: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
     val context = LocalContext.current
     val icon = when (e.kind) { RemoteEntryKind.Drive -> R.drawable.ic_drive; RemoteEntryKind.Folder -> R.drawable.ic_folder; RemoteEntryKind.File -> R.drawable.ic_doc }
     val details = buildList {
@@ -176,9 +207,49 @@ private fun Entry(e: RemoteEntry, onClick: () -> Unit, onLongClick: () -> Unit) 
     ListItem(
         headlineContent = { Text(e.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
         supportingContent = if (details.isNotEmpty()) ({ Text(details) }) else null,
-        leadingContent = { Icon(painterResource(icon), null, tint = if (e.kind == RemoteEntryKind.File) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary) },
-        modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        leadingContent = {
+            // While choosing, a box says which are in; drives are places and cannot be chosen. / Mientras se elige, una casilla dice cuáles.
+            if (choosing && e.kind != RemoteEntryKind.Drive) androidx.compose.material3.Checkbox(chosen, null)
+            else Icon(painterResource(icon), null, tint = if (e.kind == RemoteEntryKind.File) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
+        },
+        colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = if (chosen) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface),
+        modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = stringResource(R.string.files_choose))
+            .semantics { selected = chosen },
     )
+}
+
+/** The bar while choosing: how many, all, and what to do with them. / La barra mientras se elige: cuántos, todos y qué hacer. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SelectionBar(count: Int, onStop: () -> Unit, onAll: () -> Unit, onDownload: () -> Unit, onCopy: () -> Unit, onCut: () -> Unit, onDelete: () -> Unit) {
+    TopAppBar(expandedHeight = BarHeight,
+        title = { Text(pluralStringResource(R.plurals.files_selected, count, count), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        navigationIcon = { IconButton(onClick = onStop) { Icon(painterResource(R.drawable.ic_close), stringResource(R.string.files_stop_choosing)) } },
+        actions = {
+            IconButton(onClick = onAll) { Icon(painterResource(R.drawable.ic_select_all), stringResource(R.string.files_select_all)) }
+            IconButton(onClick = onDownload) { Icon(painterResource(R.drawable.ic_download), stringResource(R.string.files_download)) }
+            IconButton(onClick = onCopy) { Icon(painterResource(R.drawable.ic_copy), stringResource(R.string.files_copy)) }
+            IconButton(onClick = onCut) { Icon(painterResource(R.drawable.ic_cut), stringResource(R.string.files_cut)) }
+            IconButton(onClick = onDelete) { Icon(painterResource(R.drawable.ic_trash), stringResource(R.string.files_delete), tint = MaterialTheme.colorScheme.error) }
+        },
+        colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+    )
+}
+
+/** What was copied or cut, and where it can go: here, or not here. / Lo copiado o cortado, y si se puede pegar aquí. */
+@Composable
+private fun PasteBar(c: io.github.nebur692.meshclient.FilesClip, canHere: Boolean, onPaste: () -> Unit, onForget: () -> Unit) {
+    Surface(tonalElevation = 3.dp) {
+        Row(Modifier.fillMaxWidth().padding(WindowInsets.navigationBars.asPaddingValues()).padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(painterResource(if (c.cut) R.drawable.ic_cut else R.drawable.ic_copy), null, Modifier.size(20.dp))
+            Text(pluralStringResource(if (c.cut) R.plurals.files_clip_cut else R.plurals.files_clip_copy, c.entries.size, c.entries.size)
+                + if (canHere) "" else " · " + stringResource(R.string.files_not_here),
+                Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            TextButton(onClick = onForget) { Text(stringResource(R.string.cancel)) }
+            androidx.compose.material3.FilledTonalButton(onClick = onPaste, enabled = canHere) { Text(stringResource(R.string.files_paste_here)) }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

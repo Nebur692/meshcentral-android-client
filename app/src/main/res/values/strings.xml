@@ -710,4 +710,37 @@
     <string name="login_locked">Account locked</string>
     <string name="login_bad_password">Wrong password</string>
     <string name="proto_other">Other (%1$d)</string>
+    <!-- 0.13.0: several files at once -->
+    <plurals name="files_selected">
+        <item quantity="one">%d chosen</item>
+        <item quantity="other">%d chosen</item>
+    </plurals>
+    <string name="files_choose">Choose several</string>
+    <string name="files_stop_choosing">Stop choosing</string>
+    <string name="files_select_all">Choose all</string>
+    <string name="files_copy">Copy</string>
+    <string name="files_cut">Cut</string>
+    <string name="files_paste_here">Paste here</string>
+    <string name="files_replace">Replace</string>
+    <string name="files_replace_ask">These already exist here and will be replaced: %1$s</string>
+    <string name="files_not_here">open another folder to paste</string>
+    <plurals name="files_clip_copy">
+        <item quantity="one">%d item copied</item>
+        <item quantity="other">%d items copied</item>
+    </plurals>
+    <plurals name="files_clip_cut">
+        <item quantity="one">%d item cut</item>
+        <item quantity="other">%d items cut</item>
+    </plurals>
+    <string name="files_copy_ready">Copied: open the folder where it goes and paste.</string>
+    <string name="files_cut_ready">Cut: open the folder where it goes and paste.</string>
+    <string name="files_copied">Copied.</string>
+    <string name="files_moved">Moved.</string>
+    <string name="files_deleted_several">Deleted.</string>
+    <string name="files_downloaded_several">Downloaded to the folder you chose.</string>
+    <string name="files_uploaded_several">Uploaded.</string>
+    <plurals name="files_delete_several_ask">
+        <item quantity="one">Delete %d item from the device? Folders go with everything inside.</item>
+        <item quantity="other">Delete %d items from the device? Folders go with everything inside.</item>
+    </plurals>
 </resources>

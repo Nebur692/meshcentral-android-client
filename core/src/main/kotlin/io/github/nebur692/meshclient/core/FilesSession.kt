@@ -80,6 +80,9 @@ class FilesSession private constructor(val tunnel: MeshTunnel, private val timeo
 
     private suspend fun command(cmd: JsonObject) = one.withLock { send(cmd, "ficheros/gestionar-ficheros/conexion-cortada") }
 
+    /** For the tree operations (FilesTree.kt): a command the agent does not answer. / Para las operaciones de árbol. */
+    internal suspend fun commandOf(cmd: JsonObject) = command(cmd)
+
     // ------------------------------------------------------------------ upload / subir
 
     /** Uploads [source] as [folder]/[name] (overwrites); [progress] gets the bytes sent. / Sube [source] (sobrescribe). */

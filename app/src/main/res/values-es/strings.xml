@@ -729,4 +729,41 @@
     <string name="login_locked">Cuenta bloqueada</string>
     <string name="login_bad_password">Contraseña incorrecta</string>
     <string name="proto_other">Otro (%1$d)</string>
+    <!-- 0.13.0: varios ficheros a la vez -->
+    <plurals name="files_selected">
+        <item quantity="one">%d elegido</item>
+        <item quantity="many">%d elegidos</item>
+        <item quantity="other">%d elegidos</item>
+    </plurals>
+    <string name="files_choose">Elegir varios</string>
+    <string name="files_stop_choosing">Dejar de elegir</string>
+    <string name="files_select_all">Elegir todos</string>
+    <string name="files_copy">Copiar</string>
+    <string name="files_cut">Cortar</string>
+    <string name="files_paste_here">Pegar aquí</string>
+    <string name="files_replace">Sustituir</string>
+    <string name="files_replace_ask">Ya existen aquí y se sustituirán: %1$s</string>
+    <string name="files_not_here">abre otra carpeta para pegar</string>
+    <plurals name="files_clip_copy">
+        <item quantity="one">%d elemento copiado</item>
+        <item quantity="many">%d elementos copiados</item>
+        <item quantity="other">%d elementos copiados</item>
+    </plurals>
+    <plurals name="files_clip_cut">
+        <item quantity="one">%d elemento cortado</item>
+        <item quantity="many">%d elementos cortados</item>
+        <item quantity="other">%d elementos cortados</item>
+    </plurals>
+    <string name="files_copy_ready">Copiado: abre la carpeta donde va y pega.</string>
+    <string name="files_cut_ready">Cortado: abre la carpeta donde va y pega.</string>
+    <string name="files_copied">Copiado.</string>
+    <string name="files_moved">Movido.</string>
+    <string name="files_deleted_several">Borrado.</string>
+    <string name="files_downloaded_several">Descargado en la carpeta que elegiste.</string>
+    <string name="files_uploaded_several">Subido.</string>
+    <plurals name="files_delete_several_ask">
+        <item quantity="one">¿Borrar %d elemento del equipo? Las carpetas se van con todo lo que tienen dentro.</item>
+        <item quantity="many">¿Borrar %d elementos del equipo? Las carpetas se van con todo lo que tienen dentro.</item>
+        <item quantity="other">¿Borrar %d elementos del equipo? Las carpetas se van con todo lo que tienen dentro.</item>
+    </plurals>
 </resources>
