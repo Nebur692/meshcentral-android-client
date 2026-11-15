@@ -66,13 +66,16 @@ enum class DeviceGroupKind { Unknown, IntelAmtOnly, Agents, LocalDevices, IpKvm 
 
 /** [links]: who has rights on the group, accounts and user groups. / Quién tiene permisos en el grupo. */
 data class DeviceGroup(val id: String, val name: String, val description: String?, val kind: DeviceGroupKind, val links: Map<String, Long> = emptyMap(),
-                       val settings: GroupSettings = GroupSettings()) {
+                       val settings: GroupSettings = GroupSettings(),
+                       /** Local devices: the agent through which the server reaches them (null = the server itself). / El agente por el que llega. */
+                       val relayId: String? = null) {
     internal companion object {
         fun from(o: JsonObject) = DeviceGroup(
             o.str("_id") ?: o.str("meshid").orEmpty(), o.str("name").orEmpty(), o.str("desc"),
             DeviceGroupKind.entries.getOrElse((o.long("mtype") ?: 0).toInt()) { DeviceGroupKind.Unknown },
             links(o),
             GroupSettings((o.long("consent") ?: 0).toInt(), (o.long("flags") ?: 0).toInt(), (o.long("expireDevs") ?: 0).toInt()),
+            o.str("relayid")?.takeIf { it.startsWith("node/") },
         )
     }
 }
@@ -120,6 +123,8 @@ data class Device(
     val agentCore: String? = null,
     /** Intel AMT is set up on it (any provisioning state but 0). / Tiene Intel AMT preparado. */
     val hasIntelAmt: Boolean = false,
+    /** A device without an agent, reached by its address through the server (a group of local devices). / Un equipo sin agente. */
+    val isLocal: Boolean = false,
 ) {
     val isOnline: Boolean get() = connectivity != 0
     val hasAgent: Boolean get() = connectivity and Connectivity.AGENT != 0
@@ -178,6 +183,7 @@ data class Device(
                 links = links(o),
                 agentCore = agent?.str("core"),
                 hasIntelAmt = ((o["intelamt"] as? JsonObject)?.long("state") ?: 0) != 0L,
+                isLocal = o.long("mtype") == 3L,
             )
         }
 

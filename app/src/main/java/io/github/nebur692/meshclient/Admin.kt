@@ -19,6 +19,9 @@ import io.github.nebur692.meshclient.core.addGroupMembers
 import io.github.nebur692.meshclient.core.addUsersToUserGroup
 import io.github.nebur692.meshclient.core.changeGroupMemberRights
 import io.github.nebur692.meshclient.core.createGroup
+import io.github.nebur692.meshclient.core.createLocalGroup
+import io.github.nebur692.meshclient.core.addLocalDevice
+import io.github.nebur692.meshclient.core.LocalDeviceOs
 import io.github.nebur692.meshclient.core.createInviteLink
 import io.github.nebur692.meshclient.core.createUser
 import io.github.nebur692.meshclient.core.createUserGroup
@@ -139,6 +142,11 @@ class AdminModel(private val session: () -> MeshSession?, private val scope: Cor
 
     // ---- groups / grupos
     fun createGroup(name: String, description: String) = change(R.string.done_group_created, AdminPage.Groups) { it.createGroup(name, description.ifBlank { null }) }
+    /** A group of devices without an agent; [relayId]: the agent the server reaches them through, or null. / Grupo sin agente. */
+    fun createLocalGroup(name: String, description: String, relayId: String?) =
+        change(R.string.done_group_created, AdminPage.Groups) { it.createLocalGroup(name, description.ifBlank { null }, relayId) }
+    fun addLocalDevice(g: DeviceGroup, name: String, host: String, os: LocalDeviceOs, then: () -> Unit) =
+        change(R.string.done_local_device_added, AdminPage.Groups, then) { it.addLocalDevice(g, name, host, os) }
     fun editGroup(g: DeviceGroup, name: String, description: String) = change(R.string.done_saved, AdminPage.Groups) { it.editGroup(g, name, description) }
     fun saveGroupSettings(g: DeviceGroup, settings: io.github.nebur692.meshclient.core.GroupSettings, then: () -> Unit) =
         change(R.string.done_saved, AdminPage.Groups, then) { it.saveGroupSettings(g, settings) }

@@ -98,8 +98,11 @@ suspend fun MeshSession.details(device: Device): DeviceDetails = coroutineScope 
     DeviceDetails(s?.first, s?.second, net.await().orEmpty(), last.await(), notes.await(), events.await().orEmpty())
 }
 
-/** Changes the name, description and/or tags (null = unchanged). / Cambia nombre, descripción o etiquetas (null = igual). */
-suspend fun MeshSession.changeDevice(device: Device, name: String? = null, description: String? = null, tags: List<String>? = null) {
+/**
+ * Changes the name, description, tags and/or (a device without an agent) its address (null = unchanged).
+ * Cambia nombre, descripción, etiquetas o (un equipo sin agente) su dirección (null = igual).
+ */
+suspend fun MeshSession.changeDevice(device: Device, name: String? = null, description: String? = null, tags: List<String>? = null, host: String? = null) {
     if (!abilitiesOn(device).edit) throw denied("ficha/cambiar-ajustes/no-autorizado", "edit it")
     val id = MeshSession.newId()
     val r = request(buildJsonObject {
@@ -107,6 +110,7 @@ suspend fun MeshSession.changeDevice(device: Device, name: String? = null, descr
         name?.let { put("name", it) }
         description?.let { put("desc", it) }
         tags?.let { put("tags", JsonArray(it.map(::JsonPrimitive))) }
+        host?.let { put("host", it.trim()) }
     }, { it.str("action") == "changedevice" && it.str("responseid") == id }, "ficha/cambiar-ajustes/tiempo-agotado", "ficha/cambiar-ajustes/conexion-cortada")
     r.str("result")?.takeIf { it != "ok" }?.let { throw refused("ficha/cambiar-ajustes/rechazo-remoto", it) }
 }

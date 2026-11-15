@@ -69,6 +69,10 @@ import io.github.nebur692.meshclient.MemberRights
 import io.github.nebur692.meshclient.R
 import io.github.nebur692.meshclient.Screen
 import io.github.nebur692.meshclient.core.DeviceGroup
+import io.github.nebur692.meshclient.core.DeviceGroupKind
+import io.github.nebur692.meshclient.core.LocalDeviceOs
+import io.github.nebur692.meshclient.core.canAddLocalDevice
+import io.github.nebur692.meshclient.core.validLocalHost
 import io.github.nebur692.meshclient.core.MeshSession
 import io.github.nebur692.meshclient.core.NewUser
 import io.github.nebur692.meshclient.core.ServerEvent
@@ -164,7 +168,9 @@ fun AdminScreen(vm: AppViewModel, page: AdminPage, id: String?) {
     }
     if (creating) when (page) {
         AdminPage.Users -> NewUserDialog({ creating = false }) { a.createUser(it); creating = false }
-        AdminPage.Groups -> NameDialog(R.string.admin_new_group, "", "", { creating = false }) { n, d -> a.createGroup(n, d); creating = false }
+        AdminPage.Groups -> NewGroupDialog(vm, { creating = false }) { n, d, local, relay ->
+            if (local) a.createLocalGroup(n, d, relay) else a.createGroup(n, d); creating = false
+        }
         AdminPage.UserGroups -> NameDialog(R.string.admin_new_group, "", "", { creating = false }) { n, d -> a.createUserGroup(n, d); creating = false }
         AdminPage.Events -> Unit
     }
@@ -219,7 +225,8 @@ private fun GroupList(vm: AppViewModel, a: AdminModel, padding: PaddingValues) {
     LazyColumn(contentPadding = padding) {
         items(groups, key = { it.id }) { g ->
             val count = vm.devices.values.count { it.groupId == g.id }
-            Row2(g.name, listOfNotNull(g.description, pluralStringResource(R.plurals.admin_devices_count, count, count)).joinToString(" · ")) {
+            Row2(g.name, listOfNotNull(g.description, stringResource(R.string.group_kind_local).takeIf { g.kind == DeviceGroupKind.LocalDevices },
+                pluralStringResource(R.plurals.admin_devices_count, count, count)).joinToString(" · ")) {
                 vm.show(Screen.Admin(AdminPage.Groups, g.id))
             }
         }
@@ -236,11 +243,17 @@ private fun GroupPage(vm: AppViewModel, a: AdminModel, s: MeshSession, g: Device
     var inviting by remember { mutableStateOf(false) }
     var settings by remember { mutableStateOf(false) }
     var member by remember { mutableStateOf<String?>(null) }
+    var addingLocal by remember { mutableStateOf(false) }
+    val local = g.kind == DeviceGroupKind.LocalDevices
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
         Row2(g.name, g.description)
+        // A group of devices without an agent: through which the server reaches them. / Por dónde llega el servidor.
+        if (local) Row2(stringResource(R.string.group_kind_local),
+            stringResource(R.string.local_reached_by, g.relayId?.let { vm.devices[it]?.name ?: it.substringAfterLast('/').take(8) } ?: stringResource(R.string.local_by_server)))
         Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (can.edit) FilledTonalButton(onClick = { editing = true }) { Text(stringResource(R.string.edit)) }
             if (can.addDevices) FilledTonalButton(onClick = { inviting = true }) { Text(stringResource(R.string.admin_invite)) }
+            if (s.canAddLocalDevice(g)) FilledTonalButton(onClick = { addingLocal = true }) { Text(stringResource(R.string.local_add)) }
         }
         if (can.edit) OutlinedButton(onClick = { settings = true }, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
             Text(stringResource(R.string.group_settings))
@@ -279,6 +292,7 @@ private fun GroupPage(vm: AppViewModel, a: AdminModel, s: MeshSession, g: Device
             a.changeMember(g, who, r); member = null
         }
     }
+    if (addingLocal) AddLocalDeviceDialog(a.busy, { addingLocal = false }) { n, h, os -> a.addLocalDevice(g, n, h, os) { addingLocal = false } }
     if (inviting) ChoiceDialog(R.string.admin_invite, InviteExpiry.entries.map { stringResource(it.label) }, { inviting = false }) { i ->
         a.invite(g, InviteExpiry.entries[i]); inviting = false
     }
@@ -514,6 +528,80 @@ private fun NameDialog(title: Int, name0: String, description0: String, dismiss:
         confirmButton = { TextButton(onClick = { onSave(name, description) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.save)) } },
         dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.cancel)) } },
     )
+}
+
+/**
+ * A new device group: with the agent (devices install it with an invitation) or without one (machines the server reaches
+ * by their address, for Windows Remote Desktop, SSH or a port), and then through which agent, as the website asks.
+ * Un grupo nuevo: con agente (se instala con una invitación) o sin él (máquinas a las que llega el servidor por su
+ * dirección), y entonces por qué agente, como pregunta la web.
+ */
+@Composable
+private fun NewGroupDialog(vm: AppViewModel, dismiss: () -> Unit, onSave: (String, String, Boolean, String?) -> Unit) {
+    var name by rememberSaveable { mutableStateOf("") }
+    var description by rememberSaveable { mutableStateOf("") }
+    var local by rememberSaveable { mutableStateOf(false) }
+    var relay by rememberSaveable { mutableStateOf<String?>(null) }
+    val agents = vm.devices.values.filter { it.hasAgent }.sortedBy { it.name.lowercase() }
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text(stringResource(R.string.admin_new_group)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(name, { name = it.take(128) }, label = { Text(stringResource(R.string.admin_name)) }, singleLine = true)
+                OutlinedTextField(description, { description = it.take(1024) }, label = { Text(stringResource(R.string.admin_description)) }, minLines = 2)
+                Radio(stringResource(R.string.group_kind_agents), stringResource(R.string.group_kind_agents_hint), !local) { local = false }
+                Radio(stringResource(R.string.group_kind_local), stringResource(R.string.group_kind_local_hint), local) { local = true }
+                if (local) {
+                    Text(stringResource(R.string.local_reach_title), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+                    Radio(stringResource(R.string.local_by_server), stringResource(R.string.local_by_server_hint), relay == null) { relay = null }
+                    agents.forEach { d -> Radio(d.name, stringResource(R.string.local_by_agent_hint), relay == d.id) { relay = d.id } }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(name, description, local, relay.takeIf { local }) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.save)) } },
+        dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+/** A device without an agent: its name, the address the server reaches it at, and its system. / Un equipo sin agente. */
+@Composable
+private fun AddLocalDeviceDialog(busy: Boolean, dismiss: () -> Unit, onSave: (String, String, LocalDeviceOs) -> Unit) {
+    var name by rememberSaveable { mutableStateOf("") }
+    var host by rememberSaveable { mutableStateOf("") }
+    var os by rememberSaveable { mutableStateOf(LocalDeviceOs.Windows) }
+    val hostOk = validLocalHost(host)
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text(stringResource(R.string.local_add)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(name, { name = it.take(256) }, label = { Text(stringResource(R.string.device_name)) }, singleLine = true)
+                OutlinedTextField(host, { host = it.trim().take(256) }, label = { Text(stringResource(R.string.local_host)) }, singleLine = true,
+                    isError = host.isNotEmpty() && !hostOk, supportingText = { Text(stringResource(R.string.local_host_hint)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
+                Text(stringResource(R.string.local_os), style = MaterialTheme.typography.titleSmall)
+                LocalDeviceOs.entries.forEach { o ->
+                    Radio(stringResource(when (o) { LocalDeviceOs.Windows -> R.string.os_windows; LocalDeviceOs.Linux -> R.string.os_linux; LocalDeviceOs.Mac -> R.string.os_mac }),
+                        null, os == o) { os = o }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(name, host, os) }, enabled = name.isNotBlank() && hostOk && !busy) { Text(stringResource(R.string.save)) } },
+        dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+@Composable
+private fun Radio(title: String, hint: String?, selected: Boolean, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().selectable(selected, role = Role.RadioButton, onClick = onClick).padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        RadioButton(selected, null)
+        Column {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            hint?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+    }
 }
 
 @Composable

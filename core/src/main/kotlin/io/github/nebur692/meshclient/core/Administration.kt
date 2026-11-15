@@ -71,7 +71,7 @@ data class GroupAbilities(val edit: Boolean, val manageUsers: Boolean, val delet
 /** How the agent installs (installflags). / Cómo se instala el agente. */
 enum class AgentInstallMode(val flags: Int) { BackgroundAndInteractive(0), InteractiveOnly(1), BackgroundOnly(2) }
 
-private fun adminError(key: String, message: String, said: String? = null) =
+internal fun adminError(key: String, message: String, said: String? = null) =
     MeshClientException(MeshFailure.Rejected, key, message).apply { serverMessage = said }
 
 private suspend fun MeshSession.answered(cmd: JsonObject, timeoutKey: String, lostKey: String): JsonObject {
@@ -146,7 +146,7 @@ fun MeshSession.canMove(device: Device, target: DeviceGroup): Boolean {
         MeshRights.has(MeshRights.ofDevice(user, serverInfo, from, device), MeshRights.EDIT_GROUP) && groupAbilitiesOn(target).receiveDevices
 }
 
-private fun checkGroupText(name: String, description: String?) {
+internal fun checkGroupText(name: String, description: String?) {
     if (name.trim().isEmpty() || name.trim().length > 128 || (description?.length ?: 0) > 1024)
         throw adminError("grupos/gestionar-grupos/dato-invalido", "The name must have 1 to 128 characters and the description up to 1024.")
 }

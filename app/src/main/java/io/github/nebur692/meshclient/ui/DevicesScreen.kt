@@ -244,7 +244,8 @@ fun DeviceTile(d: Device, size: Int = 44) {
             contentColor = if (on) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant) {
             Box(contentAlignment = Alignment.Center) { Icon(painterResource(kindIcon(d)), null, Modifier.size((size / 2).dp)) }
         }
-        Box(Modifier.align(Alignment.BottomEnd).offset(x = 2.dp, y = 2.dp).size(14.dp)
+        // A device without an agent is neither on nor off for the server: no dot. / Sin agente no está encendido ni apagado: sin punto.
+        if (!d.isLocal) Box(Modifier.align(Alignment.BottomEnd).offset(x = 2.dp, y = 2.dp).size(14.dp)
             .background(if (on) status.online else status.offline, CircleShape)
             .border(2.dp, MaterialTheme.colorScheme.background, CircleShape))
     }
@@ -254,7 +255,7 @@ fun DeviceTile(d: Device, size: Int = 44) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DeviceRow(d: Device, selected: Boolean, open: Boolean, onLongClick: () -> Unit, onClick: () -> Unit) {
-    val state = stringResource(if (d.isOnline) R.string.online else R.string.offline)
+    val state = stringResource(if (d.isOnline) R.string.online else if (d.isLocal) R.string.no_agent else R.string.offline)
     val picked = stringResource(R.string.bulk_picked)
     val pick = stringResource(R.string.bulk_pick)
     Row(
@@ -280,6 +281,7 @@ private fun DeviceRow(d: Device, selected: Boolean, open: Boolean, onLongClick: 
         }
         // Only the ones that are on say it: a word on every row is noise. / Solo lo dicen los encendidos.
         if (d.isOnline) Text(state, style = MaterialTheme.typography.labelMedium, color = LocalStatusColors.current.online)
+        else if (d.isLocal) Text(stringResource(R.string.no_agent), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

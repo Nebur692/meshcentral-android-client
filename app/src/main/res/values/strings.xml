@@ -743,4 +743,26 @@
         <item quantity="one">Delete %d item from the device? Folders go with everything inside.</item>
         <item quantity="other">Delete %d items from the device? Folders go with everything inside.</item>
     </plurals>
+    <!-- Devices without an agent / Equipos sin agente -->
+    <string name="act_rdp">RDP</string>
+    <string name="act_port">Port</string>
+    <string name="no_agent">No agent</string>
+    <string name="local_device_at">No agent · at %1$s</string>
+    <string name="local_host">Address</string>
+    <string name="local_host_hint">The name or IP address the server (or the group\'s agent) reaches it at</string>
+    <string name="group_kind_agents">Devices with the agent</string>
+    <string name="group_kind_agents_hint">Each device installs the agent with an invitation</string>
+    <string name="group_kind_local">Devices without an agent</string>
+    <string name="group_kind_local_hint">Machines the server reaches by their address, for Windows Remote Desktop, SSH or a port</string>
+    <string name="local_reach_title">How the server reaches them</string>
+    <string name="local_by_server">The server itself</string>
+    <string name="local_by_server_hint">The server is on the same network as the devices</string>
+    <string name="local_by_agent_hint">Through this device\'s agent, on their network</string>
+    <string name="local_reached_by">Reached through: %1$s</string>
+    <string name="local_add">Add a device</string>
+    <string name="local_os">System</string>
+    <string name="os_windows">Windows</string>
+    <string name="os_linux">Linux</string>
+    <string name="os_mac">macOS</string>
+    <string name="done_local_device_added">Device added</string>
 </resources>

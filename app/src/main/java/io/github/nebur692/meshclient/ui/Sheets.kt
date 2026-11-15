@@ -217,13 +217,21 @@ fun EditSheet(vm: AppViewModel, d: Device) {
     var name by rememberSaveable(d.id) { mutableStateOf(d.name) }
     var description by rememberSaveable(d.id) { mutableStateOf(d.description.orEmpty()) }
     var tags by rememberSaveable(d.id) { mutableStateOf(d.tags.joinToString(", ")) }
+    // A device without an agent keeps the address the server reaches it at, and it can change. / Su dirección se puede cambiar.
+    val local = vm.isLocal(d)
+    var host by rememberSaveable(d.id) { mutableStateOf(d.address.orEmpty()) }
+    val hostOk = !local || io.github.nebur692.meshclient.core.validLocalHost(host)
     Sheet(stringResource(R.string.edit_device), null, { vm.sheet = null }, buttons = {
-        SheetButtons(stringResource(R.string.save), name.isNotBlank(), vm.actionBusy, { vm.sheet = null }) {
-            vm.saveDevice(d, name, description, tags.split(',').map(String::trim).filter(String::isNotEmpty).distinct())
+        SheetButtons(stringResource(R.string.save), name.isNotBlank() && hostOk, vm.actionBusy, { vm.sheet = null }) {
+            vm.saveDevice(d, name, description, tags.split(',').map(String::trim).filter(String::isNotEmpty).distinct(), host.takeIf { local })
         }
     }) {
         Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(name, { name = it.take(64) }, label = { Text(stringResource(R.string.device_name)) }, singleLine = true,
+                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            if (local) OutlinedTextField(host, { host = it.trim().take(256) }, label = { Text(stringResource(R.string.local_host)) }, singleLine = true,
+                isError = !hostOk, supportingText = { Text(stringResource(R.string.local_host_hint)) },
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri),
                 modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
             OutlinedTextField(description, { description = it.take(1024) }, label = { Text(stringResource(R.string.description)) },
                 modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))

@@ -109,8 +109,11 @@ class MeshSession private constructor(
         val byGroup = reply["nodes"] as? JsonObject ?: throw unexpected("equipos/ver-pantalla/respuesta-ilegible", "nodes")
         return byGroup.flatMap { (groupId, nodes) ->
             (nodes as? JsonArray).orEmpty().filterIsInstance<JsonObject>().map { Device.from(it, groupId) }
-        }
+        }.also { list -> knownDevices = list.associateBy { it.id } }
     }
+
+    /** The devices last listed, by id: where a tunnel goes without asking again. / Los últimos equipos listados. */
+    @Volatile internal var knownDevices: Map<String, Device> = emptyMap()
 
     /**
      * A login token for this account (MeshCentral's "createLoginToken"): a user and password of its own that sign in

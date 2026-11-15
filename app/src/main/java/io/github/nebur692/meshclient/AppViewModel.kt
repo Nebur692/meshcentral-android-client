@@ -38,6 +38,7 @@ import io.github.nebur692.meshclient.core.setNotes
 import io.github.nebur692.meshclient.core.uninstallAgent
 import io.github.nebur692.meshclient.core.updateAgents
 import io.github.nebur692.meshclient.core.wake
+import io.github.nebur692.meshclient.core.isLocal
 import io.github.nebur692.meshclient.data.BiometricVault
 import io.github.nebur692.meshclient.data.SavedServer
 import io.github.nebur692.meshclient.data.SavedServers
@@ -766,8 +767,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun abilities(d: Device): DeviceAbilities = session?.abilitiesOn(d) ?: DeviceAbilities.NONE
 
-    /** SSH and port mapping go through the agent with remote control rights. / SSH y puertos van por el agente con control remoto. */
-    fun canRelay(d: Device): Boolean = d.hasAgent && session?.rightsOn(d)?.let { io.github.nebur692.meshclient.core.MeshRights.has(it, io.github.nebur692.meshclient.core.MeshRights.REMOTE_CONTROL) } == true
+    /**
+     * SSH and port mapping go through the agent, or through the server for a device without one, with remote control.
+     * SSH y puertos van por el agente, o por el servidor si el equipo no tiene, con control remoto.
+     */
+    fun canRelay(d: Device): Boolean = (d.hasAgent || isLocal(d)) && session?.rightsOn(d)?.let { io.github.nebur692.meshclient.core.MeshRights.has(it, io.github.nebur692.meshclient.core.MeshRights.REMOTE_CONTROL) } == true
+
+    /** A device without an agent (a group of local devices). / Un equipo sin agente. */
+    fun isLocal(d: Device): Boolean = session?.isLocal(d) ?: d.isLocal
 
     /** Runs one action, says it went well or why not. / Hace una acción y dice si fue bien o por qué no. */
     private fun act(ok: Int, block: suspend (MeshSession) -> Unit) {
@@ -817,10 +824,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearCommandOutput() { commandOutput = null }
 
-    fun saveDevice(d: Device, name: String, description: String, tags: List<String>) = act(R.string.done_saved) {
+    fun saveDevice(d: Device, name: String, description: String, tags: List<String>, host: String? = null) = act(R.string.done_saved) {
         it.changeDevice(d, name = name.trim().takeIf { n -> n.isNotEmpty() && n != d.name },
             description = description.trim().takeIf { t -> t != d.description.orEmpty() },
-            tags = tags.takeIf { t -> t != d.tags })
+            tags = tags.takeIf { t -> t != d.tags },
+            host = host?.trim()?.takeIf { h -> h.isNotEmpty() && h != d.address })
     }
 
     /** setNotes never answers: read back to say it was saved. / setNotes no contesta: se relee para decir que se guardó. */

@@ -13,6 +13,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import okhttp3.HttpUrl
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
@@ -131,13 +132,32 @@ class TcpRelay private constructor() {
         private const val LOST = "redireccion/llevar-conexion/conexion-cortada"
         private const val AFTER_LOCAL_END_MS = 30_000L
 
+        /**
+         * Where the tunnel goes. A device with its agent: meshrelay.ashx to its agent. A device without one: through the
+         * group's relay agent to its address, or (no relay) localrelay.ashx with a cookie for that device and port, and the
+         * server connects to it itself. A device without an agent has no other machines behind it: [host] is ignored.
+         * Adónde va el túnel. Con agente: a su agente. Sin agente: por el agente que hace de relé del grupo hasta su
+         * dirección, o (sin relé) localrelay.ashx con una cookie de ese equipo y puerto, y conecta el propio servidor.
+         */
+        private suspend fun route(session: MeshSession, nodeId: String, port: Int, host: String?): HttpUrl {
+            val device = session.knownDevices[nodeId] ?: session.devices().firstOrNull { it.id == nodeId }
+            fun viaAgent(agent: String, address: String?): HttpUrl {
+                return session.server.resolve("meshrelay.ashx").newBuilder()
+                    .addQueryParameter("nodeid", agent).addQueryParameter("tcpport", port.toString())
+                    .apply { if (!address.isNullOrBlank()) addQueryParameter("tcpaddr", address.trim()) }
+                    .build()
+            }
+            if (device == null || !session.isLocal(device)) return viaAgent(nodeId, host)
+            val address = device.address?.takeIf { it.isNotBlank() }
+                ?: throw MeshClientException(MeshFailure.Rejected, "redireccion/llevar-conexion/dato-invalido", "\"${device.name}\" has no address.")
+            session.relayOf(device)?.let { return viaAgent(it, address) }
+            return session.server.resolve("localrelay.ashx").newBuilder().addQueryParameter("auth", session.localCookie(nodeId, port)).build()
+        }
+
         suspend fun open(session: MeshSession, nodeId: String, port: Int, host: String? = null): TcpRelay {
             if (port !in 1..65535) throw MeshClientException(MeshFailure.Rejected, "redireccion/llevar-conexion/dato-invalido", "$port is not a TCP port (1 to 65535).")
-            val cookies = session.relayCookies()
-            val url = session.server.resolve("meshrelay.ashx").newBuilder()
-                .addQueryParameter("nodeid", nodeId).addQueryParameter("tcpport", port.toString())
-                .apply { if (!host.isNullOrBlank()) addQueryParameter("tcpaddr", host.trim()) }
-                .addQueryParameter("auth", cookies.cookie).build()
+            var url = route(session, nodeId, port, host)
+            if (url.encodedPath.endsWith("meshrelay.ashx")) url = url.newBuilder().addQueryParameter("auth", session.relayCookies().cookie).build()
             val relay = TcpRelay()
             relay.socket = session.http.newWebSocket(Request.Builder().url(url).build(), relay.Listener())
             try {

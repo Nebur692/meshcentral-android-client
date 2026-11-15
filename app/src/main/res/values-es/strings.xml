@@ -766,4 +766,26 @@
         <item quantity="many">¿Borrar %d elementos del equipo? Las carpetas se van con todo lo que tienen dentro.</item>
         <item quantity="other">¿Borrar %d elementos del equipo? Las carpetas se van con todo lo que tienen dentro.</item>
     </plurals>
+    <!-- Devices without an agent / Equipos sin agente -->
+    <string name="act_rdp">RDP</string>
+    <string name="act_port">Puerto</string>
+    <string name="no_agent">Sin agente</string>
+    <string name="local_device_at">Sin agente · en %1$s</string>
+    <string name="local_host">Dirección</string>
+    <string name="local_host_hint">El nombre o la IP con que llega el servidor (o el agente del grupo)</string>
+    <string name="group_kind_agents">Equipos con agente</string>
+    <string name="group_kind_agents_hint">Cada equipo instala el agente con una invitación</string>
+    <string name="group_kind_local">Equipos sin agente</string>
+    <string name="group_kind_local_hint">Máquinas a las que llega el servidor por su dirección, para el Escritorio remoto de Windows, SSH o un puerto</string>
+    <string name="local_reach_title">Cómo llega el servidor</string>
+    <string name="local_by_server">El propio servidor</string>
+    <string name="local_by_server_hint">El servidor está en la misma red que los equipos</string>
+    <string name="local_by_agent_hint">Por el agente de este equipo, en su red</string>
+    <string name="local_reached_by">Llega por: %1$s</string>
+    <string name="local_add">Añadir un equipo</string>
+    <string name="local_os">Sistema</string>
+    <string name="os_windows">Windows</string>
+    <string name="os_linux">Linux</string>
+    <string name="os_mac">macOS</string>
+    <string name="done_local_device_added">Equipo añadido</string>
 </resources>

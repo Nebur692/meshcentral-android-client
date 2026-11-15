@@ -178,7 +178,10 @@ private fun Header(vm: AppViewModel, d: Device) {
         DeviceTile(d, size = 56)
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             val status = LocalStatusColors.current
-            Text(stringResource(if (d.isOnline) R.string.online else R.string.offline) +
+            // A device without an agent has no online or offline: where the server reaches it. / Sin agente: dónde llega el servidor.
+            if (vm.isLocal(d)) Text(stringResource(R.string.local_device_at, d.address.orEmpty()), style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            else Text(stringResource(if (d.isOnline) R.string.online else R.string.offline) +
                 (d.lastBoot?.takeIf { d.isOnline }?.let { " · " + stringResource(R.string.on_since, ago(it).replaceFirstChar { c -> c.lowercase() }) } ?: ""),
                 style = MaterialTheme.typography.titleSmall, color = if (d.isOnline) status.online else status.offline)
             Text(listOfNotNull(d.osDescription, vm.groupNames[d.groupId]?.let { stringResource(R.string.in_group, it) }).joinToString(" · "),
@@ -215,7 +218,15 @@ private fun Actions(vm: AppViewModel, d: Device, columns: Int) {
     val can = vm.abilities(d)
     fun has(r: Long) = MeshRights.has(rights, r)
     data class A(val icon: Int, val label: Int, val enabled: Boolean, val onClick: () -> Unit)
-    val all = buildList {
+    // A device without an agent has only what goes through a port: Windows Remote Desktop, SSH, any port (as the website).
+    // Un equipo sin agente solo tiene lo que va por un puerto: Escritorio remoto de Windows, SSH, cualquier puerto.
+    val all = if (vm.isLocal(d)) buildList {
+        if (vm.canRelay(d)) {
+            if (d.isWindows) add(A(R.drawable.ic_monitor, R.string.act_rdp, true) { vm.sheet = DeviceSheet.Port })
+            add(A(R.drawable.ic_lock, R.string.act_ssh, true) { vm.sheet = DeviceSheet.Ssh })
+            add(A(R.drawable.ic_globe, R.string.act_port, true) { vm.sheet = DeviceSheet.Port })
+        }
+    } else buildList {
         if (MeshRights.tool(rights, MeshRights.NO_DESKTOP)) add(A(R.drawable.ic_monitor, R.string.act_desktop, d.canOpenDesktop) { vm.openDesktop(d.id) })
         if (MeshRights.tool(rights, MeshRights.NO_TERMINAL)) add(A(R.drawable.ic_terminal, R.string.act_terminal, d.canOpenTerminal) { vm.sheet = DeviceSheet.Terminal })
         if (MeshRights.tool(rights, MeshRights.NO_FILES)) add(A(R.drawable.ic_folder, R.string.act_files, d.canOpenFiles) { vm.openFiles(d.id) })

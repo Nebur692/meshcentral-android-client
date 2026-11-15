@@ -41,6 +41,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -63,7 +64,8 @@ import io.github.nebur692.meshclient.core.Device
 @Composable
 fun SshSheet(vm: AppViewModel, d: Device) {
     val place = remember(d.id) { vm.sshPlaces.get(d.id) }
-    var host by rememberSaveable { mutableStateOf(place.host) }
+    val local = vm.isLocal(d)
+    var host by rememberSaveable { mutableStateOf(if (local) "" else place.host) }
     var port by rememberSaveable { mutableStateOf(place.port.toString()) }
     var user by rememberSaveable { mutableStateOf(place.user) }
     var password by remember { mutableStateOf("") }
@@ -80,8 +82,10 @@ fun SshSheet(vm: AppViewModel, d: Device) {
         }
     }) {
         Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(host, { host = it.trim() }, label = { Text(stringResource(R.string.ssh_host)) }, placeholder = { Text(stringResource(R.string.ssh_host_this)) },
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                // A device without an agent is reached at its own address only. / Un equipo sin agente, solo en su dirección.
+                if (local) LocalAddress(d, Modifier.weight(1f))
+                else OutlinedTextField(host, { host = it.trim() }, label = { Text(stringResource(R.string.ssh_host)) }, placeholder = { Text(stringResource(R.string.ssh_host_this)) },
                     singleLine = true, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
                 OutlinedTextField(port, { port = it.filter(Char::isDigit).take(5) }, label = { Text(stringResource(R.string.ssh_port)) }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(0.45f), shape = RoundedCornerShape(12.dp))
@@ -94,6 +98,15 @@ fun SshSheet(vm: AppViewModel, d: Device) {
                 visualTransformation = PasswordVisualTransformation(), shape = RoundedCornerShape(12.dp))
             Text(stringResource(R.string.ssh_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+/** Where the server reaches a device without an agent, and through which agent. / Dónde llega el servidor a un equipo sin agente. */
+@Composable
+private fun LocalAddress(d: Device, modifier: Modifier) {
+    Column(modifier) {
+        Text(stringResource(R.string.ssh_host), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(d.address.orEmpty(), style = MaterialTheme.typography.bodyLarge, maxLines = 1)
     }
 }
 
@@ -121,7 +134,8 @@ fun HostKeyDialog(p: HostKeyPrompt, answer: (Boolean) -> Unit) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PortSheet(vm: AppViewModel, d: Device) {
-    var remote by rememberSaveable { mutableStateOf("3389") }
+    val noAgent = vm.isLocal(d)
+    var remote by rememberSaveable { mutableStateOf(if (noAgent && !d.isWindows) "22" else "3389") }
     var host by rememberSaveable { mutableStateOf("") }
     var local by rememberSaveable { mutableStateOf("") }
     val r = remote.toIntOrNull()
@@ -135,8 +149,9 @@ fun PortSheet(vm: AppViewModel, d: Device) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 KnownPort.entries.forEach { k -> FilterChip(remote == k.port.toString(), { remote = k.port.toString() }, label = { Text("${k.label} ${k.port}") }) }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(host, { host = it.trim() }, label = { Text(stringResource(R.string.ssh_host)) }, placeholder = { Text(stringResource(R.string.ssh_host_this)) },
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (noAgent) LocalAddress(d, Modifier.weight(1f))
+                else OutlinedTextField(host, { host = it.trim() }, label = { Text(stringResource(R.string.ssh_host)) }, placeholder = { Text(stringResource(R.string.ssh_host_this)) },
                     singleLine = true, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
                 OutlinedTextField(remote, { remote = it.filter(Char::isDigit).take(5) }, label = { Text(stringResource(R.string.ports_remote)) }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(0.5f), shape = RoundedCornerShape(12.dp))
