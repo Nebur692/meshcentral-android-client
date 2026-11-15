@@ -831,4 +831,5 @@
         <item quantity="many">Cambia en %1$d segundos</item>
         <item quantity="other">Cambia en %1$d segundos</item>
     </plurals>
+    <string name="admin_email_verified">El correo ya está comprobado (si no, el servidor puede pedir a la persona que lo confirme)</string>
 </resources>

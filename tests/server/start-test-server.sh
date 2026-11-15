@@ -10,6 +10,7 @@
 #   admin / Admin-Pass-1234  (site administrator / administrador del sitio)
 #   user  / User-Pass-1234   (no rights / sin derechos)
 #   otp   / Otp-Pass-1234    (TOTP enabled by setup-test-data.js / con TOTP, lo activa setup-test-data.js)
+#   mfa   / Mfa-Pass-1234    (only for the email and SMS two-factor tests / solo para las pruebas de correo y SMS)
 set -euo pipefail
 NAME=${1:?name}
 DATA=${2:?data dir}
@@ -55,6 +56,7 @@ docker run -d --rm --name "$NAME" --network "$NET" --cpus 1 --memory 768m \
     node $M --configfile $CFG --adminaccount admin &&
     node $M --configfile $CFG --createaccount user --pass User-Pass-1234 --name User $(EMAIL_OF user) &&
     node $M --configfile $CFG --createaccount otp --pass Otp-Pass-1234 --name Otp $(EMAIL_OF otp) &&
+    node $M --configfile $CFG --createaccount mfa --pass Mfa-Pass-1234 --name Mfa $(EMAIL_OF mfa) &&
     exec node $M --configfile $CFG" >/dev/null
 # Ready means the page answers AND the agents the tests use are served: the server starts before its default agents
 # finish downloading from GitHub, and until then it answers 404 for them (Linux x64 = 6, Windows x64 = 4).

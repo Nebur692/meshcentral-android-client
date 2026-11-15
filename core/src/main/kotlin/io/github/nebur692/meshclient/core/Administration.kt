@@ -62,8 +62,10 @@ data class UserGroup(
 }
 
 /** A new account. / Una cuenta nueva. */
+/** [emailVerified]: the email is already known to be theirs, as the website's "Email verified" box (with a mail server,
+ *  MeshCentral asks for a verified email to sign in). / El correo ya se sabe suyo, como la casilla de la web. */
 data class NewUser(val userName: String, val password: String, val email: String? = null, val realName: String? = null,
-                   val siteRights: Long? = null, val mustChangePassword: Boolean = false)
+                   val siteRights: Long? = null, val mustChangePassword: Boolean = false, val emailVerified: Boolean = false)
 
 /** What a person can do with a device group. / Lo que puede hacer con un grupo de equipos. */
 data class GroupAbilities(val edit: Boolean, val manageUsers: Boolean, val delete: Boolean, val addDevices: Boolean, val receiveDevices: Boolean)
@@ -310,7 +312,7 @@ suspend fun MeshSession.createUser(n: NewUser): String {
         throw adminError("usuarios/gestionar-usuarios/no-autorizado", "Only a full administrator gives those server rights.")
     val r = answered(buildJsonObject {
         put("action", "adduser"); put("username", name); put("pass", n.password); put("resetNextLogin", n.mustChangePassword)
-        n.email?.trim()?.takeIf { it.isNotEmpty() }?.let { put("email", it) }
+        n.email?.trim()?.takeIf { it.isNotEmpty() }?.let { put("email", it); if (n.emailVerified) put("emailVerified", true) }
         n.realName?.trim()?.takeIf { it.isNotEmpty() }?.let { put("realname", it) }
         n.siteRights?.let { put("siteadmin", it) }
     }, "usuarios/gestionar-usuarios/tiempo-agotado", "usuarios/gestionar-usuarios/conexion-cortada")

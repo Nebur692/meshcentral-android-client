@@ -433,6 +433,7 @@ private fun NewUserDialog(dismiss: () -> Unit, onCreate: (NewUser) -> Unit) {
     var email by rememberSaveable { mutableStateOf("") }
     var real by rememberSaveable { mutableStateOf("") }
     var mustChange by rememberSaveable { mutableStateOf(true) }
+    var verified by rememberSaveable { mutableStateOf(true) }
     AlertDialog(
         onDismissRequest = dismiss,
         title = { Text(stringResource(R.string.admin_new_user)) },
@@ -445,10 +446,11 @@ private fun NewUserDialog(dismiss: () -> Unit, onCreate: (NewUser) -> Unit) {
                 OutlinedTextField(email, { email = it }, label = { Text(stringResource(R.string.admin_email)) }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
                 Check(stringResource(R.string.admin_must_change), mustChange) { mustChange = it }
+                if (email.isNotBlank()) Check(stringResource(R.string.admin_email_verified), verified) { verified = it }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onCreate(NewUser(name, pass, email.ifBlank { null }, real.ifBlank { null }, mustChangePassword = mustChange)) },
+            TextButton(onClick = { onCreate(NewUser(name, pass, email.ifBlank { null }, real.ifBlank { null }, mustChangePassword = mustChange, emailVerified = verified && email.isNotBlank())) },
                 enabled = name.isNotBlank() && pass.isNotEmpty()) { Text(stringResource(R.string.create)) }
         },
         dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.cancel)) } },

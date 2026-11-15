@@ -18,7 +18,7 @@ import org.junit.Test
 /**
  * Two-factor by email and by SMS against the bench, whose server sends both to the bench's mailbox (tests/server/sink.mjs):
  * the account turns each on, signs in asking for the code, reads it from the mailbox as the person would from their email
- * or phone, signs in with it, and turns it off. Uses the "user" account, which no other test signs in with a code.
+ * or phone, signs in with it, and turns it off. Uses the "mfa" account, made for it by the bench.
  * Doble factor por correo y por SMS contra el banco, cuyo servidor manda los dos al buzón del banco: la cuenta activa cada
  * uno, entra pidiendo el código, lo lee del buzón como la persona de su correo o su móvil, entra con él y lo quita.
  */
@@ -29,7 +29,7 @@ class EmailSmsTwoFactorIntegrationTest {
     private val server get() = ServerAddress.parse(url)!!
     private fun need() = assumeTrue("no test server with its mailbox", !url.isNullOrEmpty() && !cert.isNullOrEmpty() && !sink.isNullOrEmpty())
 
-    private suspend fun connect(code: String? = null) = MeshSession.connect(server, PasswordCredentials("user", "User-Pass-1234", code), CertificateTrust(cert))
+    private suspend fun connect(code: String? = null) = MeshSession.connect(server, PasswordCredentials("mfa", "Mfa-Pass-1234", code), CertificateTrust(cert))
 
     private fun mailbox(): JsonObject = Json.parseToJsonElement(URI("$sink/read").toURL().readText()) as JsonObject
 

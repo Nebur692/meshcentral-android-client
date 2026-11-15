@@ -807,4 +807,5 @@
         <item quantity="one">Changes in %1$d second</item>
         <item quantity="other">Changes in %1$d seconds</item>
     </plurals>
+    <string name="admin_email_verified">The email is already checked (otherwise the server may ask the person to confirm it)</string>
 </resources>
