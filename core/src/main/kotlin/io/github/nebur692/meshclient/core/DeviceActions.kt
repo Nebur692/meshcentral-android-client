@@ -135,12 +135,12 @@ fun MeshSession.canUpdateAgent(device: Device): Boolean = device.hasAgent && rig
 suspend fun MeshSession.updateAgents(devices: List<Device>, waitMs: Long = 10_000): Map<Device, String?> {
     requireSome(devices)
     for (d in devices) {
-        if (!d.hasAgent) throw offline("acciones/actualizar-agente/sin-conexion")
-        if (rightsOn(d) != MeshRights.FULL) throw denied("acciones/actualizar-agente/no-autorizado", "update its agent")
+        if (!d.hasAgent) throw offline("acciones/desplegar/sin-conexion")
+        if (rightsOn(d) != MeshRights.FULL) throw denied("acciones/desplegar/no-autorizado", "update its agent")
     }
     val said = sendAndCollect(buildJsonObject { put("action", "updateAgents"); put("nodeids", ids(devices)) },
         devices.map { d -> { m: JsonObject -> m.str("action") == "msg" && m.str("type") == "console" && m.str("nodeid") == d.id } },
-        waitMs, "acciones/actualizar-agente/conexion-cortada")
+        waitMs, "acciones/desplegar/conexion-cortada")
     return devices.zip(said) { d, m -> d to m?.str("value") }.toMap()
 }
 

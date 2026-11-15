@@ -56,7 +56,7 @@ class ChatModel(private val session: () -> MeshSession?, val device: Device, pri
         personWriting = false
         job = scope.launch {
             try {
-                val s = session() ?: throw MeshClientException(MeshFailure.ConnectionLost, "chat/abrir-chat/conexion-cortada", "no session")
+                val s = session() ?: throw MeshClientException(MeshFailure.ConnectionLost, "chat/abrir-detalle/conexion-cortada", "no session")
                 val c = MeshChat.open(s, device)
                 chat = c
                 state = ChatState.Waiting
@@ -68,7 +68,7 @@ class ChatModel(private val session: () -> MeshSession?, val device: Device, pri
                 state = ChatState.Ended
             } catch (e: MeshClientException) {
                 // Once in, the chat ending is the person closing it, not this app failing. / Ya dentro, acabar es que la persona cerró.
-                if (e.key == "chat/ver-chat/conexion-cortada") personLeft = true else error = UiError(e.failure, e.key, e.httpStatus)
+                if (e.key == "chat/recibir-mensaje/conexion-cortada") personLeft = true else error = UiError(e.failure, e.key, e.httpStatus)
                 state = ChatState.Ended
             } finally {
                 personWriting = false

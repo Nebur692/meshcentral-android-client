@@ -99,7 +99,7 @@ class GroupAndAgentIntegrationTest {
             assertTrue(r.fileName, r.fileName.endsWith(".mcrec"))
             assertTrue(r.userIds.contains(s.user.id))
             assertTrue(r.bytes > 0)
-            assertEquals("grabaciones/descargar-grabacion/sesion-cerrada",
+            assertEquals("grabaciones/descargar/sesion-cerrada",
                 failureOf { s.downloadRecording(r, java.io.ByteArrayOutputStream()) }.key)
         } finally { s.close() }
     }

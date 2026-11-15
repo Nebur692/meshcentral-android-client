@@ -18,8 +18,6 @@ data class ServerInfo(val name: String, val domain: String, val version: String?
                       val forcedConsent: Int = 0,
                       /** Groups can choose to record their sessions (onlySelectedDeviceGroups). / Los grupos pueden elegir grabar. */
                       val groupsChooseRecording: Boolean = false) {
-    /** The server does not update agents by itself (noAgentUpdate). / El servidor no actualiza solo los agentes. */
-    val agentsUpdateBySelf: Boolean get() = features2 and 0x10L == 0L
     /** The server lets the device's clipboard be read. / El servidor deja leer el portapapeles del equipo. */
     val clipboardGetAllowed: Boolean get() = features2 and 0x800L == 0L
     /** The server lets the device's clipboard be written. / El servidor deja escribir el portapapeles del equipo. */

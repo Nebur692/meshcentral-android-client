@@ -111,7 +111,7 @@ class MeshChat private constructor(
                 if (joined || ended.get()) return@launch
                 if (System.currentTimeMillis() >= deadline) {
                     runCatching { s.cancel() }
-                    end(MeshClientException(MeshFailure.Timeout, "chat/abrir-chat/dispositivo-mudo",
+                    end(MeshClientException(MeshFailure.Timeout, "chat/abrir-detalle/dispositivo-mudo",
                         "Nobody opened the chat on the device: there may be nobody signed in, or its browser did not open."))
                     return@launch
                 }
@@ -133,13 +133,13 @@ class MeshChat private constructor(
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) = gone()
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             if (!joined && response != null && response.code in 400..499) {
-                end(MeshClientException(MeshFailure.NotAllowed, "chat/abrir-chat/no-autorizado", "The server refused the chat (HTTP ${response.code}).", t))
+                end(MeshClientException(MeshFailure.NotAllowed, "chat/abrir-detalle/no-autorizado", "The server refused the chat (HTTP ${response.code}).", t))
             }
             gone(t)
         }
 
         private fun gone(t: Throwable? = null) {
-            if (joined) end(MeshClientException(MeshFailure.ConnectionLost, "chat/ver-chat/conexion-cortada", "The chat ended: the person closed it or the connection was lost.", t))
+            if (joined) end(MeshClientException(MeshFailure.ConnectionLost, "chat/recibir-mensaje/conexion-cortada", "The chat ended: the person closed it or the connection was lost.", t))
             closed.complete(Unit)
         }
     }
@@ -165,8 +165,8 @@ class MeshChat private constructor(
         /** Opens the chat page on the device and waits for the person in the relay. / Abre el chat en el equipo y espera. */
         suspend fun open(session: MeshSession, device: Device, waitMs: Long = DEFAULT_WAIT_MS): MeshChat {
             if (!MeshRights.has(session.rightsOn(device), MeshRights.CHAT_NOTIFY))
-                throw MeshClientException(MeshFailure.NotAllowed, "chat/abrir-chat/no-autorizado", "This account has no rights to chat with this device.")
-            if (!device.hasAgent) throw MeshClientException(MeshFailure.DeviceOffline, "chat/abrir-chat/sin-conexion", "The device is not connected.")
+                throw MeshClientException(MeshFailure.NotAllowed, "chat/abrir-detalle/no-autorizado", "This account has no rights to chat with this device.")
+            if (!device.hasAgent) throw MeshClientException(MeshFailure.DeviceOffline, "chat/abrir-detalle/sin-conexion", "The device is not connected.")
             val cookies = session.relayCookies()
             val url = session.server.resolve("meshrelay.ashx").newBuilder()
                 .addQueryParameter("id", "meshmessenger/${device.id}/${session.user.id}")
@@ -175,7 +175,7 @@ class MeshChat private constructor(
             // This side waits first, so the page always finds it. / Este lado espera primero, así la página siempre lo encuentra.
             chat.call()
             try {
-                session.send(buildJsonObject { put("action", "meshmessenger"); put("nodeid", device.id) }, "chat/abrir-chat/conexion-cortada")
+                session.send(buildJsonObject { put("action", "meshmessenger"); put("nodeid", device.id) }, "chat/abrir-detalle/conexion-cortada")
             } catch (e: Throwable) { chat.close(); throw e }
             return chat
         }

@@ -40,7 +40,7 @@ class RecordingsModel(private val session: () -> MeshSession?, private val resol
 
     val canDownload: Boolean get() = session()?.hasWebSession == true
 
-    private fun current() = session() ?: throw MeshClientException(MeshFailure.ConnectionLost, "grabaciones/ver-grabaciones/conexion-cortada", "no session")
+    private fun current() = session() ?: throw MeshClientException(MeshFailure.ConnectionLost, "grabaciones/ver-pantalla/conexion-cortada", "no session")
 
     fun load() {
         job?.cancel()
@@ -62,7 +62,7 @@ class RecordingsModel(private val session: () -> MeshSession?, private val resol
                 val written = withContext(Dispatchers.IO) {
                     resolver.openOutputStream(to, "wt")?.use { out -> current().downloadRecording(r, out) { n -> downloading = r.fileName to n } } != null
                 }
-                if (!written) throw MeshClientException(MeshFailure.Rejected, "grabaciones/descargar-grabacion/permisos-fichero", "The file could not be written on this phone.")
+                if (!written) throw MeshClientException(MeshFailure.Rejected, "grabaciones/descargar/permisos-fichero", "The file could not be written on this phone.")
                 ok = true
                 notice = Notice(R.string.files_downloaded)
             } catch (e: MeshClientException) {

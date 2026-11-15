@@ -81,7 +81,7 @@ class ChatIntegrationTest {
             // The person closes the page: the chat ends with its reason. / La persona cierra: el chat acaba con su motivo.
             person.socket.close(1000, null)
             val end = runCatching { withTimeout(15_000) { chat.events.receive() } }.exceptionOrNull()
-            assertEquals("chat/ver-chat/conexion-cortada", (end as? MeshClientException)?.key)
+            assertEquals("chat/recibir-mensaje/conexion-cortada", (end as? MeshClientException)?.key)
             assertFalse(chat.isOpen)
         } finally { s.close() }
     }
@@ -95,7 +95,7 @@ class ChatIntegrationTest {
             val chat = MeshChat.open(s, d, waitMs = 3_000)
             val end = runCatching { withTimeout(30_000) { chat.events.receive() } }.exceptionOrNull()
             val took = System.currentTimeMillis() - t0
-            assertEquals("chat/abrir-chat/dispositivo-mudo", (end as? MeshClientException)?.key)
+            assertEquals("chat/abrir-detalle/dispositivo-mudo", (end as? MeshClientException)?.key)
             // On time, not when the relay drops the call after its 15 s. / A su hora, no a los 15 s del relé.
             assertTrue("took $took ms", took < 8_000)
             assertFalse(chat.isOpen)

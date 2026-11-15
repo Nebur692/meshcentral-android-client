@@ -48,18 +48,18 @@ val MeshSession.canSeeRecordings: Boolean get() = user.isFullAdministrator || Si
  * durante [quietMs] significa eso.
  */
 suspend fun MeshSession.recordings(limit: Int = 200, quietMs: Long = 8_000): List<Recording> {
-    if (!canSeeRecordings) throw MeshClientException(MeshFailure.NotAllowed, "grabaciones/ver-grabaciones/no-autorizado", "This account has no rights to see recordings.")
+    if (!canSeeRecordings) throw MeshClientException(MeshFailure.NotAllowed, "grabaciones/ver-pantalla/no-autorizado", "This account has no rights to see recordings.")
     val tag = MeshSession.newId()
     val r = try {
         withTimeout(quietMs) {
             request(buildJsonObject { put("action", "recordings"); put("limit", limit); put("tag", tag) },
                 { it.str("action") == "recordings" && it.str("tag") == tag },
-                "grabaciones/ver-grabaciones/tiempo-agotado", "grabaciones/ver-grabaciones/conexion-cortada")
+                "grabaciones/ver-pantalla/tiempo-agotado", "grabaciones/ver-pantalla/conexion-cortada")
         }
     } catch (e: TimeoutCancellationException) {
-        throw MeshClientException(MeshFailure.NotFound, "grabaciones/ver-grabaciones/no-encontrado", "This server does not record sessions.")
+        throw MeshClientException(MeshFailure.NotFound, "grabaciones/ver-pantalla/no-encontrado", "This server does not record sessions.")
     }
-    if (r.long("error") != null) throw MeshClientException(MeshFailure.Rejected, "grabaciones/ver-grabaciones/rechazo-remoto",
+    if (r.long("error") != null) throw MeshClientException(MeshFailure.Rejected, "grabaciones/ver-pantalla/rechazo-remoto",
         "The server could not read its recordings (error ${r.long("error")}).")
     return (r["events"] as? JsonArray).orEmpty().filterIsInstance<JsonObject>().mapNotNull(Recording::from).sortedByDescending { it.startMs }
 }
@@ -94,19 +94,19 @@ fun MeshSession.recordingPlayerUrl(r: Recording): String =
  */
 suspend fun MeshSession.downloadRecording(r: Recording, out: java.io.OutputStream, progress: (Long) -> Unit = {}): Long =
     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        val cookies = webCookies ?: throw MeshClientException(MeshFailure.NotAllowed, "grabaciones/descargar-grabacion/sesion-cerrada",
+        val cookies = webCookies ?: throw MeshClientException(MeshFailure.NotAllowed, "grabaciones/descargar/sesion-cerrada",
             "The server only gives recordings to a web session: open it in the browser.")
-        if (!r.present) throw MeshClientException(MeshFailure.NotFound, "grabaciones/descargar-grabacion/no-encontrado", "The recording's file is no longer on the server.")
+        if (!r.present) throw MeshClientException(MeshFailure.NotFound, "grabaciones/descargar/no-encontrado", "The recording's file is no longer on the server.")
         val call = http.newCall(okhttp3.Request.Builder().url(recordingUrl(r)).header("Cookie", cookies).build())
         val response = try { call.execute() } catch (e: java.io.IOException) {
-            throw MeshClientException(MeshFailure.ConnectionLost, "grabaciones/descargar-grabacion/conexion-cortada", "The download was cut.", e)
+            throw MeshClientException(MeshFailure.ConnectionLost, "grabaciones/descargar/conexion-cortada", "The download was cut.", e)
         }
         response.use { resp ->
             when {
-                resp.code == 401 -> throw MeshClientException(MeshFailure.SessionExpired, "grabaciones/descargar-grabacion/sesion-cerrada",
+                resp.code == 401 -> throw MeshClientException(MeshFailure.SessionExpired, "grabaciones/descargar/sesion-cerrada",
                     "The server did not accept the web session: sign in again.")
-                resp.code == 404 -> throw MeshClientException(MeshFailure.NotFound, "grabaciones/descargar-grabacion/no-encontrado", "The recording's file is no longer on the server.")
-                !resp.isSuccessful -> throw MeshClientException(MeshFailure.HttpError, "grabaciones/descargar-grabacion/rechazo-remoto", "The server answered HTTP ${resp.code}.")
+                resp.code == 404 -> throw MeshClientException(MeshFailure.NotFound, "grabaciones/descargar/no-encontrado", "The recording's file is no longer on the server.")
+                !resp.isSuccessful -> throw MeshClientException(MeshFailure.HttpError, "grabaciones/descargar/rechazo-remoto", "The server answered HTTP ${resp.code}.")
             }
             var total = 0L
             try {
@@ -119,7 +119,7 @@ suspend fun MeshSession.downloadRecording(r: Recording, out: java.io.OutputStrea
                     }
                 }
             } catch (e: java.io.IOException) {
-                throw MeshClientException(MeshFailure.ConnectionLost, "grabaciones/descargar-grabacion/conexion-cortada", "The download was cut.", e)
+                throw MeshClientException(MeshFailure.ConnectionLost, "grabaciones/descargar/conexion-cortada", "The download was cut.", e)
             }
             total
         }
