@@ -96,7 +96,7 @@ fun SshSheet(vm: AppViewModel, d: Device) {
             OutlinedButton(onClick = { pickKey.launch(arrayOf("*/*")) }) { Text(keyName?.let { stringResource(R.string.ssh_key_chosen, it) } ?: stringResource(R.string.ssh_key)) }
             if (key != null) OutlinedTextField(passphrase, { passphrase = it }, label = { Text(stringResource(R.string.ssh_passphrase)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                 visualTransformation = PasswordVisualTransformation(), shape = RoundedCornerShape(12.dp))
-            Text(stringResource(R.string.ssh_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(if (local) R.string.ssh_hint_local else R.string.ssh_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

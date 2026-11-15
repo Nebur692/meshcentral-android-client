@@ -75,7 +75,8 @@ enum class InviteExpiry(val hours: Int, val label: Int) { Hour(1, R.string.invit
  * La administración del servidor: sucesos, grupos de equipos, usuarios y grupos de usuarios. Cada cambio recarga su lista,
  * así que lo que se ve es lo que tiene el servidor. Pide la conexión de ahora cada vez.
  */
-class AdminModel(private val session: () -> MeshSession?, private val scope: CoroutineScope) {
+/** [onGroups]: every device group as just listed, so the device list names a new or renamed one. / Para que la lista nombre los grupos. */
+class AdminModel(private val session: () -> MeshSession?, private val scope: CoroutineScope, private val onGroups: (List<DeviceGroup>) -> Unit = {}) {
     var events by mutableStateOf<List<ServerEvent>?>(null)
         private set
     var groups by mutableStateOf<List<DeviceGroup>?>(null)
@@ -109,7 +110,7 @@ class AdminModel(private val session: () -> MeshSession?, private val scope: Cor
                 val s = current("servidor/abrir-detalle/conexion-cortada")
                 when (page) {
                     AdminPage.Events -> events = s.serverEvents(300)
-                    AdminPage.Groups -> groups = s.deviceGroups().filter { it.kind == DeviceGroupKind.Agents || it.kind == DeviceGroupKind.LocalDevices || it.kind == DeviceGroupKind.IntelAmtOnly }
+                    AdminPage.Groups -> groups = s.deviceGroups().also(onGroups).filter { it.kind == DeviceGroupKind.Agents || it.kind == DeviceGroupKind.LocalDevices || it.kind == DeviceGroupKind.IntelAmtOnly }
                         .sortedBy { it.name.lowercase() }
                     AdminPage.Users -> users = s.users()
                     AdminPage.UserGroups -> userGroups = s.userGroups()

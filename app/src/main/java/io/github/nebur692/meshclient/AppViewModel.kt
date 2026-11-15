@@ -648,16 +648,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         else if (!notificationsAsked) { notificationsAsked = true; askNotifications = true }
     }
 
+    /** A device in a group not known yet (added or moved there): the names are reloaded. / Un grupo aún desconocido: se recargan. */
+    private fun nameGroupOf(d: Device) {
+        if (d.groupId !in groupNames) viewModelScope.launch { runCatching { session?.deviceGroups() }.getOrNull()?.let(::knowGroups) }
+    }
+
+    /** The groups' names, from a fresh list (also the one administration loads). / Los nombres de los grupos, de una lista nueva. */
+    private fun knowGroups(list: List<io.github.nebur692.meshclient.core.DeviceGroup>) { groupNames = list.associate { it.id to it.name } }
+
     private fun apply(change: DeviceChange) {
         when (change) {
-            is DeviceChange.Added -> devices[change.deviceId] = change.device
+            is DeviceChange.Added -> { devices[change.deviceId] = change.device; nameGroupOf(change.device) }
             is DeviceChange.Changed -> {
                 val old = devices[change.deviceId]
                 devices[change.deviceId] = old?.withDetails(change.device) ?: change.device
-                // A device in a group not known yet: the names are reloaded. / Un grupo aún desconocido: se recargan los nombres.
-                if (change.device.groupId !in groupNames) viewModelScope.launch {
-                    runCatching { session?.deviceGroups() }.getOrNull()?.let { list -> groupNames = list.associate { it.id to it.name } }
-                }
+                nameGroupOf(change.device)
             }
             is DeviceChange.Removed -> devices.remove(change.deviceId)
             is DeviceChange.Connection -> devices[change.deviceId]?.let {
@@ -965,13 +970,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun show(target: Screen) {
-        if (target is Screen.Admin && admin == null) admin = AdminModel({ session }, viewModelScope)
+        if (target is Screen.Admin && admin == null) admin = AdminModel({ session }, viewModelScope, ::knowGroups)
         if (target is Screen.Admin && target.page == AdminPage.Groups && target.id == null) admin?.inviteLink = null
         screen = target
         if (target !is Screen.DeviceDetail) sheet = null
     }
 
-    fun openAdminModel() { if (admin == null) admin = AdminModel({ session }, viewModelScope) }
+    fun openAdminModel() { if (admin == null) admin = AdminModel({ session }, viewModelScope, ::knowGroups) }
 
     /** Devices picked in the list for actions on several. / Equipos elegidos en la lista para acciones en varios. */
     val bulk by lazy { BulkModel({ session }, viewModelScope) }

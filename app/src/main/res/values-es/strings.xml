@@ -782,6 +782,9 @@
     <string name="local_by_server_hint">El servidor está en la misma red que los equipos</string>
     <string name="local_by_agent_hint">Por el agente de este equipo, en su red</string>
     <string name="local_reached_by">Llega por: %1$s</string>
+    <string name="ssh_hint_local">Va por el servidor (o el agente del grupo) hasta esta dirección: la máquina no necesita ser accesible desde internet. La contraseña no se guarda.</string>
+    <string name="err_local_unreachable">El servidor (o el agente del grupo) no llega a este equipo: revisa su dirección y que el puerto esté abierto en él.</string>
+    <string name="no_agent_line">Ninguno: las conexiones van a %1$s</string>
     <string name="local_add">Añadir un equipo</string>
     <string name="local_os">Sistema</string>
     <string name="os_windows">Windows</string>

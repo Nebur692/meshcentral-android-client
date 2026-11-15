@@ -85,6 +85,10 @@ class LocalDevicesIntegrationTest {
             // Its address changes, as the website's edit does. / Su dirección cambia, como la edición de la web.
             s.changeDevice(box, host = "otra-$agentHost")
             assertEquals("otra-$agentHost", s.devices().first { it.id == box.id }.address)
+            // Nothing answers there: the person is told the address or port fails, not that the connection was lost.
+            // Ahí no contesta nadie: se le dice que falla la dirección o el puerto, no que se perdió la conexión.
+            val gone = try { TcpRelay.open(s, box.id, 22).close(); null } catch (e: MeshClientException) { e }
+            assertEquals(TcpRelay.UNREACHABLE, gone?.key)
 
             // Through the agent: 127.0.0.1 is the agent's machine, where sshd is; the server has none.
             // Por el agente: 127.0.0.1 es la máquina del agente, donde está sshd; el servidor no tiene.

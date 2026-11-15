@@ -759,6 +759,9 @@
     <string name="local_by_server_hint">The server is on the same network as the devices</string>
     <string name="local_by_agent_hint">Through this device\'s agent, on their network</string>
     <string name="local_reached_by">Reached through: %1$s</string>
+    <string name="ssh_hint_local">It goes through the server (or the group\'s agent) to this address: the machine does not need to be reachable from the internet. The password is not kept.</string>
+    <string name="err_local_unreachable">The server (or the group\'s agent) could not reach this device: check its address and that the port is open on it.</string>
+    <string name="no_agent_line">None: connections go to %1$s</string>
     <string name="local_add">Add a device</string>
     <string name="local_os">System</string>
     <string name="os_windows">Windows</string>

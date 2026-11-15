@@ -130,6 +130,8 @@ class TcpRelay private constructor() {
 
     companion object {
         private const val LOST = "redireccion/llevar-conexion/conexion-cortada"
+        /** A device without an agent that the server (or the group's agent) cannot reach at its address. / Inalcanzable en su dirección. */
+        const val UNREACHABLE = "redireccion/llevar-conexion/equipo-inalcanzable"
         private const val AFTER_LOCAL_END_MS = 30_000L
 
         /**
@@ -157,11 +159,15 @@ class TcpRelay private constructor() {
         suspend fun open(session: MeshSession, nodeId: String, port: Int, host: String? = null): TcpRelay {
             if (port !in 1..65535) throw MeshClientException(MeshFailure.Rejected, "redireccion/llevar-conexion/dato-invalido", "$port is not a TCP port (1 to 65535).")
             var url = route(session, nodeId, port, host)
+            // A device without an agent: if the far end refuses, its address or port is what fails. / Sin agente, falla la dirección o el puerto.
+            val local = session.knownDevices[nodeId]?.takeIf { session.isLocal(it) }
             if (url.encodedPath.endsWith("meshrelay.ashx")) url = url.newBuilder().addQueryParameter("auth", session.relayCookies().cookie).build()
             val relay = TcpRelay()
             relay.socket = session.http.newWebSocket(Request.Builder().url(url).build(), relay.Listener())
             try {
                 val first = withTimeout(session.timeoutMs) { relay.hello.await() }
+                if (first != "c" && first != "cr" && local != null) throw MeshClientException(MeshFailure.Rejected, UNREACHABLE,
+                    "Could not reach ${local.address}:$port (from the server or the group's agent): check the address and that the port is open.")
                 if (first != "c" && first != "cr") throw MeshClientException(MeshFailure.ConnectionLost, LOST,
                     "The server closed the connection to ${if (host.isNullOrBlank()) "the device" else host}:$port (no remote control or relay rights on this device, or the device refused).")
                 relay.isRecorded = first == "cr"

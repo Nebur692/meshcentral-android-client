@@ -306,10 +306,21 @@ private fun ago(ms: Long): String =
 @Composable
 private fun bytes(b: Long): String = Formatter.formatShortFileSize(LocalContext.current, b)
 
+/** The system chosen when a device without an agent was added (its type). / El sistema elegido al añadir un equipo sin agente. */
+@Composable
+private fun localOs(d: Device): String? = if (!d.isLocal) null else when (d.osFamily) {
+    io.github.nebur692.meshclient.core.OsFamily.Windows -> stringResource(R.string.os_windows)
+    io.github.nebur692.meshclient.core.OsFamily.Linux -> stringResource(R.string.os_linux)
+    io.github.nebur692.meshclient.core.OsFamily.Mac -> stringResource(R.string.os_mac)
+    else -> null
+}
+
 @Composable
 private fun SummarySection(d: Device, details: DeviceDetails?) {
     Card(R.string.sec_connection) {
-        Line(stringResource(R.string.agent), stringResource(if (d.hasAgent) R.string.agent_connected else R.string.agent_not_connected),
+        // A device without an agent never has one: it says so and where the server reaches it. / Un equipo sin agente lo dice.
+        if (d.isLocal) Line(stringResource(R.string.agent), stringResource(R.string.no_agent_line, d.address.orEmpty()), first = true)
+        else Line(stringResource(R.string.agent), stringResource(if (d.hasAgent) R.string.agent_connected else R.string.agent_not_connected),
             stringResource(if (d.hasAgent) R.string.badge_active else R.string.badge_off), if (d.hasAgent) Tone.Good else Tone.Neutral, first = true)
         if (d.hasIntelAmt) Line(stringResource(R.string.intel_amt), stringResource(R.string.intel_amt_ready))
         details?.lastConnect?.timeMs?.let { Line(stringResource(R.string.last_contact), if (d.isOnline) stringResource(R.string.now) else ago(it)) }
@@ -355,7 +366,7 @@ private fun SecuritySection(d: Device, details: DeviceDetails?) {
 @Composable
 private fun SystemSection(vm: AppViewModel, d: Device, details: DeviceDetails?) {
     Card(R.string.sec_system) {
-        Line(stringResource(R.string.system), details?.operatingSystem ?: d.osDescription ?: stringResource(R.string.unknown), first = true)
+        Line(stringResource(R.string.system), details?.operatingSystem ?: d.osDescription ?: localOs(d) ?: stringResource(R.string.unknown), first = true)
         val locked = stringResource(R.string.locked)
         if (d.users.isNotEmpty()) Line(stringResource(R.string.users_signed_in), d.users.joinToString("\n") { u -> if (u in d.lockedUsers) "$u ($locked)" else u })
         Line(stringResource(R.string.group), vm.groupNames[d.groupId] ?: d.groupId)
