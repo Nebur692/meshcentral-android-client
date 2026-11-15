@@ -62,5 +62,6 @@ dependencies {
     implementation(libs.splashscreen)
     implementation(libs.webkit)
     implementation(libs.coroutines.android)
+    implementation(libs.unifiedpush)
     testImplementation(libs.junit)
 }

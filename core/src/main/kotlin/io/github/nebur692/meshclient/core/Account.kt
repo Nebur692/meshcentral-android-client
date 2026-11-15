@@ -223,6 +223,59 @@ suspend fun MeshSession.removePhone() {
     user = user.copy(phone = null)
 }
 
+// ------------------------------------------------------------------ messaging (ntfy) / mensajería (ntfy)
+
+/** A messaging handle being verified: the server sent it a code and keeps this cookie. / Un canal de mensajería a verificar. */
+class MessagingCheck internal constructor(val handle: String, internal val cookie: String)
+
+/**
+ * Sends a check code to an ntfy topic (verifyMessaging, service 64). The server must have ntfy among its messaging
+ * services; if not it answers nothing, so the wait ends saying so. With UnifiedPush and the ntfy distributor, the topic
+ * is this app's own endpoint, so the code comes to the app itself.
+ * Manda un código de comprobación a un tema de ntfy. El servidor tiene que tener ntfy en su mensajería; si no, no contesta y
+ * la espera lo dice. Con UnifiedPush y el distribuidor ntfy, el tema es la dirección de la propia app.
+ */
+suspend fun MeshSession.startNtfy(topic: String): MessagingCheck {
+    checkOwnSettings()
+    if (!serverInfo.messagingTwoFactorAllowed) throw accountError(MeshFailure.Rejected, "usuarios/cambiar-ajustes/no-autorizado", "This server does not send codes by messaging.")
+    val t = topic.trim()
+    if (t.isEmpty() || t.length > 64 || !t.all { it.isLetterOrDigit() || it == '_' || it == '-' })
+        throw accountError(MeshFailure.Rejected, "usuarios/cambiar-ajustes/dato-invalido", "\"$topic\" is not an ntfy topic.")
+    val r = try {
+        request(buildJsonObject { put("action", "verifyMessaging"); put("service", 64); put("handle", t) }, { it.str("action") == "verifyMessaging" },
+            "usuarios/cambiar-ajustes/no-autorizado", LOST, 10_000)
+    } catch (e: MeshClientException) {
+        if (e.failure != MeshFailure.Timeout) throw e
+        throw accountError(MeshFailure.Rejected, "usuarios/cambiar-ajustes/no-autorizado", "This server does not have ntfy among its messaging services.")
+    }
+    val cookie = r.str("cookie")
+    if (!r.bool("success") || cookie == null) throw accountError(MeshFailure.Rejected, "usuarios/cambiar-ajustes/error-remoto", "The server could not send to ntfy.")
+    return MessagingCheck("ntfy:$t", cookie)
+}
+
+/** Confirms the handle with the code it got: right = the account's event 156, wrong = verifyMessaging again. / Confirma el canal. */
+suspend fun MeshSession.confirmMessaging(check: MessagingCheck, code: String) {
+    checkOwnSettings()
+    val digits = code.filter(Char::isDigit)
+    if (digits.length != 6) throw accountError(MeshFailure.Rejected, "usuarios/cambiar-ajustes/dato-invalido", "The code has 6 digits.")
+    val verified = ownAccountEvent(156)
+    val r = request(buildJsonObject { put("action", "confirmMessaging"); put("cookie", check.cookie); put("code", digits) },
+        { verified(it) || (it.str("action") == "verifyMessaging" && it.str("cookie") == check.cookie) }, TIMEOUT, LOST, maxOf(timeoutMs, 10_000))
+    if (!verified(r)) throw accountError(MeshFailure.InvalidTwoFactorCode, "usuarios/cambiar-ajustes/credencial-invalida", "That code is not the one sent.")
+    user = user.copy(messagingHandle = check.handle, hasTwoFactor = true)
+}
+
+/** Removes the messaging handle (removeMessaging); confirmed by the account's event 157. / Quita el canal de mensajería. */
+suspend fun MeshSession.removeMessaging() {
+    checkOwnSettings()
+    if (user.messagingHandle == null) return
+    request(buildJsonObject { put("action", "removeMessaging") }, ownAccountEvent(157), TIMEOUT, LOST)
+    user = user.copy(messagingHandle = null)
+}
+
+/** The first run of 6 digits in a message from the server (its code). / El primer grupo de 6 cifras de un mensaje (su código). */
+fun codeIn(message: String): String? = Regex("""(?<!\d)(\d{6})(?!\d)""").find(message)?.groupValues?.get(1)
+
 // ------------------------------------------------------------------ server state / estado del servidor
 
 /** Server backup, restore or update rights (siteadmin bits 1, 4 or 16), as the website asks. / Copia, restauración o actualización. */

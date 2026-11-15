@@ -295,7 +295,7 @@ private fun LoginPrompts(vm: AppViewModel) {
             title = { Text(stringResource(R.string.tfa_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(stringResource(when { t.wrong -> R.string.tfa_wrong; t.emailSent -> R.string.tfa_email_sent; t.smsSent -> R.string.tfa_sms_sent; t.emailAvailable || t.smsAvailable -> R.string.tfa_body_any; else -> R.string.tfa_body }))
+                    Text(stringResource(when { t.wrong -> R.string.tfa_wrong; t.emailSent -> R.string.tfa_email_sent; t.smsSent -> R.string.tfa_sms_sent; t.viaNtfy -> R.string.tfa_ntfy_waiting; t.emailAvailable || t.smsAvailable -> R.string.tfa_body_any; else -> R.string.tfa_body }))
                     // This app is the account's authenticator: the code comes with the fingerprint. / La app es el autenticador: con la huella.
                     if (t.fromThisApp) Button(onClick = vm::codeFromThisApp, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.tfa_this_app)) }
                     OutlinedTextField(

@@ -43,5 +43,8 @@ class MeshClientException(
     var emailCodeSent: Boolean = false
     /** The server has just sent the code by SMS. / El servidor acaba de mandar el código por SMS. */
     var smsCodeSent: Boolean = false
+    /** The server offers the code by its messaging service (ntfy…), and has just sent it. / Por mensajería: se ofrece, y se acaba de mandar. */
+    var messagingCodeAvailable: Boolean = false
+    var messagingCodeSent: Boolean = false
         internal set
 }

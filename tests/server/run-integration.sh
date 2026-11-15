@@ -30,15 +30,20 @@ cleanup() {
   [ -n "$OWN_CACHE" ] && docker volume rm "$OWN_CACHE" >/dev/null 2>&1 || true
   # Files written by root inside the containers: removed from a container too.
   # Ficheros que escribió root dentro de los contenedores: se borran también desde un contenedor.
-  docker run --rm -v "$WORK:/w" --entrypoint sh "$JDK_IMAGE" -c 'rm -rf /w/meshdata /w/agent /w/agentcache' >/dev/null 2>&1 || true
+  docker run --rm -v "$WORK:/w" --entrypoint sh "$JDK_IMAGE" -c 'rm -rf /w/meshdata /w/agent /w/agentcache /w/sinkca' >/dev/null 2>&1 || true
   rmdir "$WORK" 2>/dev/null || true
 }
 trap cleanup EXIT
 
 docker network create "$NET" >/dev/null
 # The mailbox for email and SMS codes (sink.mjs), before the server that sends to it. / El buzón de correo y SMS, antes que el servidor.
-docker run -d --rm --name "$SINK" --network "$NET" --cpus 0.25 --memory 128m -v "$HERE/sink.mjs:/sink.mjs:ro" node:22-alpine node /sink.mjs >/dev/null
-SINK_HOST="$SINK" "$HERE/start-test-server.sh" "$SRV" "$WORK/meshdata" "$NET" "$MESH_IMAGE" >/dev/null
+# Its certificate, made for this run, makes it an ntfy server too (messaging codes). / Su certificado lo hace también servidor ntfy.
+mkdir -p "$WORK/sinkca"
+openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=$SINK" -addext "subjectAltName=DNS:$SINK" \
+  -keyout "$WORK/sinkca/sink.key" -out "$WORK/sinkca/sink.crt" >/dev/null 2>&1
+chmod 644 "$WORK/sinkca/sink.key"
+docker run -d --rm --name "$SINK" --network "$NET" --cpus 0.25 --memory 128m -v "$HERE/sink.mjs:/sink.mjs:ro" -v "$WORK/sinkca:/certs:ro" node:22-alpine node /sink.mjs >/dev/null
+SINK_HOST="$SINK" SINK_CA="$WORK/sinkca" "$HERE/start-test-server.sh" "$SRV" "$WORK/meshdata" "$NET" "$MESH_IMAGE" >/dev/null
 SRV_IP=$(docker inspect "$SRV" --format "{{(index .NetworkSettings.Networks \"$NET\").IPAddress}}")
 read -r OTP GROUP < <(docker exec -i "$SRV" node - < "$HERE/setup-test-data.js")
 [ -n "${OTP:-}" ] && [ -n "${GROUP:-}" ]

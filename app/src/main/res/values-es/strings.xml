@@ -832,4 +832,18 @@
         <item quantity="other">Cambia en %1$d segundos</item>
     </plurals>
     <string name="admin_email_verified">El correo ya está comprobado (si no, el servidor puede pedir a la persona que lo confirme)</string>
+    <!-- Codes by ntfy / Códigos por ntfy -->
+    <string name="ntfy_row">Códigos a esta app (ntfy)</string>
+    <string name="ntfy_on_here">Activados · llegan a esta app</string>
+    <string name="ntfy_other">Otro servicio: %1$s</string>
+    <string name="ntfy_hint">Al entrar, el código llega solo a esta app por ntfy (instala la app ntfy). El servidor tiene que tener ntfy en su mensajería, en el mismo servidor ntfy que el móvil.</string>
+    <string name="ntfy_on_done">Códigos por ntfy activados: llegan a esta app.</string>
+    <string name="ntfy_off_done">Códigos por ntfy quitados.</string>
+    <string name="ntfy_missing_title">Hace falta ntfy</string>
+    <string name="ntfy_missing_text">Los códigos llegan por una app de avisos (UnifiedPush) como ntfy. Instálala, ábrela una vez y vuelve a probar.</string>
+    <string name="ntfy_missing_get">Conseguir ntfy</string>
+    <string name="ntfy_channel">Códigos para entrar</string>
+    <string name="ntfy_code_title">Código para entrar en %1$s</string>
+    <string name="ntfy_for_distributor">Cliente MeshCentral · %1$s</string>
+    <string name="tfa_ntfy_waiting">El código está llegando a esta app por ntfy; se pondrá solo.</string>
 </resources>

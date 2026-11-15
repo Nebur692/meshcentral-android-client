@@ -808,4 +808,18 @@
         <item quantity="other">Changes in %1$d seconds</item>
     </plurals>
     <string name="admin_email_verified">The email is already checked (otherwise the server may ask the person to confirm it)</string>
+    <!-- Codes by ntfy / Códigos por ntfy -->
+    <string name="ntfy_row">Codes to this app (ntfy)</string>
+    <string name="ntfy_on_here">On · they come to this app</string>
+    <string name="ntfy_other">Another service: %1$s</string>
+    <string name="ntfy_hint">When signing in, the code comes to this app by itself through ntfy (install the ntfy app). The server must have ntfy in its messaging, on the same ntfy server as the phone.</string>
+    <string name="ntfy_on_done">Codes by ntfy on: they come to this app.</string>
+    <string name="ntfy_off_done">Codes by ntfy removed.</string>
+    <string name="ntfy_missing_title">ntfy is needed</string>
+    <string name="ntfy_missing_text">The codes come through a push app (UnifiedPush) such as ntfy. Install it, open it once, and try again.</string>
+    <string name="ntfy_missing_get">Get ntfy</string>
+    <string name="ntfy_channel">Sign-in codes</string>
+    <string name="ntfy_code_title">Code to sign in to %1$s</string>
+    <string name="ntfy_for_distributor">MeshCentral Client · %1$s</string>
+    <string name="tfa_ntfy_waiting">The code is coming to this app by ntfy; it will be filled by itself.</string>
 </resources>

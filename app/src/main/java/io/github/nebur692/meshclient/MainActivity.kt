@@ -49,7 +49,7 @@ class MainActivity : ComponentActivity() {
     // Android 17: to talk to a server on the phone's own network. / Android 17: para hablar con un servidor de la red del móvil.
     private val localNetwork = registerForActivityResult(ActivityResultContracts.RequestPermission()) { vm.localNetworkGranted(it) }
 
-    override fun onStart() { super.onStart(); vm.onForeground() }
+    override fun onStart() { super.onStart(); NtfyPush.inFront = true; vm.onForeground() }
 
     /** A shortcut tapped while the app was already open. / Un acceso directo tocado con la app ya abierta. */
     override fun onNewIntent(intent: android.content.Intent) {
@@ -76,13 +76,21 @@ class MainActivity : ComponentActivity() {
         super.onWindowFocusChanged(hasFocus)
         if (!hasFocus) vm.desktop?.releaseKeys()
     }
-    override fun onStop() { super.onStop(); vm.onBackground() }
+    override fun onStop() { super.onStop(); NtfyPush.inFront = false; vm.onBackground() }
 
     /**
      * Android's own fingerprint prompt, with the cipher it must unlock: what it seals or opens is only usable after a
      * strong biometric, never with the screen-lock code. / El aviso de huella del propio Android, con el cifrado que
      * debe desbloquear: lo que sella o abre solo sirve tras una biometría fuerte, nunca con el código de bloqueo.
      */
+    /** Picks the distributor (the current one, or the default) and registers this server as an instance. / Elige el distribuidor y registra. */
+    private fun registerPush(instance: String) {
+        org.unifiedpush.android.connector.UnifiedPush.tryUseCurrentOrDefaultDistributor(this) { ok ->
+            if (ok) org.unifiedpush.android.connector.UnifiedPush.register(this, instance, getString(R.string.ntfy_for_distributor, instance.removePrefix("https://").trimEnd('/')))
+            else vm.ntfyMissing = true
+        }
+    }
+
     private fun ask(request: BiometricRequest) {
         val cipher = vm.cipherFor(request) ?: return
         val cancel = CancellationSignal()
@@ -150,6 +158,8 @@ class MainActivity : ComponentActivity() {
                     }
                   }
                     vm.biometricRequest?.let { r -> LaunchedEffect(r) { ask(r) } }
+                    // UnifiedPush's registration needs an activity (it may show the distributor's choice). / El registro necesita una actividad.
+                    vm.ntfyRequest?.let { instance -> LaunchedEffect(instance) { registerPush(instance); vm.ntfyRequest = null } }
                     vm.agentAnswers?.let { a -> io.github.nebur692.meshclient.ui.AgentAnswersDialog(a) { vm.agentAnswers = null } }
                     vm.bulk.answers?.let { a -> io.github.nebur692.meshclient.ui.AgentAnswersDialog(a) { vm.bulk.answers = null } }
                     vm.linkProblem?.let { p ->

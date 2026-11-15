@@ -28,5 +28,7 @@ class PasswordCredentials(val username: String, private val password: String, va
     companion object {
         const val EMAIL_CODE = "**email**"
         const val SMS_CODE = "**sms**"
+        /** Asks the server to send the code by the account's messaging service (ntfy…). / Pide el código por mensajería. */
+        const val MESSAGING_CODE = "**msg**"
     }
 }

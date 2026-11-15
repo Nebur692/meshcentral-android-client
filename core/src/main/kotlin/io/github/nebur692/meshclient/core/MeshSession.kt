@@ -399,6 +399,8 @@ class MeshSession private constructor(
                 smsCodeAvailable = close.bool("sms2fa")
                 emailCodeSent = close.bool("email2fasent")
                 smsCodeSent = close.bool("sms2fasent")
+                messagingCodeAvailable = close.bool("msg2fa")
+                messagingCodeSent = close.bool("msg2fasent")
             }
             return when {
                 msg == "tokenrequired" && sentCode -> e(MeshFailure.InvalidTwoFactorCode, "conexion/verificar-identidad/credencial-invalida", "The second-factor code is not valid.")

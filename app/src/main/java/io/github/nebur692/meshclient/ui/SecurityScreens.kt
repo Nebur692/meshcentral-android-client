@@ -144,6 +144,15 @@ fun SecurityScreen(vm: AppViewModel) {
                     stringResource(if (me.hasEmailTwoFactor) R.string.acc_email_on else R.string.acc_email_off), enabled = !locked && !m.busy) { m.setEmailCodes(!me.hasEmailTwoFactor) }
                 Hint(me.email?.let { stringResource(R.string.acc_email_hint, it) } ?: stringResource(R.string.acc_email_none))
             }
+            // Codes by messaging to this app through ntfy (UnifiedPush), when the server has messaging. / Por ntfy a esta app.
+            if (s.serverInfo.messagingTwoFactorAllowed) {
+                Row(R.drawable.ic_chat, stringResource(R.string.ntfy_row), when {
+                    vm.ntfyHere -> stringResource(R.string.ntfy_on_here)
+                    me.messagingHandle != null -> stringResource(R.string.ntfy_other, me.messagingHandle!!)
+                    else -> stringResource(R.string.acc_email_off)
+                }, enabled = !locked && !m.busy) { if (vm.ntfyHere) vm.disableNtfy() else vm.enableNtfy() }
+                Hint(stringResource(R.string.ntfy_hint))
+            }
             if (s.serverInfo.smsTwoFactorAllowed) {
                 Row(R.drawable.ic_chat, stringResource(R.string.acc_phone), me.phone ?: stringResource(R.string.acc_phone_none), enabled = !locked && !m.busy) {
                     if (me.phone != null) removingPhone = true else addingPhone = true
@@ -175,6 +184,16 @@ fun SecurityScreen(vm: AppViewModel) {
 
     if (changing) PasswordDialog(m) { changing = false }
     vm.shownAuthenticator?.let { secret -> AuthenticatorCodeDialog(secret) { vm.shownAuthenticator = null } }
+    if (vm.ntfyMissing) AlertDialog(
+        onDismissRequest = { vm.ntfyMissing = false },
+        title = { Text(stringResource(R.string.ntfy_missing_title)) },
+        text = { Text(stringResource(R.string.ntfy_missing_text)) },
+        confirmButton = { TextButton(onClick = {
+            vm.ntfyMissing = false
+            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, "market://details?id=io.heckel.ntfy".toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        }) { Text(stringResource(R.string.ntfy_missing_get)) } },
+        dismissButton = { TextButton(onClick = { vm.ntfyMissing = false }) { Text(stringResource(R.string.cancel)) } },
+    )
     // Once the phone is checked the dialog closes by itself. / En cuanto el teléfono queda comprobado, el diálogo se cierra solo.
     LaunchedEffect(me.phone) { if (me.phone != null) addingPhone = false }
     if (addingPhone || m.phoneCheck != null) PhoneDialog(m) { addingPhone = false; m.phoneCheck = null }

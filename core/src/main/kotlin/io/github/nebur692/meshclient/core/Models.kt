@@ -24,6 +24,8 @@ data class ServerInfo(val name: String, val domain: String, val version: String?
     val emailTwoFactorAllowed: Boolean get() = features and 0x00800000L != 0L
     /** Two-factor by SMS is offered: an SMS gateway and not forbidden (0x04000000). / Se ofrece el doble factor por SMS. */
     val smsTwoFactorAllowed: Boolean get() = features and 0x04000000L != 0L
+    /** Two-factor by a messaging service (Telegram, ntfy…) is offered (features2 0x04000000). / Se ofrece el doble factor por mensajería. */
+    val messagingTwoFactorAllowed: Boolean get() = features2 and 0x04000000L != 0L
     /** The server lets the device's clipboard be read. / El servidor deja leer el portapapeles del equipo. */
     val clipboardGetAllowed: Boolean get() = features2 and 0x800L == 0L
     /** The server lets the device's clipboard be written. / El servidor deja escribir el portapapeles del equipo. */
@@ -58,6 +60,8 @@ data class UserInfo(
     val hasEmailTwoFactor: Boolean = false,
     /** The verified phone for SMS codes, as the server shows it. / El teléfono verificado para los códigos por SMS. */
     val phone: String? = null,
+    /** Where messaging codes go, as "ntfy:<topic>", "telegram:@…" (msghandle). / Adónde van los códigos por mensajería. */
+    val messagingHandle: String? = null,
 ) {
     val isFullAdministrator: Boolean get() = siteRights == 0xFFFFFFFFL
     /** It cannot sign in (siteadmin bit 32). / No puede entrar (bit 32 de siteadmin). */
@@ -70,7 +74,7 @@ data class UserInfo(
             o.long("passchange") == -1L,
             listOf("otpsecret", "otpkeys", "otphkeys", "otpekey", "otpduo", "otpdev").any { (o.long(it) ?: 0) > 0 } || !o.str("phone").isNullOrEmpty(),
             (o.long("otpsecret") ?: 0) > 0, (o.long("otpkeys") ?: 0) > 0, (o.long("otphkeys") ?: 0).toInt(),
-            (o.long("otpekey") ?: 0) > 0, o.str("phone")?.takeIf { it.isNotEmpty() })
+            (o.long("otpekey") ?: 0) > 0, o.str("phone")?.takeIf { it.isNotEmpty() }, o.str("msghandle")?.takeIf { it.isNotEmpty() })
     }
 }
 

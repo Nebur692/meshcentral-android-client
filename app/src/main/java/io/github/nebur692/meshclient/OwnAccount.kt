@@ -158,6 +158,9 @@ class OwnAccountModel(private val session: () -> MeshSession?, private val scope
         }
     }
 
+    /** A step of codes by ntfy, run as any other change (busy meanwhile, its failure said). / Un paso de ntfy, como cualquier cambio. */
+    fun runNtfy(ok: Int, block: suspend (MeshSession) -> Unit) = change(ok) { block(it); awaitUser { true } }
+
     fun removePhone() = change(R.string.acc_phone_removed) {
         it.removePhone()
         awaitUser { u -> u.phone == null }

@@ -44,6 +44,12 @@ import io.github.nebur692.meshclient.data.SavedServer
 import io.github.nebur692.meshclient.data.SavedServers
 import javax.crypto.Cipher
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.first
+import io.github.nebur692.meshclient.core.startNtfy
+import io.github.nebur692.meshclient.core.confirmMessaging
+import io.github.nebur692.meshclient.core.removeMessaging
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -87,7 +93,9 @@ data class CertificatePrompt(val host: String, val sha256: String, val changed: 
 /** [fromThisApp]: this app keeps the account's authenticator and can fill the code with the fingerprint.
  *  [fromThisApp]: esta app guarda el autenticador de la cuenta y puede poner el código con la huella. */
 data class TwoFactorPrompt(val emailAvailable: Boolean, val emailSent: Boolean, val wrong: Boolean,
-                           val smsAvailable: Boolean = false, val smsSent: Boolean = false, val fromThisApp: Boolean = false)
+                           val smsAvailable: Boolean = false, val smsSent: Boolean = false, val fromThisApp: Boolean = false,
+                           /** The code is on its way to this app by ntfy, and will be filled by itself. / El código viene a la app por ntfy. */
+                           val viaNtfy: Boolean = false)
 
 data class LoginForm(
     val server: String = "",
@@ -217,6 +225,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // saved server). / Todas las propiedades por encima: init corre en orden y pick() ya las usa (se cerraba en el POCO).
     init {
         biometricsAvailable = BiometricVault.available(app)
+        NtfyPush.load(app)
         form = LoginForm(expanded = savedServers.isEmpty())
         savedServers.firstOrNull()?.let(::pick)
     }
@@ -588,6 +597,55 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (biometricRequest == null) biometricRequest = BiometricRequest.OpenAuthenticator(server, forSignIn = false)
     }
 
+    // ---- codes by messaging (ntfy) / códigos por mensajería (ntfy)
+
+    /** The server address whose UnifiedPush registration MainActivity must start (it needs an activity). / Registro pendiente. */
+    var ntfyRequest by mutableStateOf<String?>(null)
+
+    /** This account's messaging codes come to this app by ntfy. / Los códigos por mensajería de la cuenta vienen a esta app. */
+    val ntfyHere: Boolean get() = session?.let { s ->
+        NtfyPush.endpointsNow.value[s.server.toString()]?.let(NtfyPush::topicOf)?.let { "ntfy:$it" } == s.user.messagingHandle } == true
+
+    /** No UnifiedPush distributor (ntfy) on the phone: the person is told to install one. / Sin distribuidor en el móvil. */
+    var ntfyMissing by mutableStateOf(false)
+
+    /**
+     * Codes by messaging to this app: UnifiedPush gives an ntfy topic, the server sends its check code there, and the app
+     * confirms it by itself. / Códigos por mensajería a esta app: UnifiedPush da un tema de ntfy, el servidor manda allí su
+     * código de comprobación y la app lo confirma sola.
+     */
+    fun enableNtfy() {
+        val s = session ?: return
+        val instance = s.server.toString()
+        val m = ownAccount ?: return
+        if (org.unifiedpush.android.connector.UnifiedPush.getDistributors(getApplication()).isEmpty()) { ntfyMissing = true; return }
+        ntfyRequest = instance
+        m.runNtfy(R.string.ntfy_on_done) { session ->
+            val endpoint = kotlinx.coroutines.withTimeoutOrNull(30_000) { NtfyPush.endpointsNow.first { it[instance] != null }[instance] }
+                ?: throw io.github.nebur692.meshclient.core.MeshClientException(io.github.nebur692.meshclient.core.MeshFailure.Timeout,
+                    "usuarios/cambiar-ajustes/tiempo-agotado", "The push distributor gave no address.")
+            val topic = NtfyPush.topicOf(endpoint) ?: throw io.github.nebur692.meshclient.core.MeshClientException(io.github.nebur692.meshclient.core.MeshFailure.Rejected,
+                "usuarios/cambiar-ajustes/dato-invalido", "The push address is not an ntfy topic: $endpoint")
+            coroutineScope {
+                val code = async { NtfyPush.codesNow.first { it.instance == instance }.code }
+                val check = session.startNtfy(topic)
+                val got = kotlinx.coroutines.withTimeoutOrNull(60_000) { code.await() }
+                    ?: throw io.github.nebur692.meshclient.core.MeshClientException(io.github.nebur692.meshclient.core.MeshFailure.Timeout,
+                        "usuarios/cambiar-ajustes/tiempo-agotado", "The check code did not arrive by ntfy (is the server's ntfy the same as the phone's, ${NtfyPush.hostOf(endpoint)}?)")
+                session.confirmMessaging(check, got)
+            }
+        }
+    }
+
+    fun disableNtfy() {
+        val s = session ?: return
+        val instance = s.server.toString()
+        ownAccount?.runNtfy(R.string.ntfy_off_done) { session ->
+            session.removeMessaging()
+            org.unifiedpush.android.connector.UnifiedPush.unregister(getApplication(), instance)
+        }
+    }
+
     /** The secret while its code is on screen; forgotten when it closes. / El secreto mientras su código está en pantalla. */
     var shownAuthenticator by mutableStateOf<String?>(null)
 
@@ -657,7 +715,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         CertificatePrompt(address.host, it, changed = pendingPin != null && pendingPin != it)
                     }, error = if (e.certificateSha256 == null) UiError(e.failure, e.key) else null)
                     MeshFailure.TwoFactorRequired -> form.copy(busy = false, twoFactor = TwoFactorPrompt(e.emailCodeAvailable, e.emailCodeSent, wrong = false,
-                        e.smsCodeAvailable, e.smsCodeSent, fromThisApp(address))).also { fillFromThisApp(address, e) }
+                        e.smsCodeAvailable, e.smsCodeSent, fromThisApp(address), viaNtfy = ntfyFor(address, e))).also { if (!ntfyFor(address, e)) fillFromThisApp(address, e) }
                     MeshFailure.InvalidTwoFactorCode -> form.copy(busy = false, twoFactor = TwoFactorPrompt(e.emailCodeAvailable, false, wrong = true,
                         e.smsCodeAvailable, false, fromThisApp(address)))
                     else -> form.copy(busy = false, error = UiError(e.failure, e.key, e.httpStatus))
@@ -665,6 +723,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
+    /** This server's messaging code can come here by ntfy (registered, and the server offers it). / El código puede venir por ntfy. */
+    private fun ntfyFor(address: ServerAddress, e: MeshClientException): Boolean {
+        val here = NtfyPush.endpointsNow.value[address.toString()] != null && e.messagingCodeAvailable
+        // The first time, the app asks for the code by messaging and fills it when it arrives. / La primera vez la pide y la pone al llegar.
+        if (here && !e.messagingCodeSent && ntfyWait?.isActive != true) {
+            val c = credentials
+            ntfyWait = viewModelScope.launch {
+                val code = kotlinx.coroutines.withTimeoutOrNull(120_000) { NtfyPush.codesNow.first { it.instance == address.toString() }.code } ?: return@launch
+                if (form.twoFactor != null) submitCode(code)
+            }
+            if (c != null) attempt(address, c.withCode(PasswordCredentials.MESSAGING_CODE), viaBiometric = unlockedWithBiometric)
+        }
+        return here
+    }
+
+    private var ntfyWait: kotlinx.coroutines.Job? = null
 
     private fun fromThisApp(address: ServerAddress) = biometricsAvailable && savedFor(address.toString())?.hasAuthenticator == true
 
