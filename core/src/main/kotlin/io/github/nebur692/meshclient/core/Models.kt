@@ -17,7 +17,13 @@ data class ServerInfo(val name: String, val domain: String, val version: String?
                       /** Consent the server forces on every group (userConsentFlags). / Consentimiento que impone el servidor. */
                       val forcedConsent: Int = 0,
                       /** Groups can choose to record their sessions (onlySelectedDeviceGroups). / Los grupos pueden elegir grabar. */
-                      val groupsChooseRecording: Boolean = false) {
+                      val groupsChooseRecording: Boolean = false,
+                      /** The website's other switches (features). / Los otros interruptores de la web (features). */
+                      val features: Long = 0) {
+    /** Two-factor by email is offered: a mail server and not forbidden (webserver.js 0x00800000). / Se ofrece el doble factor por correo. */
+    val emailTwoFactorAllowed: Boolean get() = features and 0x00800000L != 0L
+    /** Two-factor by SMS is offered: an SMS gateway and not forbidden (0x04000000). / Se ofrece el doble factor por SMS. */
+    val smsTwoFactorAllowed: Boolean get() = features and 0x04000000L != 0L
     /** The server lets the device's clipboard be read. / El servidor deja leer el portapapeles del equipo. */
     val clipboardGetAllowed: Boolean get() = features2 and 0x800L == 0L
     /** The server lets the device's clipboard be written. / El servidor deja escribir el portapapeles del equipo. */
@@ -25,7 +31,8 @@ data class ServerInfo(val name: String, val domain: String, val version: String?
 
     internal companion object {
         fun from(o: JsonObject) = ServerInfo(o.str("name").orEmpty(), o.str("domain").orEmpty(), o.str("serverVersion") ?: o.str("version"),
-            o.bool("manageAllDeviceGroups"), o.long("features2") ?: 0, (o.long("consent") ?: 0).toInt(), o.long("devGroupSessionRecording") == 1L)
+            o.bool("manageAllDeviceGroups"), o.long("features2") ?: 0, (o.long("consent") ?: 0).toInt(), o.long("devGroupSessionRecording") == 1L,
+            o.long("features") ?: 0)
     }
 }
 
@@ -47,6 +54,10 @@ data class UserInfo(
     val hasBackupCodes: Boolean = false,
     /** How many security keys (otphkeys). / Cuántas llaves de seguridad. */
     val securityKeys: Int = 0,
+    /** Codes by email at sign-in (otpekey). / Códigos por correo al entrar (otpekey). */
+    val hasEmailTwoFactor: Boolean = false,
+    /** The verified phone for SMS codes, as the server shows it. / El teléfono verificado para los códigos por SMS. */
+    val phone: String? = null,
 ) {
     val isFullAdministrator: Boolean get() = siteRights == 0xFFFFFFFFL
     /** It cannot sign in (siteadmin bit 32). / No puede entrar (bit 32 de siteadmin). */
@@ -58,7 +69,8 @@ data class UserInfo(
             o.str("email"), o.str("realname"), o.long("creation")?.takeIf { it > 0 }, o.long("login")?.takeIf { it > 0 },
             o.long("passchange") == -1L,
             listOf("otpsecret", "otpkeys", "otphkeys", "otpekey", "otpduo", "otpdev").any { (o.long(it) ?: 0) > 0 } || !o.str("phone").isNullOrEmpty(),
-            (o.long("otpsecret") ?: 0) > 0, (o.long("otpkeys") ?: 0) > 0, (o.long("otphkeys") ?: 0).toInt())
+            (o.long("otpsecret") ?: 0) > 0, (o.long("otpkeys") ?: 0) > 0, (o.long("otphkeys") ?: 0).toInt(),
+            (o.long("otpekey") ?: 0) > 0, o.str("phone")?.takeIf { it.isNotEmpty() })
     }
 }
 

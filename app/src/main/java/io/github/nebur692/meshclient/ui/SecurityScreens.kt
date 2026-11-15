@@ -53,6 +53,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -68,6 +71,7 @@ import io.github.nebur692.meshclient.core.BackupCodeAction
 import io.github.nebur692.meshclient.core.LoginToken
 import io.github.nebur692.meshclient.core.SecurityKey
 import io.github.nebur692.meshclient.core.ownSettingsLocked
+import io.github.nebur692.meshclient.core.validPhone
 import java.text.DateFormat
 import java.util.Date
 
@@ -98,6 +102,8 @@ fun SecurityScreen(vm: AppViewModel) {
     var removingKey by remember { mutableStateOf<SecurityKey?>(null) }
     var removingToken by remember { mutableStateOf<LoginToken?>(null) }
     var creatingToken by remember { mutableStateOf(false) }
+    var addingPhone by remember { mutableStateOf(false) }
+    var removingPhone by remember { mutableStateOf(false) }
     Scaffold(topBar = {
         Column {
             TopAppBar(expandedHeight = BarHeight,
@@ -123,10 +129,27 @@ fun SecurityScreen(vm: AppViewModel) {
             Row(R.drawable.ic_lock, stringResource(R.string.acc_password_change), null, enabled = !locked && !m.busy) { changing = true }
 
             Section(R.string.acc_two_factor)
-            Row(R.drawable.ic_phone, stringResource(R.string.acc_auth_app), stringResource(if (me.hasAuthenticator) R.string.acc_on else R.string.acc_off), enabled = !locked && !m.busy) {
+            Row(R.drawable.ic_phone, stringResource(R.string.acc_auth_app),
+                stringResource(when { !me.hasAuthenticator -> R.string.acc_off; vm.authenticatorHere -> R.string.auth_here_on; else -> R.string.acc_on }), enabled = !locked && !m.busy) {
                 if (me.hasAuthenticator) removingAuth = true else m.startAuthenticator()
             }
+            // This app keeps the authenticator: its code, for signing in somewhere else. / La app guarda el autenticador: su código.
+            if (me.hasAuthenticator && vm.authenticatorHere)
+                Row(R.drawable.ic_fingerprint, stringResource(R.string.auth_here_show), stringResource(R.string.auth_here_show_hint), enabled = vm.biometricsAvailable) { vm.showAuthenticatorCode() }
             Hint(stringResource(if (me.hasAuthenticator) R.string.acc_auth_remove_hint else R.string.acc_auth_add_hint))
+            // Codes by email and by SMS, only when this server offers them (a mail server, an SMS gateway), as the website.
+            // Códigos por correo y por SMS, solo si este servidor los ofrece, como la web.
+            if (s.serverInfo.emailTwoFactorAllowed) {
+                Row(R.drawable.ic_mail, stringResource(R.string.acc_email_codes),
+                    stringResource(if (me.hasEmailTwoFactor) R.string.acc_on else R.string.acc_off), enabled = !locked && !m.busy) { m.setEmailCodes(!me.hasEmailTwoFactor) }
+                Hint(me.email?.let { stringResource(R.string.acc_email_hint, it) } ?: stringResource(R.string.acc_email_none))
+            }
+            if (s.serverInfo.smsTwoFactorAllowed) {
+                Row(R.drawable.ic_chat, stringResource(R.string.acc_phone), me.phone ?: stringResource(R.string.acc_phone_none), enabled = !locked && !m.busy) {
+                    if (me.phone != null) removingPhone = true else addingPhone = true
+                }
+                Hint(stringResource(R.string.acc_phone_hint))
+            }
             if (me.hasTwoFactor) {
                 Row(R.drawable.ic_doc, stringResource(R.string.acc_codes), stringResource(if (me.hasBackupCodes) R.string.acc_codes_some else R.string.acc_codes_none), enabled = !m.busy) {
                     if (me.hasBackupCodes) m.backupCodes(BackupCodeAction.Show) else newCodes = true
@@ -151,6 +174,10 @@ fun SecurityScreen(vm: AppViewModel) {
     }
 
     if (changing) PasswordDialog(m) { changing = false }
+    vm.shownAuthenticator?.let { secret -> AuthenticatorCodeDialog(secret) { vm.shownAuthenticator = null } }
+    if (addingPhone || m.phoneCheck != null) PhoneDialog(m) { addingPhone = false; m.phoneCheck = null }
+    if (removingPhone) Ask(stringResource(R.string.acc_phone_remove), stringResource(R.string.acc_phone_remove_text, me.phone.orEmpty()),
+        stringResource(R.string.remove), { removingPhone = false }) { removingPhone = false; m.removePhone() }
     m.setup?.let { setup ->
         var code by rememberSaveable { mutableStateOf("") }
         AlertDialog(
@@ -158,6 +185,11 @@ fun SecurityScreen(vm: AppViewModel) {
             title = { Text(stringResource(R.string.acc_auth_add)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // The simplest: this app is the authenticator, its secret kept behind the fingerprint. / Lo más sencillo: la app es el autenticador.
+                    if (vm.biometricsAvailable) {
+                        Button(onClick = { vm.useThisAppAsAuthenticator(setup) }, enabled = !m.busy, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.auth_here_use)) }
+                        Text(stringResource(R.string.auth_here_use_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     Text(stringResource(R.string.acc_auth_steps))
                     Button(onClick = {
                         // The authenticator on this same phone opens otpauth:// links (Google Authenticator, Microsoft
@@ -269,6 +301,63 @@ private fun PasswordDialog(m: OwnAccountModel, close: () -> Unit) {
             TextButton(onClick = { m.changePassword(current, new) }, enabled = current.isNotEmpty() && new.isNotEmpty() && new == again && !m.busy) {
                 Text(stringResource(R.string.acc_password_change_short))
             }
+        },
+        dismissButton = { TextButton(onClick = close) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+/**
+ * The code of the authenticator this app keeps, for signing in somewhere else; it changes every 30 s, with the seconds
+ * left. The secret is only in memory while this is open. / El código del autenticador de la app, para entrar en otro sitio;
+ * cambia cada 30 s. El secreto solo está en memoria mientras esto está abierto.
+ */
+@Composable
+private fun AuthenticatorCodeDialog(secret: String, close: () -> Unit) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(secret) { while (true) { now = System.currentTimeMillis(); kotlinx.coroutines.delay(1000) } }
+    val code = io.github.nebur692.meshclient.core.Totp.code(secret, now)
+    val left = io.github.nebur692.meshclient.core.Totp.secondsLeft(now)
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text(stringResource(R.string.auth_here_show)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                Text(code.chunked(3).joinToString(" "), fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.displaySmall,
+                    modifier = Modifier.semantics { contentDescription = code })
+                LinearProgressIndicator(progress = { left / 30f }, modifier = Modifier.fillMaxWidth())
+                Text(pluralStringResource(R.plurals.auth_here_left, left, left), style = MaterialTheme.typography.bodySmall)
+            }
+        },
+        confirmButton = { TextButton(onClick = close) { Text(stringResource(R.string.close)) } },
+    )
+}
+
+/** A phone for SMS codes: the number, then the code the server sends to it. / Un teléfono: el número y luego el código que le llega. */
+@Composable
+private fun PhoneDialog(m: OwnAccountModel, close: () -> Unit) {
+    var phone by rememberSaveable { mutableStateOf("+") }
+    var code by rememberSaveable { mutableStateOf("") }
+    val check = m.phoneCheck
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text(stringResource(R.string.acc_phone_add)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (check == null) {
+                    Text(stringResource(R.string.acc_phone_steps))
+                    OutlinedTextField(phone, { phone = it.filter { c -> c.isDigit() || c in "+ -." }.take(18) }, label = { Text(stringResource(R.string.acc_phone_number)) },
+                        singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
+                } else {
+                    Text(stringResource(R.string.acc_phone_sent, check.phone))
+                    OutlinedTextField(code, { code = it.filter(Char::isDigit).take(6) }, label = { Text(stringResource(R.string.acc_auth_code)) }, singleLine = true,
+                        isError = m.phoneCodeWrong, supportingText = if (m.phoneCodeWrong) ({ Text(stringResource(R.string.acc_phone_wrong)) }) else null,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), modifier = Modifier.fillMaxWidth())
+                }
+            }
+        },
+        confirmButton = {
+            if (check == null) TextButton(onClick = { m.startPhone(phone) }, enabled = !m.busy && validPhone(phone)) { Text(stringResource(R.string.acc_phone_send)) }
+            else TextButton(onClick = { m.confirmPhone(code) }, enabled = !m.busy && code.length == 6) { Text(stringResource(R.string.acc_phone_confirm)) }
         },
         dismissButton = { TextButton(onClick = close) { Text(stringResource(R.string.cancel)) } },
     )

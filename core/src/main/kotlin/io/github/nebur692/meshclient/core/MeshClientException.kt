@@ -41,5 +41,7 @@ class MeshClientException(
     var smsCodeAvailable: Boolean = false
         internal set
     var emailCodeSent: Boolean = false
+    /** The server has just sent the code by SMS. / El servidor acaba de mandar el código por SMS. */
+    var smsCodeSent: Boolean = false
         internal set
 }

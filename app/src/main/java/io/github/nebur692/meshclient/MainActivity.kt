@@ -87,10 +87,17 @@ class MainActivity : ComponentActivity() {
         val cipher = vm.cipherFor(request) ?: return
         val cancel = CancellationSignal()
         val builder = BiometricPrompt.Builder(this)
-            .setTitle(getString(if (request is BiometricRequest.Seal) R.string.biometric_seal_title else R.string.biometric_open_title))
+            .setTitle(getString(when (request) {
+                is BiometricRequest.Seal -> R.string.biometric_seal_title
+                is BiometricRequest.Open -> R.string.biometric_open_title
+                is BiometricRequest.SealAuthenticator -> R.string.auth_here_seal_title
+                is BiometricRequest.OpenAuthenticator -> R.string.auth_here_open_title
+            }))
             .setSubtitle(when (request) {
                 is BiometricRequest.Seal -> request.address.removePrefix("https://").trimEnd('/')
                 is BiometricRequest.Open -> "${request.server.username} · ${request.server.address.removePrefix("https://").trimEnd('/')}"
+                is BiometricRequest.SealAuthenticator -> request.address.removePrefix("https://").trimEnd('/')
+                is BiometricRequest.OpenAuthenticator -> "${request.server.username} · ${request.server.address.removePrefix("https://").trimEnd('/')}"
             })
             .setNegativeButton(getString(R.string.cancel), mainExecutor) { _, _ -> vm.biometricFailed(request, lockedOut = false) }
             .setConfirmationRequired(false)

@@ -84,7 +84,10 @@ data class RememberPrompt(val method: String, val days: Int)
 
 data class CertificatePrompt(val host: String, val sha256: String, val changed: Boolean)
 
-data class TwoFactorPrompt(val emailAvailable: Boolean, val emailSent: Boolean, val wrong: Boolean)
+/** [fromThisApp]: this app keeps the account's authenticator and can fill the code with the fingerprint.
+ *  [fromThisApp]: esta app guarda el autenticador de la cuenta y puede poner el código con la huella. */
+data class TwoFactorPrompt(val emailAvailable: Boolean, val emailSent: Boolean, val wrong: Boolean,
+                           val smsAvailable: Boolean = false, val smsSent: Boolean = false, val fromThisApp: Boolean = false)
 
 data class LoginForm(
     val server: String = "",
@@ -108,6 +111,11 @@ data class BiometricOffer(val address: String, val session: Boolean, val days: I
 sealed interface BiometricRequest {
     data class Seal(val address: String, val secret: String, val tokenExpires: Long = 0) : BiometricRequest
     data class Open(val server: SavedServer) : BiometricRequest
+    /** To keep a new authenticator's secret in this app, and confirm it with the server. / Guardar el secreto de un autenticador nuevo. */
+    data class SealAuthenticator(val address: String, val setup: io.github.nebur692.meshclient.core.AuthenticatorSetup) : BiometricRequest
+    /** To open this account's authenticator: [forSignIn] fills the sign-in code, otherwise the code is shown.
+     *  Abrir el autenticador de la cuenta: [forSignIn] pone el código al entrar; si no, se enseña. */
+    data class OpenAuthenticator(val server: SavedServer, val forSignIn: Boolean) : BiometricRequest
 }
 
 /** Why the fingerprint did not work, shown once. / Por qué no funcionó la huella, se enseña una vez. */
@@ -308,6 +316,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val prepared = when (request) {
             is BiometricRequest.Seal -> vault.forSealing()
             is BiometricRequest.Open -> request.server.sealedBiometric?.let(vault::forOpening)
+            is BiometricRequest.SealAuthenticator -> vault.forSealing()
+            is BiometricRequest.OpenAuthenticator -> request.server.sealedAuthenticator?.let(vault::forOpening)
         }
         if (prepared?.cipher != null) return prepared.cipher
         biometricRequest = null
@@ -334,6 +344,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             is BiometricRequest.Open -> {
                 val secret = r.server.sealedBiometric?.let { vault.open(cipher, it) } ?: run { biometricProblem = BiometricProblem.Unavailable; return }
                 signInWithSecret(r.server, secret)
+            }
+            is BiometricRequest.SealAuthenticator -> {
+                val sealed = vault.seal(cipher, r.setup.secret) ?: run { biometricProblem = BiometricProblem.Unavailable; return }
+                // Kept only once the server takes this app's own code: then this app IS the authenticator.
+                // Se guarda solo cuando el servidor acepta el código de la propia app: entonces la app ES el autenticador.
+                ownAccount?.confirmAuthenticator(io.github.nebur692.meshclient.core.Totp.code(r.setup.secret)) {
+                    saved.setAuthenticator(r.address, sealed); savedServers = saved.all()
+                }
+            }
+            is BiometricRequest.OpenAuthenticator -> {
+                val secret = r.server.sealedAuthenticator?.let { vault.open(cipher, it) } ?: run { biometricProblem = BiometricProblem.Unavailable; return }
+                if (r.forSignIn) submitCode(io.github.nebur692.meshclient.core.Totp.code(secret)) else shownAuthenticator = secret
             }
         }
     }
@@ -549,6 +571,41 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         ServerAddress.parse(form.server)?.let { attempt(it, c.withCode(PasswordCredentials.EMAIL_CODE), viaBiometric = unlockedWithBiometric) }
     }
 
+    fun smsCode() {
+        val c = credentials ?: return
+        ServerAddress.parse(form.server)?.let { attempt(it, c.withCode(PasswordCredentials.SMS_CODE), viaBiometric = unlockedWithBiometric) }
+    }
+
+    /** The sign-in code from the authenticator this app keeps, behind the fingerprint. / El código del autenticador de esta app, tras la huella. */
+    fun codeFromThisApp() {
+        val server = savedFor(form.server)?.takeIf { it.hasAuthenticator } ?: return
+        if (biometricRequest == null) biometricRequest = BiometricRequest.OpenAuthenticator(server, forSignIn = true)
+    }
+
+    /** The code for signing in somewhere else (the website, the Windows app), shown after the fingerprint. / Para entrar en otro sitio. */
+    fun showAuthenticatorCode() {
+        val server = session?.let { s -> savedFor(s.server.toString()) }?.takeIf { it.hasAuthenticator } ?: return
+        if (biometricRequest == null) biometricRequest = BiometricRequest.OpenAuthenticator(server, forSignIn = false)
+    }
+
+    /** The secret while its code is on screen; forgotten when it closes. / El secreto mientras su código está en pantalla. */
+    var shownAuthenticator by mutableStateOf<String?>(null)
+
+    /** This account's authenticator is kept in this app. / El autenticador de esta cuenta está en esta app. */
+    val authenticatorHere: Boolean get() = session?.let { s -> savedFor(s.server.toString())?.hasAuthenticator } == true
+
+    /** Adds the authenticator being set up, kept in this app behind the fingerprint. / Añade el autenticador guardándolo en esta app. */
+    fun useThisAppAsAuthenticator(setup: io.github.nebur692.meshclient.core.AuthenticatorSetup) {
+        val s = session ?: return
+        if (biometricRequest == null) biometricRequest = BiometricRequest.SealAuthenticator(s.server.toString(), setup)
+    }
+
+    /** The authenticator went from the account: its secret goes from this app too. / Se quitó: su secreto se va también de la app. */
+    fun forgetAuthenticatorHere() {
+        val s = session ?: return
+        saved.setAuthenticator(s.server.toString(), null); savedServers = saved.all()
+    }
+
     /** [viaToken]: with the remembered token of that single sign-on; [viaBiometric]: with what the fingerprint opened.
      *  [viaToken]: con el token recordado de ese inicio único; [viaBiometric]: con lo que abrió la huella. */
     private fun attempt(address: ServerAddress, creds: PasswordCredentials, viaToken: SingleSignOn? = null, viaBiometric: Boolean = false) {
@@ -599,12 +656,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     MeshFailure.UntrustedCertificate -> form.copy(busy = false, certificate = e.certificateSha256?.let {
                         CertificatePrompt(address.host, it, changed = pendingPin != null && pendingPin != it)
                     }, error = if (e.certificateSha256 == null) UiError(e.failure, e.key) else null)
-                    MeshFailure.TwoFactorRequired -> form.copy(busy = false, twoFactor = TwoFactorPrompt(e.emailCodeAvailable, e.emailCodeSent, wrong = false))
-                    MeshFailure.InvalidTwoFactorCode -> form.copy(busy = false, twoFactor = TwoFactorPrompt(e.emailCodeAvailable, false, wrong = true))
+                    MeshFailure.TwoFactorRequired -> form.copy(busy = false, twoFactor = TwoFactorPrompt(e.emailCodeAvailable, e.emailCodeSent, wrong = false,
+                        e.smsCodeAvailable, e.smsCodeSent, fromThisApp(address))).also { fillFromThisApp(address, e) }
+                    MeshFailure.InvalidTwoFactorCode -> form.copy(busy = false, twoFactor = TwoFactorPrompt(e.emailCodeAvailable, false, wrong = true,
+                        e.smsCodeAvailable, false, fromThisApp(address)))
                     else -> form.copy(busy = false, error = UiError(e.failure, e.key, e.httpStatus))
                 }
             }
         }
+    }
+
+    private fun fromThisApp(address: ServerAddress) = biometricsAvailable && savedFor(address.toString())?.hasAuthenticator == true
+
+    /** The first time the server asks for the code, this app's authenticator offers it straight away (the fingerprint).
+     *  La primera vez que el servidor pide el código, el autenticador de la app lo ofrece en seguida (la huella). */
+    private fun fillFromThisApp(address: ServerAddress, e: MeshClientException) {
+        if (fromThisApp(address) && !e.emailCodeSent && !e.smsCodeSent) codeFromThisApp()
     }
 
     private suspend fun open(s: MeshSession) {
@@ -987,7 +1054,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val serverState by lazy { ServerStateModel({ session }, viewModelScope) }
 
     fun openSecurity() {
-        ownAccount = OwnAccountModel({ session }, viewModelScope).also { it.load() }
+        ownAccount = OwnAccountModel({ session }, viewModelScope, ::forgetAuthenticatorHere).also { it.load() }
         show(Screen.Security)
     }
 

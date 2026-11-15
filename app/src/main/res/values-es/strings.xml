@@ -791,4 +791,40 @@
     <string name="os_linux">Linux</string>
     <string name="os_mac">macOS</string>
     <string name="done_local_device_added">Equipo añadido</string>
+    <!-- Email and SMS codes / Códigos por correo y SMS -->
+    <string name="acc_email_codes">Códigos por correo</string>
+    <string name="acc_email_hint">Al entrar, llega un código a %1$s.</string>
+    <string name="acc_email_none">Esta cuenta no tiene correo: un administrador puede ponérselo.</string>
+    <string name="acc_email_on_done">Códigos por correo activados.</string>
+    <string name="acc_email_off_done">Códigos por correo quitados.</string>
+    <string name="acc_phone">Teléfono para códigos por SMS</string>
+    <string name="acc_phone_none">Sin teléfono</string>
+    <string name="acc_phone_hint">Al entrar, puede llegar un código por SMS a este teléfono.</string>
+    <string name="acc_phone_add">Teléfono para códigos por SMS</string>
+    <string name="acc_phone_steps">Escribe el número con su prefijo (+34…). El servidor le manda un código por SMS para comprobarlo.</string>
+    <string name="acc_phone_number">Número de teléfono</string>
+    <string name="acc_phone_send">Mandar el código</string>
+    <string name="acc_phone_sent">Escribe el código que ha mandado el servidor por SMS a %1$s.</string>
+    <string name="acc_phone_confirm">Confirmar</string>
+    <string name="acc_phone_wrong">Ese no es el código que llegó por SMS.</string>
+    <string name="acc_phone_done">Teléfono comprobado: códigos por SMS activados.</string>
+    <string name="acc_phone_remove">¿Quitar el teléfono?</string>
+    <string name="acc_phone_remove_text">Dejarán de llegar códigos por SMS a %1$s.</string>
+    <string name="acc_phone_removed">Teléfono quitado.</string>
+    <!-- This app as the authenticator / La app como autenticador -->
+    <string name="tfa_sms">Mandarme el código por SMS</string>
+    <string name="tfa_sms_sent">El servidor ha mandado el código por SMS: escríbelo aquí.</string>
+    <string name="tfa_this_app">Poner el código con mi huella</string>
+    <string name="auth_here_use">Usar esta app como autenticador</string>
+    <string name="auth_here_use_hint">La app guarda el secreto tras tu huella y pone el código cuando entras desde este móvil. También te enseña el código para entrar en otro sitio.</string>
+    <string name="auth_here_on">Activada · en esta app</string>
+    <string name="auth_here_show">Código para entrar en otro sitio</string>
+    <string name="auth_here_show_hint">Para la web o la app de Windows; con tu huella</string>
+    <string name="auth_here_seal_title">Guardar el autenticador en esta app</string>
+    <string name="auth_here_open_title">Código del autenticador</string>
+    <plurals name="auth_here_left">
+        <item quantity="one">Cambia en %1$d segundo</item>
+        <item quantity="many">Cambia en %1$d segundos</item>
+        <item quantity="other">Cambia en %1$d segundos</item>
+    </plurals>
 </resources>

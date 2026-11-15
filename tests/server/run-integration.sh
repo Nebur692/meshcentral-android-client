@@ -14,14 +14,14 @@ HERE="$ROOT/tests/server"
 MESH_IMAGE=${MESH_IMAGE:-ghcr.io/ylianst/meshcentral:latest}
 JDK_IMAGE=${JDK_IMAGE:-eclipse-temurin:21-jdk}
 ID=$$
-NET=mcatest-net-$ID; SRV=mcatest-srv-$ID; AGENT=mcatest-agent-$ID
+NET=mcatest-net-$ID; SRV=mcatest-srv-$ID; AGENT=mcatest-agent-$ID; SINK=mcatest-sink-$ID
 OWN_CACHE=""
 if [ -z "${GRADLE_CACHE:-}" ]; then GRADLE_CACHE=mcatest-gradle-$ID; OWN_CACHE=$GRADLE_CACHE; fi
 WORK=${1:-$(mktemp -d)}
 mkdir -p "$WORK"
 
 cleanup() {
-  docker stop "$AGENT" "$SRV" >/dev/null 2>&1 || true
+  docker stop "$AGENT" "$SRV" "$SINK" >/dev/null 2>&1 || true
   # The agent is not --rm, so its state survives a crash: removed here by name.
   # El agente no es --rm, para que su estado sobreviva a una caída: se borra aquí por su nombre.
   docker rm -f "$AGENT" >/dev/null 2>&1 || true
@@ -36,7 +36,9 @@ cleanup() {
 trap cleanup EXIT
 
 docker network create "$NET" >/dev/null
-"$HERE/start-test-server.sh" "$SRV" "$WORK/meshdata" "$NET" "$MESH_IMAGE" >/dev/null
+# The mailbox for email and SMS codes (sink.mjs), before the server that sends to it. / El buzón de correo y SMS, antes que el servidor.
+docker run -d --rm --name "$SINK" --network "$NET" --cpus 0.25 --memory 128m -v "$HERE/sink.mjs:/sink.mjs:ro" node:22-alpine node /sink.mjs >/dev/null
+SINK_HOST="$SINK" "$HERE/start-test-server.sh" "$SRV" "$WORK/meshdata" "$NET" "$MESH_IMAGE" >/dev/null
 SRV_IP=$(docker inspect "$SRV" --format "{{(index .NetworkSettings.Networks \"$NET\").IPAddress}}")
 read -r OTP GROUP < <(docker exec -i "$SRV" node - < "$HERE/setup-test-data.js")
 [ -n "${OTP:-}" ] && [ -n "${GROUP:-}" ]
@@ -47,7 +49,7 @@ echo "server $SRV · agent $AGENT · cert ${CERT:0:16}…"
 # The tests call the server by its certificate name, as the app would. / Las pruebas llaman al servidor por el nombre de su certificado.
 docker run --rm --network "$NET" --add-host "mesh.test:$SRV_IP" --cpus 2 --memory 3g \
   -e GRADLE_USER_HOME=/gradle -e MESHTEST_URL="https://mesh.test/" -e MESHTEST_CERT_SHA256="$CERT" \
-  -e MESHTEST_OTP_SECRET="$OTP" -e MESHTEST_GROUP_ID="$GROUP" -e MESHTEST_DESKTOP=1 -e MESHTEST_AGENT_HOST="$AGENT" \
+  -e MESHTEST_OTP_SECRET="$OTP" -e MESHTEST_GROUP_ID="$GROUP" -e MESHTEST_DESKTOP=1 -e MESHTEST_AGENT_HOST="$AGENT" -e MESHTEST_SINK="http://$SINK:8025" \
   -v "$ROOT:/src" -v "$GRADLE_CACHE:/gradle" -w /src "$JDK_IMAGE" \
   ./gradlew -p core test --no-daemon --rerun-tasks || {
   rc=$?

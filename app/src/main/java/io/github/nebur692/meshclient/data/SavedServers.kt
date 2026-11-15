@@ -36,10 +36,14 @@ data class SavedServer(
     internal val sealedBiometric: String? = null,
     /** The person said no to the fingerprint here: not offered again. / Dijo que no a la huella aquí: no se vuelve a ofrecer. */
     val biometricDeclined: Boolean = false,
+    /** This account's authenticator secret, sealed with the biometric key: the app is its authenticator (see [Totp]).
+     *  El secreto del autenticador de esta cuenta, sellado con la huella: la app es su autenticador. */
+    internal val sealedAuthenticator: String? = null,
 ) {
     val hasPassword: Boolean get() = sealedPassword != null
     val hasSession: Boolean get() = sealedToken != null && tokenExpires > System.currentTimeMillis()
     val hasBiometric: Boolean get() = sealedBiometric != null
+    val hasAuthenticator: Boolean get() = sealedAuthenticator != null
 }
 
 /** Kept in the app's private storage, excluded from every backup (data_extraction_rules). / En el almacén privado, fuera de toda copia. */
@@ -56,7 +60,7 @@ class SavedServers(context: Context) {
         val sealed = if (old?.hasBiometric == true) null else password?.let(vault::seal)
         val rest = read().filterNot { it.address == address }
         write(rest + SavedServer(address, username, pinnedSha256, System.currentTimeMillis(), sealed,
-            sealedBiometric = old?.sealedBiometric, biometricDeclined = old?.biometricDeclined == true))
+            sealedBiometric = old?.sealedBiometric, biometricDeclined = old?.biometricDeclined == true, sealedAuthenticator = old?.sealedAuthenticator))
     }
 
     /** A single sign-on account: [token] only if the person asked to remember the session. / Una cuenta de inicio único. */
@@ -65,7 +69,7 @@ class SavedServers(context: Context) {
         val sealed = token?.let { vault.seal(it.first + "\n" + it.second) }
         val rest = read().filterNot { it.address == address }
         write(rest + SavedServer(address, username, pinnedSha256, System.currentTimeMillis(), null, strategy, sealed, if (sealed != null) expires else 0,
-            sealedBiometric = old?.sealedBiometric, biometricDeclined = old?.biometricDeclined == true))
+            sealedBiometric = old?.sealedBiometric, biometricDeclined = old?.biometricDeclined == true, sealedAuthenticator = old?.sealedAuthenticator))
     }
 
     /** [sealed] from [BiometricVault.seal]; the plain copies go. / Lo sellado con la huella; las copias normales se van. */
@@ -79,7 +83,10 @@ class SavedServers(context: Context) {
     fun declineBiometric(address: String) = update(address) { it.copy(biometricDeclined = true) }
 
     /** After a new fingerprint on the phone the key is gone: nothing sealed with it opens any more. / La llave ya no está. */
-    fun clearAllBiometric() = write(read().map { it.copy(sealedBiometric = null) })
+    fun clearAllBiometric() = write(read().map { it.copy(sealedBiometric = null, sealedAuthenticator = null) })
+
+    /** The authenticator secret sealed with the fingerprint, or none. / El secreto del autenticador sellado, o ninguno. */
+    fun setAuthenticator(address: String, sealed: String?) = update(address) { it.copy(sealedAuthenticator = sealed) }
 
     private fun update(address: String, change: (SavedServer) -> SavedServer) = write(read().map { if (it.address == address) change(it) else it })
 
@@ -102,7 +109,7 @@ class SavedServers(context: Context) {
             SavedServer(o.getString("address"), o.getString("username"), o.optString("pin").ifEmpty { null },
                 o.optLong("lastUsed"), o.optString("password").ifEmpty { null }, o.optString("sso").ifEmpty { null },
                 o.optString("token").ifEmpty { null }, o.optLong("tokenExpires"),
-                o.optString("bio").ifEmpty { null }, o.optBoolean("bioDeclined"))
+                o.optString("bio").ifEmpty { null }, o.optBoolean("bioDeclined"), o.optString("auth").ifEmpty { null })
         }
     } catch (_: JSONException) {
         emptyList()
@@ -114,7 +121,7 @@ class SavedServers(context: Context) {
             arr.put(JSONObject().put("address", s.address).put("username", s.username).put("pin", s.pinnedSha256 ?: "")
                 .put("lastUsed", s.lastUsed).put("password", s.sealedPassword ?: "").put("sso", s.singleSignOn ?: "")
                 .put("token", s.sealedToken ?: "").put("tokenExpires", s.tokenExpires)
-                .put("bio", s.sealedBiometric ?: "").put("bioDeclined", s.biometricDeclined))
+                .put("bio", s.sealedBiometric ?: "").put("bioDeclined", s.biometricDeclined).put("auth", s.sealedAuthenticator ?: ""))
         }
         prefs.edit { putString(KEY, arr.toString()) }
     }

@@ -768,4 +768,39 @@
     <string name="os_linux">Linux</string>
     <string name="os_mac">macOS</string>
     <string name="done_local_device_added">Device added</string>
+    <!-- Email and SMS codes / Códigos por correo y SMS -->
+    <string name="acc_email_codes">Codes by email</string>
+    <string name="acc_email_hint">When signing in, a code goes to %1$s.</string>
+    <string name="acc_email_none">This account has no email: an administrator can add one.</string>
+    <string name="acc_email_on_done">Codes by email are on.</string>
+    <string name="acc_email_off_done">Codes by email are off.</string>
+    <string name="acc_phone">Phone for SMS codes</string>
+    <string name="acc_phone_none">No phone</string>
+    <string name="acc_phone_hint">When signing in, a code can go to this phone by SMS.</string>
+    <string name="acc_phone_add">Phone for SMS codes</string>
+    <string name="acc_phone_steps">Write the number with its country code (+34…). The server sends it a code by SMS to check it.</string>
+    <string name="acc_phone_number">Phone number</string>
+    <string name="acc_phone_send">Send the code</string>
+    <string name="acc_phone_sent">Write the code the server sent by SMS to %1$s.</string>
+    <string name="acc_phone_confirm">Confirm</string>
+    <string name="acc_phone_wrong">That is not the code sent by SMS.</string>
+    <string name="acc_phone_done">Phone checked: SMS codes are on.</string>
+    <string name="acc_phone_remove">Remove the phone?</string>
+    <string name="acc_phone_remove_text">SMS codes to %1$s will stop.</string>
+    <string name="acc_phone_removed">Phone removed.</string>
+    <!-- This app as the authenticator / La app como autenticador -->
+    <string name="tfa_sms">Send me the code by SMS</string>
+    <string name="tfa_sms_sent">The server has sent the code by SMS: write it here.</string>
+    <string name="tfa_this_app">Fill the code with my fingerprint</string>
+    <string name="auth_here_use">Use this app as the authenticator</string>
+    <string name="auth_here_use_hint">The app keeps the secret behind your fingerprint and fills the code when you sign in on this phone. It also shows the code to sign in somewhere else.</string>
+    <string name="auth_here_on">On · in this app</string>
+    <string name="auth_here_show">Code to sign in somewhere else</string>
+    <string name="auth_here_show_hint">For the website or the Windows app; with your fingerprint</string>
+    <string name="auth_here_seal_title">Keep the authenticator in this app</string>
+    <string name="auth_here_open_title">Authenticator code</string>
+    <plurals name="auth_here_left">
+        <item quantity="one">Changes in %1$d second</item>
+        <item quantity="other">Changes in %1$d seconds</item>
+    </plurals>
 </resources>

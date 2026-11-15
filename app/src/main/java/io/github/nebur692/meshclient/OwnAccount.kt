@@ -22,6 +22,11 @@ import io.github.nebur692.meshclient.core.removeSecurityKey
 import io.github.nebur692.meshclient.core.securityKeys
 import io.github.nebur692.meshclient.core.serverStats
 import io.github.nebur692.meshclient.core.startAuthenticator
+import io.github.nebur692.meshclient.core.PhoneCheck
+import io.github.nebur692.meshclient.core.confirmPhone
+import io.github.nebur692.meshclient.core.removePhone
+import io.github.nebur692.meshclient.core.setEmailTwoFactor
+import io.github.nebur692.meshclient.core.startPhone
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -35,7 +40,8 @@ import kotlinx.coroutines.launch
  * guarda el servidor se pide al abrir la pantalla; tras un cambio, la cuenta se vuelve a leer de la sesión, que el aviso en
  * vivo del servidor mantiene al día.
  */
-class OwnAccountModel(private val session: () -> MeshSession?, private val scope: CoroutineScope) {
+/** [onAuthenticatorRemoved]: the authenticator left the account, so a copy kept in this app goes too. / Se quitó el autenticador. */
+class OwnAccountModel(private val session: () -> MeshSession?, private val scope: CoroutineScope, private val onAuthenticatorRemoved: () -> Unit = {}) {
     var me by mutableStateOf(session()?.user)
         private set
     var keys by mutableStateOf<List<SecurityKey>?>(null)
@@ -99,13 +105,15 @@ class OwnAccountModel(private val session: () -> MeshSession?, private val scope
 
     fun startAuthenticator() = change(null) { codeWrong = false; setup = it.startAuthenticator() }
 
-    fun confirmAuthenticator(code: String) {
+    /** [onOk]: after the server took it (this app keeps the secret then). / Tras aceptarlo el servidor. */
+    fun confirmAuthenticator(code: String, onOk: () -> Unit = {}) {
         val s = setup ?: return
         if (busy) return
         busy = true
         scope.launch {
             try {
                 current().confirmAuthenticator(s, code)
+                onOk()
                 setup = null
                 awaitUser { it.hasAuthenticator }
                 notice = Notice(R.string.acc_auth_done)
@@ -118,8 +126,46 @@ class OwnAccountModel(private val session: () -> MeshSession?, private val scope
         }
     }
 
+    /** Codes by email at sign-in, on or off. / Códigos por correo al entrar, sí o no. */
+    fun setEmailCodes(on: Boolean) = change(if (on) R.string.acc_email_on_done else R.string.acc_email_off_done) {
+        it.setEmailTwoFactor(on)
+        awaitUser { u -> u.hasEmailTwoFactor == on }
+    }
+
+    /** A phone being verified by SMS: shown until its code is right. / Un teléfono que se verifica por SMS. */
+    var phoneCheck by mutableStateOf<PhoneCheck?>(null)
+    var phoneCodeWrong by mutableStateOf(false)
+        private set
+
+    fun startPhone(phone: String) = change(null) { phoneCodeWrong = false; phoneCheck = it.startPhone(phone) }
+
+    fun confirmPhone(code: String) {
+        val c = phoneCheck ?: return
+        if (busy) return
+        busy = true
+        scope.launch {
+            try {
+                current().confirmPhone(c, code)
+                phoneCheck = null
+                awaitUser { it.phone != null }
+                notice = Notice(R.string.acc_phone_done)
+            } catch (e: MeshClientException) {
+                if (e.failure == MeshFailure.InvalidTwoFactorCode) phoneCodeWrong = true
+                else notice = Notice(R.string.action_failed, UiError(e.failure, e.key, e.httpStatus))
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    fun removePhone() = change(R.string.acc_phone_removed) {
+        it.removePhone()
+        awaitUser { u -> u.phone == null }
+    }
+
     fun removeAuthenticator() = change(R.string.acc_auth_removed) {
         it.removeAuthenticator()
+        onAuthenticatorRemoved()
         awaitUser { u -> !u.hasAuthenticator }
     }
 

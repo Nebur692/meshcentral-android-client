@@ -55,7 +55,7 @@ class MeshSession private constructor(
         private set
     /** This account; kept up to date by its own live changes (a second factor added, rights changed). / Esta cuenta, al día con sus cambios en vivo. */
     @Volatile var user: UserInfo = UserInfo("", "", 0)
-        private set
+        internal set
 
     /** The server's own state, while [watchServerStats] is on. / El estado del propio servidor, mientras se vigila. */
     internal val serverStatsFlow: SharedFlow<JsonObject> get() = listener.serverStats
@@ -398,6 +398,7 @@ class MeshSession private constructor(
                 emailCodeAvailable = close.bool("email2fa")
                 smsCodeAvailable = close.bool("sms2fa")
                 emailCodeSent = close.bool("email2fasent")
+                smsCodeSent = close.bool("sms2fasent")
             }
             return when {
                 msg == "tokenrequired" && sentCode -> e(MeshFailure.InvalidTwoFactorCode, "conexion/verificar-identidad/credencial-invalida", "The second-factor code is not valid.")

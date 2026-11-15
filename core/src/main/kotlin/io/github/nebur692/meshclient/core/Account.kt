@@ -153,6 +153,76 @@ suspend fun MeshSession.removeSecurityKey(key: SecurityKey) {
         TIMEOUT, LOST)
 }
 
+// ------------------------------------------------------------------ email and SMS / correo y SMS
+
+/** An own-account change the server confirms only with its event (msgid). / Un cambio de la cuenta que solo confirma su aviso. */
+private fun MeshSession.ownAccountEvent(msgid: Long): (JsonObject) -> Boolean {
+    val me = user.id
+    return { it.str("action") == "event" && (it["event"] as? JsonObject)?.let { e ->
+        e.str("action") == "accountchange" && e.long("msgid") == msgid && (e["account"] as? JsonObject)?.str("_id") == me } == true }
+}
+
+/**
+ * Codes by email at sign-in on or off (otpemail), as the website's "Email verification" in the account. The server must
+ * offer it (a mail server) and the account have an email; it answers otpemail with success.
+ * Códigos por correo al entrar, sí o no, como «Verificación por correo» de la web. El servidor tiene que ofrecerlo (con
+ * servidor de correo) y la cuenta tener correo; contesta otpemail con success.
+ */
+suspend fun MeshSession.setEmailTwoFactor(enabled: Boolean) {
+    checkOwnSettings()
+    if (!serverInfo.emailTwoFactorAllowed) throw accountError(MeshFailure.Rejected, "usuarios/cambiar-ajustes/no-autorizado", "This server does not offer codes by email.")
+    if (enabled && user.email.isNullOrEmpty()) throw accountError(MeshFailure.Rejected, "usuarios/cambiar-ajustes/falta-dato", "This account has no email for the codes.")
+    if (user.hasEmailTwoFactor == enabled) return
+    val r = request(buildJsonObject { put("action", "otpemail"); put("enabled", enabled) }, { it.str("action") == "otpemail" }, TIMEOUT, LOST)
+    if (!r.bool("success")) throw accountError(MeshFailure.Rejected, "usuarios/cambiar-ajustes/rechazo-remoto", "The server did not change the codes by email.")
+    user = user.copy(hasEmailTwoFactor = enabled, hasTwoFactor = enabled || user.hasTwoFactor)
+}
+
+/** True for what MeshCentral takes as a phone: an optional +, then 10 or more digits, spaces, dashes or dots. / Lo que admite como teléfono. */
+fun validPhone(phone: String): Boolean {
+    val p = phone.trim().removePrefix("+")
+    return p.length in 10..17 && p.all { it.isDigit() || it == ' ' || it == '-' || it == '.' }
+}
+
+/** A phone being verified: the server sent it a code by SMS and keeps this cookie. / Un teléfono a verificar. */
+class PhoneCheck internal constructor(val phone: String, internal val cookie: String)
+
+/** Sends a code by SMS to [phone] (verifyPhone); then [confirmPhone] with it. / Manda un código por SMS; luego confirmPhone. */
+suspend fun MeshSession.startPhone(phone: String): PhoneCheck {
+    checkOwnSettings()
+    if (!serverInfo.smsTwoFactorAllowed) throw accountError(MeshFailure.Rejected, "usuarios/cambiar-ajustes/no-autorizado", "This server does not send SMS.")
+    if (!validPhone(phone)) throw accountError(MeshFailure.Rejected, "usuarios/cambiar-ajustes/dato-invalido", "\"$phone\" is not a phone number (+ and 10 digits or more).")
+    val r = request(buildJsonObject { put("action", "verifyPhone"); put("phone", phone.trim()) }, { it.str("action") == "verifyPhone" }, TIMEOUT, LOST)
+    val cookie = r.str("cookie")
+    if (!r.bool("success") || cookie == null) throw accountError(MeshFailure.Rejected, "usuarios/cambiar-ajustes/error-remoto", "The server could not send the SMS.")
+    return PhoneCheck(phone.trim(), cookie)
+}
+
+/**
+ * Confirms the phone with the code it got. A right code is answered only by the account's event (msgid 96); a wrong one
+ * by verifyPhone again, 2 to 6 s later (the server slows guesses down).
+ * Confirma el teléfono con el código recibido. Un código bueno solo lo contesta el aviso de la cuenta; uno malo, verifyPhone
+ * otra vez, de 2 a 6 s después (el servidor frena los intentos).
+ */
+suspend fun MeshSession.confirmPhone(check: PhoneCheck, code: String) {
+    checkOwnSettings()
+    val digits = code.filter(Char::isDigit)
+    if (digits.length != 6) throw accountError(MeshFailure.Rejected, "usuarios/cambiar-ajustes/dato-invalido", "The code has 6 digits.")
+    val verified = ownAccountEvent(96)
+    val r = request(buildJsonObject { put("action", "confirmPhone"); put("cookie", check.cookie); put("code", digits) },
+        { verified(it) || (it.str("action") == "verifyPhone" && it.str("cookie") == check.cookie) }, TIMEOUT, LOST, maxOf(timeoutMs, 10_000))
+    if (!verified(r)) throw accountError(MeshFailure.InvalidTwoFactorCode, "usuarios/cambiar-ajustes/credencial-invalida", "That code is not the one sent by SMS.")
+    user = user.copy(phone = check.phone, hasTwoFactor = true)
+}
+
+/** Removes the phone (removePhone); confirmed by the account's event (msgid 97). / Quita el teléfono; lo confirma su aviso. */
+suspend fun MeshSession.removePhone() {
+    checkOwnSettings()
+    if (user.phone == null) return
+    request(buildJsonObject { put("action", "removePhone") }, ownAccountEvent(97), TIMEOUT, LOST)
+    user = user.copy(phone = null)
+}
+
 // ------------------------------------------------------------------ server state / estado del servidor
 
 /** Server backup, restore or update rights (siteadmin bits 1, 4 or 16), as the website asks. / Copia, restauración o actualización. */
