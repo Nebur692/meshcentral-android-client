@@ -66,10 +66,10 @@ fun validLocalHost(host: String) = host.trim().let { it.length in 1..256 && it.n
  * Añade un equipo sin agente a un grupo de equipos locales; sale en la lista al momento.
  */
 suspend fun MeshSession.addLocalDevice(group: DeviceGroup, name: String, host: String, os: LocalDeviceOs) {
-    if (group.kind != DeviceGroupKind.LocalDevices) throw adminError("equipos/anadir-equipo/dato-invalido", "Devices without an agent only go in a group of local devices.")
-    if (name.isBlank() || name.length > 256) throw adminError("equipos/anadir-equipo/dato-invalido", "The name must have 1 to 256 characters.")
-    if (!validLocalHost(host)) throw adminError("equipos/anadir-equipo/dato-invalido", "\"$host\" is not a name or address.")
-    if (!canAddLocalDevice(group)) throw adminError("equipos/anadir-equipo/no-autorizado", "This account cannot add devices to this group.")
+    if (group.kind != DeviceGroupKind.LocalDevices) throw adminError("grupos/gestionar-grupos/dato-invalido", "Devices without an agent only go in a group of local devices.")
+    if (name.isBlank() || name.length > 256) throw adminError("grupos/gestionar-grupos/dato-invalido", "The name must have 1 to 256 characters.")
+    if (!validLocalHost(host)) throw adminError("grupos/gestionar-grupos/dato-invalido", "\"$host\" is not a name or address.")
+    if (!canAddLocalDevice(group)) throw adminError("grupos/gestionar-grupos/no-autorizado", "This account cannot add devices to this group.")
     val id = MeshSession.newId()
     // The server answers addlocaldevice when it worked, and changeDeviceMesh with the reason when not.
     // El servidor contesta addlocaldevice si funcionó, y changeDeviceMesh con el motivo si no.
@@ -77,8 +77,8 @@ suspend fun MeshSession.addLocalDevice(group: DeviceGroup, name: String, host: S
         put("action", "addlocaldevice"); put("responseid", id); put("meshid", group.id)
         put("devicename", name.trim()); put("hostname", host.trim()); put("type", os.agentType)
     }, { (it.str("action") == "addlocaldevice" || it.str("action") == "changeDeviceMesh") && it.str("responseid") == id },
-        "equipos/anadir-equipo/tiempo-agotado", "equipos/anadir-equipo/conexion-cortada")
-    if (r.str("result") != "ok") throw adminError("equipos/anadir-equipo/rechazo-remoto", "The server said: ${r.str("result")}.", r.str("result"))
+        "grupos/gestionar-grupos/tiempo-agotado", "grupos/gestionar-grupos/conexion-cortada")
+    if (r.str("result") != "ok") throw adminError("grupos/gestionar-grupos/rechazo-remoto", "The server said: ${r.str("result")}.", r.str("result"))
 }
 
 /**

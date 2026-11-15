@@ -103,9 +103,9 @@ class LocalDevicesIntegrationTest {
             // What the server would refuse is refused before sending. / Lo que rechazaría el servidor, antes de mandarlo.
             val agents = s.deviceGroups().first { it.id == agent.groupId }
             val wrongGroup = try { s.addLocalDevice(agents, "x", "10.0.0.1", LocalDeviceOs.Windows); null } catch (e: MeshClientException) { e }
-            assertEquals("equipos/anadir-equipo/dato-invalido", wrongGroup?.key)
+            assertEquals("grupos/gestionar-grupos/dato-invalido", wrongGroup?.key)
             val badHost = try { s.addLocalDevice(g, "x", "con espacios", LocalDeviceOs.Windows); null } catch (e: MeshClientException) { e }
-            assertEquals("equipos/anadir-equipo/dato-invalido", badHost?.key)
+            assertEquals("grupos/gestionar-grupos/dato-invalido", badHost?.key)
         } finally {
             for (id in made) s.deviceGroups().firstOrNull { it.id == id }?.let { runCatching { s.deleteGroup(it) } }
             s.close()

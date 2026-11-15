@@ -131,7 +131,7 @@ class TcpRelay private constructor() {
     companion object {
         private const val LOST = "redireccion/llevar-conexion/conexion-cortada"
         /** A device without an agent that the server (or the group's agent) cannot reach at its address. / Inalcanzable en su dirección. */
-        const val UNREACHABLE = "redireccion/llevar-conexion/equipo-inalcanzable"
+        const val UNREACHABLE = "redireccion/llevar-conexion/sin-conexion"
         private const val AFTER_LOCAL_END_MS = 30_000L
 
         /**
