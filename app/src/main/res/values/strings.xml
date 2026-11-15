@@ -770,6 +770,8 @@
     <string name="done_local_device_added">Device added</string>
     <!-- Email and SMS codes / Códigos por correo y SMS -->
     <string name="acc_email_codes">Codes by email</string>
+    <string name="acc_email_on">On</string>
+    <string name="acc_email_off">Off</string>
     <string name="acc_email_hint">When signing in, a code goes to %1$s.</string>
     <string name="acc_email_none">This account has no email: an administrator can add one.</string>
     <string name="acc_email_on_done">Codes by email are on.</string>
@@ -788,8 +790,10 @@
     <string name="acc_phone_remove">Remove the phone?</string>
     <string name="acc_phone_remove_text">SMS codes to %1$s will stop.</string>
     <string name="acc_phone_removed">Phone removed.</string>
+    <string name="acc_phone_remove_yes">Remove</string>
     <!-- This app as the authenticator / La app como autenticador -->
     <string name="tfa_sms">Send me the code by SMS</string>
+    <string name="tfa_body_any">Write the code of your second factor, or ask for one by email or SMS.</string>
     <string name="tfa_sms_sent">The server has sent the code by SMS: write it here.</string>
     <string name="tfa_this_app">Fill the code with my fingerprint</string>
     <string name="auth_here_use">Use this app as the authenticator</string>

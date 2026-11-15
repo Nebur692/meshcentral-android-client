@@ -793,6 +793,8 @@
     <string name="done_local_device_added">Equipo añadido</string>
     <!-- Email and SMS codes / Códigos por correo y SMS -->
     <string name="acc_email_codes">Códigos por correo</string>
+    <string name="acc_email_on">Activados</string>
+    <string name="acc_email_off">Sin activar</string>
     <string name="acc_email_hint">Al entrar, llega un código a %1$s.</string>
     <string name="acc_email_none">Esta cuenta no tiene correo: un administrador puede ponérselo.</string>
     <string name="acc_email_on_done">Códigos por correo activados.</string>
@@ -811,8 +813,10 @@
     <string name="acc_phone_remove">¿Quitar el teléfono?</string>
     <string name="acc_phone_remove_text">Dejarán de llegar códigos por SMS a %1$s.</string>
     <string name="acc_phone_removed">Teléfono quitado.</string>
+    <string name="acc_phone_remove_yes">Quitar</string>
     <!-- This app as the authenticator / La app como autenticador -->
     <string name="tfa_sms">Mandarme el código por SMS</string>
+    <string name="tfa_body_any">Escribe el código de tu doble factor, o pide uno por correo o por SMS.</string>
     <string name="tfa_sms_sent">El servidor ha mandado el código por SMS: escríbelo aquí.</string>
     <string name="tfa_this_app">Poner el código con mi huella</string>
     <string name="auth_here_use">Usar esta app como autenticador</string>

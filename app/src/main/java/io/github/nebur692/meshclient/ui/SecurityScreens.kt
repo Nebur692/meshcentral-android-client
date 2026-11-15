@@ -133,15 +133,15 @@ fun SecurityScreen(vm: AppViewModel) {
                 stringResource(when { !me.hasAuthenticator -> R.string.acc_off; vm.authenticatorHere -> R.string.auth_here_on; else -> R.string.acc_on }), enabled = !locked && !m.busy) {
                 if (me.hasAuthenticator) removingAuth = true else m.startAuthenticator()
             }
+            Hint(stringResource(if (me.hasAuthenticator) R.string.acc_auth_remove_hint else R.string.acc_auth_add_hint))
             // This app keeps the authenticator: its code, for signing in somewhere else. / La app guarda el autenticador: su código.
             if (me.hasAuthenticator && vm.authenticatorHere)
                 Row(R.drawable.ic_fingerprint, stringResource(R.string.auth_here_show), stringResource(R.string.auth_here_show_hint), enabled = vm.biometricsAvailable) { vm.showAuthenticatorCode() }
-            Hint(stringResource(if (me.hasAuthenticator) R.string.acc_auth_remove_hint else R.string.acc_auth_add_hint))
             // Codes by email and by SMS, only when this server offers them (a mail server, an SMS gateway), as the website.
             // Códigos por correo y por SMS, solo si este servidor los ofrece, como la web.
             if (s.serverInfo.emailTwoFactorAllowed) {
                 Row(R.drawable.ic_mail, stringResource(R.string.acc_email_codes),
-                    stringResource(if (me.hasEmailTwoFactor) R.string.acc_on else R.string.acc_off), enabled = !locked && !m.busy) { m.setEmailCodes(!me.hasEmailTwoFactor) }
+                    stringResource(if (me.hasEmailTwoFactor) R.string.acc_email_on else R.string.acc_email_off), enabled = !locked && !m.busy) { m.setEmailCodes(!me.hasEmailTwoFactor) }
                 Hint(me.email?.let { stringResource(R.string.acc_email_hint, it) } ?: stringResource(R.string.acc_email_none))
             }
             if (s.serverInfo.smsTwoFactorAllowed) {
@@ -175,9 +175,11 @@ fun SecurityScreen(vm: AppViewModel) {
 
     if (changing) PasswordDialog(m) { changing = false }
     vm.shownAuthenticator?.let { secret -> AuthenticatorCodeDialog(secret) { vm.shownAuthenticator = null } }
+    // Once the phone is checked the dialog closes by itself. / En cuanto el teléfono queda comprobado, el diálogo se cierra solo.
+    LaunchedEffect(me.phone) { if (me.phone != null) addingPhone = false }
     if (addingPhone || m.phoneCheck != null) PhoneDialog(m) { addingPhone = false; m.phoneCheck = null }
     if (removingPhone) Ask(stringResource(R.string.acc_phone_remove), stringResource(R.string.acc_phone_remove_text, me.phone.orEmpty()),
-        stringResource(R.string.remove), { removingPhone = false }) { removingPhone = false; m.removePhone() }
+        stringResource(R.string.acc_phone_remove_yes), { removingPhone = false }) { removingPhone = false; m.removePhone() }
     m.setup?.let { setup ->
         var code by rememberSaveable { mutableStateOf("") }
         AlertDialog(
@@ -191,13 +193,17 @@ fun SecurityScreen(vm: AppViewModel) {
                         Text(stringResource(R.string.auth_here_use_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Text(stringResource(R.string.acc_auth_steps))
-                    Button(onClick = {
-                        // The authenticator on this same phone opens otpauth:// links (Google Authenticator, Microsoft
-                        // Authenticator, Aegis…); a QR code would be no use on the phone's own screen.
-                        // La app de autenticación de este mismo móvil abre los enlaces otpauth://; un QR no serviría en su propia pantalla.
+                    // The authenticator on this same phone opens otpauth:// links (Google Authenticator, Microsoft Authenticator,
+                    // Aegis…); a QR code would be no use on the phone's own screen. With this app as the first choice, it is the second.
+                    // La app de autenticación de este móvil abre los enlaces otpauth://; un QR no serviría en su propia pantalla. Con
+                    // esta app como primera opción, es la segunda.
+                    val openOther = {
                         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, setup.uri.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                             .onFailure { m.notice = io.github.nebur692.meshclient.Notice(R.string.acc_auth_no_app) }
-                    }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.acc_auth_open)) }
+                        Unit
+                    }
+                    if (vm.biometricsAvailable) OutlinedButton(onClick = openOther, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.acc_auth_open)) }
+                    else Button(onClick = openOther, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.acc_auth_open)) }
                     OutlinedButton(onClick = { copySecret(context, "MeshCentral", setup.secret) }, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.acc_auth_copy))
                     }
