@@ -45,6 +45,9 @@ class MeshSession private constructor(
     @Volatile internal var webCookies: String? = null
         private set
 
+    /** "report" comes back without tag: one at a time per session. / «report» vuelve sin etiqueta: de uno en uno por sesión. */
+    internal val reportTurn = kotlinx.coroutines.sync.Mutex()
+
     /** It has a web session, which some downloads need (recordings). / Tiene sesión web, que piden algunas descargas. */
     val hasWebSession: Boolean get() = webCookies != null
 

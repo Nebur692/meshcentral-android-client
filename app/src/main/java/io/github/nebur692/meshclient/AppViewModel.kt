@@ -65,6 +65,8 @@ sealed interface Screen {
     data class Chat(val id: String) : Screen
     /** The server's recorded sessions. / Las sesiones grabadas del servidor. */
     data object Recordings : Screen
+    /** The website's reports. / Los informes de la web. */
+    data object Reports : Screen
     data class DeviceDetail(val id: String) : Screen
     data class Terminal(val id: String) : Screen
     data class Files(val id: String) : Screen
@@ -1019,6 +1021,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         show(Screen.Recordings)
     }
 
+    /** The reports, while their screen is open. / Los informes, mientras su pantalla está abierta. */
+    var reports by mutableStateOf<ReportsModel?>(null)
+        private set
+
+    fun openReports() {
+        if (reports == null) reports = ReportsModel({ session }, viewModelScope)
+        show(Screen.Reports)
+    }
+
+    fun leaveReports() {
+        reports?.close(); reports = null
+        show(Screen.Account)
+    }
+
     fun leaveRecordings() {
         recordings?.close(); recordings = null
         show(Screen.Account)
@@ -1091,6 +1107,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun closeTools() {
         chat?.close(); chat = null
         recordings?.close(); recordings = null
+        reports?.close(); reports = null
         terminal?.close(); terminal = null
         files?.close(); files = null
         desktop?.close(); desktop = null
