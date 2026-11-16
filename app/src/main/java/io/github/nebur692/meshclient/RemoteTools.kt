@@ -633,6 +633,7 @@ class DesktopModel(private val session: () -> MeshSession?, val device: Device, 
                         is io.github.nebur692.meshclient.core.DesktopEvent.Displays -> displays = e
                         io.github.nebur692.meshclient.core.DesktopEvent.NoImage -> noImage = true
                         is io.github.nebur692.meshclient.core.DesktopEvent.Cursor -> cursor = e.shape
+                        is io.github.nebur692.meshclient.core.DesktopEvent.InputLock -> inputLocked = e.locked
                         else -> Unit
                     }
                 }
@@ -777,6 +778,15 @@ class DesktopModel(private val session: () -> MeshSession?, val device: Device, 
     }
 
     fun ctrlAltDel() = desk?.ctrlAltDel()
+
+    /** The keyboard and mouse at the device are blocked, as the agent last said (null: it never said). / Si están bloqueados. */
+    var inputLocked by mutableStateOf<Boolean?>(null)
+        private set
+
+    /** Asks the agent to block or free them; it answers with its state. / Pide bloquearlos o liberarlos; contesta su estado. */
+    fun toggleInputLock() { desk?.setInputLock(inputLocked != true) }
+
+    fun lockSession() = desk?.lockSession()
 
     fun refresh() = desk?.refresh()
 

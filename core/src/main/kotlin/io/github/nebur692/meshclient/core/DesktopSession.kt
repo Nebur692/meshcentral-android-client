@@ -9,6 +9,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 enum class MouseButton(val code: Int) { None(0x00), Left(0x02), Right(0x08), Middle(0x20) }
 
@@ -133,6 +135,22 @@ class DesktopSession private constructor(val tunnel: MeshTunnel) {
     fun wheel(x: Int, y: Int, delta: Int) = send(wheelCommand(x, y, delta))
 
     fun ctrlAltDel() = send(bytes(0, 10, 0, 4))
+
+    /**
+     * Blocks or frees the keyboard and mouse of the person at the device (Windows agents, MNG_KVM_INPUT_LOCK 87: 1 lock,
+     * 0 free); the agent answers with [DesktopEvent.InputLock], as it does to the question sent at the start (2).
+     * Bloquea o libera el teclado y el ratón de quien está en el equipo (agentes Windows); el agente contesta con su estado.
+     */
+    fun setInputLock(locked: Boolean) = send(bytes(0, 87, 0, 5, if (locked) 1 else 0))
+
+    /**
+     * Locks the device's session, as Win+L, the way the website does: a "lock" message on the desktop tunnel's control
+     * channel, which the agent runs in the person's session (Windows agents).
+     * Bloquea la sesión del equipo, como Win+L, igual que la web: un mensaje «lock» por el canal de control del túnel.
+     */
+    fun lockSession() {
+        try { tunnel.sendControl(buildJsonObject { put("type", "lock") }) } catch (_: MeshClientException) { } // the end comes through [events]
+    }
 
     fun refresh() = send(bytes(0, 6, 0, 4))
 

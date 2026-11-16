@@ -314,6 +314,10 @@
     <string name="desk_closed_by_device">El equipo o el servidor ha cerrado el escritorio remoto.</string>
     <string name="desk_no_image">El equipo no envía la imagen de su pantalla.</string>
     <string name="desk_refresh">Actualizar la imagen</string>
+    <string name="desk_input_lock">Bloquear el teclado y el ratón de allí</string>
+    <string name="desk_lock_session">Bloquear la sesión</string>
+    <string name="desk_lock_session_ask">¿Bloquear la sesión de %1$s, como Win+L? Quien esté allí necesitará su contraseña.</string>
+    <string name="desk_lock_session_ok">Bloquear</string>
     <string name="desk_cad">Ctrl+Alt+Supr</string>
     <string name="desk_quality">Calidad</string>
     <string name="desk_quality_high">Alta</string>

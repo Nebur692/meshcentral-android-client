@@ -308,6 +308,10 @@
     <string name="desk_closed_by_device">The device or the server closed the remote desktop.</string>
     <string name="desk_no_image">The device does not send the picture of its screen.</string>
     <string name="desk_refresh">Refresh the picture</string>
+    <string name="desk_input_lock">Block the keyboard and mouse there</string>
+    <string name="desk_lock_session">Lock the session</string>
+    <string name="desk_lock_session_ask">Lock the session of %1$s, as Win+L? Whoever is there will need their password.</string>
+    <string name="desk_lock_session_ok">Lock</string>
     <string name="desk_cad">Ctrl+Alt+Del</string>
     <string name="desk_quality">Quality</string>
     <string name="desk_quality_high">High</string>

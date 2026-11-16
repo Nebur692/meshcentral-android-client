@@ -236,9 +236,23 @@ private const val FRESH_CLIP_MS = 120_000L
 
 @Composable
 private fun DesktopMenu(m: DesktopModel, open: Boolean, dismiss: () -> Unit) {
+    var askLock by remember { mutableStateOf(false) }
+    if (askLock) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { askLock = false },
+        title = { Text(stringResource(R.string.desk_lock_session)) },
+        text = { Text(stringResource(R.string.desk_lock_session_ask, m.device.name)) },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { m.lockSession(); askLock = false }) { Text(stringResource(R.string.desk_lock_session_ok)) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = { askLock = false }) { Text(stringResource(R.string.cancel)) } },
+    )
     DropdownMenu(open, dismiss) {
         DropdownMenuItem(text = { Text(stringResource(R.string.desk_cad)) }, onClick = { m.ctrlAltDel(); dismiss() })
         DropdownMenuItem(text = { Text(stringResource(R.string.desk_refresh)) }, onClick = { m.refresh(); dismiss() })
+        // Windows agents only: the person's keyboard and mouse, and locking the session (as Win+L). / Solo agentes Windows.
+        if (m.device.isWindows) {
+            DropdownMenuItem(text = { Text(stringResource(R.string.desk_input_lock)) },
+                leadingIcon = { androidx.compose.material3.Checkbox(m.inputLocked == true, null) }, onClick = { m.toggleInputLock(); dismiss() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.desk_lock_session)) }, onClick = { askLock = true; dismiss() })
+        }
         DropdownMenuItem(text = { Text(stringResource(R.string.desk_clip_auto)) },
             leadingIcon = { androidx.compose.material3.Checkbox(m.autoClipboard, null) }, onClick = { m.changeAutoClipboard(!m.autoClipboard); dismiss() })
         val context = LocalContext.current
