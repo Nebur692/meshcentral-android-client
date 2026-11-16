@@ -364,7 +364,7 @@
     <string name="admin_user_group">grupo de usuarios</string>
     <string name="admin_add_member">Añadir</string>
     <string name="admin_remove_member">Quitar del grupo</string>
-    <string name="admin_user_names">Nombres de usuario (separados por comas)</string>
+    <string name="admin_user_names">Usuarios: un nombre, un correo o un usuario</string>
     <string name="admin_delete_group">Borrar el grupo</string>
     <string name="admin_delete_group_hint">«%1$s» y sus equipos desaparecen del servidor. Los agentes siguen instalados en los equipos, pero dejan de conectar.</string>
     <string name="admin_badge_admin">Administrador</string>

@@ -358,7 +358,7 @@
     <string name="admin_user_group">user group</string>
     <string name="admin_add_member">Add</string>
     <string name="admin_remove_member">Remove from the group</string>
-    <string name="admin_user_names">User names (separated by commas)</string>
+    <string name="admin_user_names">Users: a name, an email or a user name</string>
     <string name="admin_delete_group">Delete the group</string>
     <string name="admin_delete_group_hint">“%1$s” and its devices disappear from the server. The devices\' agents stay installed but stop connecting.</string>
     <string name="admin_badge_admin">Administrator</string>

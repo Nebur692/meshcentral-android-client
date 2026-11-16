@@ -40,6 +40,7 @@ import io.github.nebur692.meshclient.core.setUserPassword
 import io.github.nebur692.meshclient.core.userEvents
 import io.github.nebur692.meshclient.core.userGroups
 import io.github.nebur692.meshclient.core.users
+import io.github.nebur692.meshclient.core.canManageUsers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -101,6 +102,17 @@ class AdminModel(private val session: () -> MeshSession?, private val scope: Cor
 
     private fun current(key: String) = session() ?: throw MeshClientException(MeshFailure.ConnectionLost, key, "no session")
 
+    private var namesAsked = false
+
+    /** The accounts for the name suggestions, read once when a name box opens; without the right to list them, none. / Las cuentas para sugerir nombres. */
+    fun usersForNames() {
+        if (users != null || namesAsked) return
+        namesAsked = true
+        scope.launch {
+            try { session()?.takeIf { it.canManageUsers }?.let { users = it.users() } } catch (_: MeshClientException) { namesAsked = false }
+        }
+    }
+
     fun load(page: AdminPage) {
         job?.cancel()
         loading = true
@@ -153,7 +165,7 @@ class AdminModel(private val session: () -> MeshSession?, private val scope: Cor
         change(R.string.done_saved, AdminPage.Groups, then) { it.saveGroupSettings(g, settings) }
     fun deleteGroup(g: DeviceGroup, then: () -> Unit) = change(R.string.done_group_deleted, AdminPage.Groups, then) { it.deleteGroup(g) }
     fun addMember(g: DeviceGroup, userName: String, rights: MemberRights) =
-        change(R.string.done_member_added, AdminPage.Groups) { it.addGroupMembers(g, userName.split(',', ' ', ';'), rights.rights) }
+        change(R.string.done_member_added, AdminPage.Groups) { it.addGroupMembers(g, userName.split(',', ' ', ';').map(String::trim).filter(String::isNotEmpty), rights.rights) }
     fun changeMember(g: DeviceGroup, memberId: String, rights: MemberRights) =
         change(R.string.done_saved, AdminPage.Groups) { it.changeGroupMemberRights(g, memberId, rights.rights) }
     fun removeMember(g: DeviceGroup, memberId: String) = change(R.string.done_member_removed, AdminPage.Groups) { it.removeGroupMember(g, memberId) }
@@ -182,7 +194,7 @@ class AdminModel(private val session: () -> MeshSession?, private val scope: Cor
     fun createUserGroup(name: String, description: String) = change(R.string.done_group_created, AdminPage.UserGroups) { it.createUserGroup(name, description) }
     fun editUserGroup(g: UserGroup, name: String, description: String) = change(R.string.done_saved, AdminPage.UserGroups) { it.editUserGroup(g, name, description) }
     fun deleteUserGroup(g: UserGroup, then: () -> Unit) = change(R.string.done_group_deleted, AdminPage.UserGroups, then) { it.deleteUserGroup(g) }
-    fun addToUserGroup(g: UserGroup, names: String) = change(R.string.done_member_added, AdminPage.UserGroups) { it.addUsersToUserGroup(g, names.split(',', ' ', ';')) }
+    fun addToUserGroup(g: UserGroup, names: String) = change(R.string.done_member_added, AdminPage.UserGroups) { it.addUsersToUserGroup(g, names.split(',', ' ', ';').map(String::trim).filter(String::isNotEmpty)) }
     fun removeFromUserGroup(g: UserGroup, userId: String) = change(R.string.done_member_removed, AdminPage.UserGroups) { it.removeUserFromUserGroup(g, userId) }
 
     // ---- notification / aviso

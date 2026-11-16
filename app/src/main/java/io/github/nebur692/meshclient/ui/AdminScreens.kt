@@ -1,6 +1,13 @@
 package io.github.nebur692.meshclient.ui
 
 import android.content.Intent
+import io.github.nebur692.meshclient.core.UserCompletion
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.foundation.layout.Box
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -286,7 +293,7 @@ private fun GroupPage(vm: AppViewModel, a: AdminModel, s: MeshSession, g: Device
     }
     if (editing) NameDialog(R.string.edit, g.name, g.description.orEmpty(), { editing = false }) { n, d -> a.editGroup(g, n, d); editing = false }
     if (settings) GroupSettingsDialog(g, s.serverInfo, a.busy, { settings = false }) { new -> a.saveGroupSettings(g, new) { settings = false } }
-    if (adding) MemberDialog(null, null, { adding = false }, onRemove = null) { name, r -> a.addMember(g, name, r); adding = false }
+    if (adding) { LaunchedEffect(Unit) { a.usersForNames() }; MemberDialog(null, null, { adding = false }, onRemove = null, users = a.users) { name, r -> a.addMember(g, name, r); adding = false } }
     member?.let { who ->
         MemberDialog(who.substringAfterLast('/'), MemberRights.of(g.links[who] ?: 0), { member = null }, onRemove = { a.removeMember(g, who); member = null }) { _, r ->
             a.changeMember(g, who, r); member = null
@@ -303,7 +310,7 @@ private fun GroupPage(vm: AppViewModel, a: AdminModel, s: MeshSession, g: Device
 
 /** A member's rights as ready-made choices; [name] null means a new member by user name. / Permisos de un miembro. */
 @Composable
-private fun MemberDialog(name: String?, current: MemberRights?, dismiss: () -> Unit, onRemove: (() -> Unit)?, onSave: (String, MemberRights) -> Unit) {
+private fun MemberDialog(name: String?, current: MemberRights?, dismiss: () -> Unit, onRemove: (() -> Unit)?, users: List<UserInfo>? = null, onSave: (String, MemberRights) -> Unit) {
     var userName by rememberSaveable { mutableStateOf("") }
     var choice by rememberSaveable { mutableStateOf(current ?: MemberRights.RemoteControl) }
     AlertDialog(
@@ -311,8 +318,7 @@ private fun MemberDialog(name: String?, current: MemberRights?, dismiss: () -> U
         title = { Text(name ?: stringResource(R.string.admin_add_member)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                if (name == null) OutlinedTextField(userName, { userName = it }, label = { Text(stringResource(R.string.admin_user_names)) }, singleLine = true,
-                    modifier = Modifier.fillMaxWidth())
+                if (name == null) UserNamesField(userName, { userName = it }, users)
                 MemberRights.entries.forEach { r ->
                     Row(Modifier.fillMaxWidth().selectable(choice == r, role = Role.RadioButton) { choice = r }.padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically) {
@@ -501,7 +507,7 @@ private fun UserGroupPage(a: AdminModel, s: MeshSession, g: UserGroup, back: () 
         AlertDialog(
             onDismissRequest = { adding = false },
             title = { Text(stringResource(R.string.admin_add_member)) },
-            text = { OutlinedTextField(names, { names = it }, label = { Text(stringResource(R.string.admin_user_names)) }, singleLine = true) },
+            text = { LaunchedEffect(Unit) { a.usersForNames() }; UserNamesField(names, { names = it }, a.users) },
             confirmButton = { TextButton(onClick = { a.addToUserGroup(g, names); adding = false }, enabled = names.isNotBlank()) { Text(stringResource(R.string.save)) } },
             dismissButton = { TextButton(onClick = { adding = false }) { Text(stringResource(R.string.cancel)) } },
         )
@@ -644,4 +650,30 @@ fun NotifyDialog(dismiss: () -> Unit, onSend: (String) -> Unit) {
         confirmButton = { TextButton(onClick = { onSend(text) }, enabled = text.isNotBlank()) { Text(stringResource(R.string.send)) } },
         dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.cancel)) } },
     )
+}
+
+/**
+ * A box of comma-separated user names with suggestions: typing a name, an email or a user name shows the matching
+ * accounts below, and taking one writes its sign-in name (UserCompletion; "~oidc:…" for single sign-on). Without the
+ * accounts (no right to list them) it is a plain box, as before.
+ * Una caja de nombres con comas y sugerencias: al escribir salen las cuentas que encajan, y al tomar una se escribe su
+ * usuario de entrar. Sin las cuentas, una caja normal.
+ */
+@Composable
+private fun UserNamesField(value: String, onValue: (String) -> Unit, users: List<UserInfo>?) {
+    var field by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+    val matches = remember(field.text, users) { users?.let { UserCompletion.matches(it, field.text) }.orEmpty() }
+    var closed by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxWidth()) {
+        OutlinedTextField(field, { field = it; closed = false; onValue(it.text) }, label = { Text(stringResource(R.string.admin_user_names)) }, singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
+        DropdownMenu(expanded = matches.isNotEmpty() && !closed, onDismissRequest = { closed = true }, properties = PopupProperties(focusable = false)) {
+            matches.forEach { u ->
+                DropdownMenuItem(text = { Text(UserCompletion.label(u), maxLines = 2) }, onClick = {
+                    val t = UserCompletion.take(field.text, u)
+                    field = TextFieldValue(t, TextRange(t.length)); onValue(t)
+                })
+            }
+        }
+    }
 }
