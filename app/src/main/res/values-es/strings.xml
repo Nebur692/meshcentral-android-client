@@ -281,6 +281,9 @@
     <string name="key_left">Izquierda</string>
     <string name="key_right">Derecha</string>
     <string name="files_drives">Unidades</string>
+    <string name="files_type_path">Ir a una ruta</string>
+    <string name="files_path_hint_windows">Por ejemplo, C:/Users</string>
+    <string name="files_path_hint">Por ejemplo, /home</string>
     <string name="files_up">Subir de nivel</string>
     <string name="files_refresh">Recargar</string>
     <string name="files_empty">Esta carpeta está vacía.</string>

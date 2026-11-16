@@ -2,6 +2,17 @@ package io.github.nebur692.meshclient.ui
 
 import android.text.format.DateUtils
 import android.text.format.Formatter
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -83,7 +94,9 @@ fun FilesScreen(vm: AppViewModel) {
     var ask by remember { mutableStateOf<FileAsk?>(null) }
     var downloading by remember { mutableStateOf<RemoteEntry?>(null) }
     // Back first stops choosing, then goes up, then leaves. / Atrás primero deja de elegir, luego sube, luego sale.
-    BackHandler { if (f.selecting) f.clearSelection() else if (!f.up()) vm.leaveTool() }
+    // Typing a path (tap on it): its field, below the bar. / Escribir una ruta (tocándola): su campo, bajo la barra.
+    var typing by remember { mutableStateOf<TextFieldValue?>(null) }
+    BackHandler { if (typing != null) { typing = null; f.stopSuggesting() } else if (f.selecting) f.clearSelection() else if (!f.up()) vm.leaveTool() }
 
     val pickToUpload = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris -> f.uploadAll(uris) }
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree -> tree?.let(f::downloadSelected) }
@@ -112,7 +125,10 @@ fun FilesScreen(vm: AppViewModel) {
                         Column {
                             Text(f.device.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(f.path.ifEmpty { stringResource(R.string.files_drives) }, style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.StartEllipsis)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.StartEllipsis,
+                                modifier = Modifier.clickable(onClickLabel = stringResource(R.string.files_type_path)) {
+                                    typing = TextFieldValue(f.path, TextRange(f.path.length)); f.suggest(f.path)
+                                })
                         }
                     },
                     navigationIcon = { IconButton(onClick = vm::leaveTool) { Icon(painterResource(R.drawable.ic_back), stringResource(R.string.back)) } },
@@ -122,6 +138,9 @@ fun FilesScreen(vm: AppViewModel) {
                         if (f.path.isNotEmpty()) IconButton(onClick = { ask = FileAsk.NewFolder }) { Icon(painterResource(R.drawable.ic_folder_add), stringResource(R.string.files_new_folder)) }
                     },
                 )
+                typing?.let { v ->
+                    PathField(f, v, onValue = { typing = it }, onClose = { typing = null; f.stopSuggesting() })
+                }
                 if (f.loading) LinearProgressIndicator(Modifier.fillMaxWidth()) else HorizontalDivider()
             }
         },
@@ -307,4 +326,32 @@ private fun TransferBar(t: io.github.nebur692.meshclient.Transfer, onCancel: () 
             else LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 4.dp))
         }
     }
+}
+
+/**
+ * A path typed by hand, completed as it is typed: the subfolders of what is typed show below, and taking one leaves the
+ * path ready for the next level; Go opens it. / Una ruta escrita a mano, que se completa mientras se escribe.
+ */
+@Composable
+private fun PathField(f: FilesModel, value: TextFieldValue, onValue: (TextFieldValue) -> Unit, onClose: () -> Unit) {
+    val focus = remember { FocusRequester() }
+    Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+        OutlinedTextField(value, { onValue(it); f.suggest(it.text) }, singleLine = true,
+            label = { Text(stringResource(R.string.files_type_path)) },
+            placeholder = { Text(stringResource(if (f.device.isWindows) R.string.files_path_hint_windows else R.string.files_path_hint)) },
+            trailingIcon = { IconButton(onClick = onClose) { Icon(painterResource(R.drawable.ic_close), stringResource(R.string.cancel)) } },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go, autoCorrectEnabled = false),
+            keyboardActions = KeyboardActions(onGo = { f.go(value.text); onClose() }),
+            modifier = Modifier.fillMaxWidth().focusRequester(focus))
+        DropdownMenu(expanded = f.suggestions.isNotEmpty(), onDismissRequest = f::stopSuggesting, properties = PopupProperties(focusable = false)) {
+            f.suggestions.take(40).forEach { name ->
+                DropdownMenuItem(text = { Text(name) }, leadingIcon = { Icon(painterResource(R.drawable.ic_folder), null) }, onClick = {
+                    val p = f.take(value.text, name)
+                    onValue(TextFieldValue(p, TextRange(p.length)))
+                    f.suggest(p)
+                })
+            }
+        }
+    }
+    LaunchedEffect(Unit) { focus.requestFocus() }
 }

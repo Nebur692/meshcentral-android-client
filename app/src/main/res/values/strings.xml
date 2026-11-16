@@ -275,6 +275,9 @@
     <string name="key_left">Left</string>
     <string name="key_right">Right</string>
     <string name="files_drives">Drives</string>
+    <string name="files_type_path">Go to a path</string>
+    <string name="files_path_hint_windows">For example C:/Users</string>
+    <string name="files_path_hint">For example /home</string>
     <string name="files_up">Up</string>
     <string name="files_refresh">Refresh</string>
     <string name="files_empty">This folder is empty.</string>

@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import io.github.nebur692.meshclient.core.Device
 import io.github.nebur692.meshclient.core.FilesSession
 import io.github.nebur692.meshclient.core.MeshClientException
+import io.github.nebur692.meshclient.core.PathCompletion
 import io.github.nebur692.meshclient.core.MeshFailure
 import io.github.nebur692.meshclient.core.MeshSession
 import io.github.nebur692.meshclient.core.RemoteEntry
@@ -31,6 +32,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -272,6 +274,39 @@ class FilesModel(private val session: () -> MeshSession?, val device: Device, pr
     }
 
     fun enter(e: RemoteEntry) = open(RemotePaths.join(path, e.name))
+
+    // ---- typing a path, with its completion (PathCompletion) / escribir una ruta, con su autocompletado
+
+    /** The subfolders that start with what is typed. / Las subcarpetas que empiezan por lo escrito. */
+    var suggestions by mutableStateOf<List<String>>(emptyList())
+        private set
+    private val listed = mutableMapOf<String, List<RemoteEntry>>()
+    private var suggestJob: Job? = null
+
+    /** Lists the folder already typed (once while the screen is open) and offers its subfolders. / Lista la carpeta ya escrita. */
+    fun suggest(typed: String) {
+        suggestJob?.cancel()
+        val (folder, prefix) = PathCompletion.split(typed, device.isWindows)
+        suggestJob = scope.launch {
+            val found = listed[folder] ?: run {
+                delay(200)
+                try { files().list(folder).entries.also { listed[folder] = it } } catch (_: MeshClientException) { null }
+            }
+            suggestions = found?.let { PathCompletion.matches(it, prefix) }.orEmpty()
+        }
+    }
+
+    /** The typed path with a suggested name taken. / La ruta escrita con un nombre sugerido tomado. */
+    fun take(typed: String, name: String): String = PathCompletion.accept(PathCompletion.split(typed, device.isWindows).first, name)
+
+    /** Goes to a typed path. / Va a una ruta escrita. */
+    fun go(typed: String) {
+        suggestJob?.cancel()
+        suggestions = emptyList()
+        open(PathCompletion.normalise(typed))
+    }
+
+    fun stopSuggesting() { suggestJob?.cancel(); suggestions = emptyList() }
 
     fun up(): Boolean {
         if (RemotePaths.isTop(path)) return false

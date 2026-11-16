@@ -28,7 +28,8 @@ data class BackupCode(val code: String, val used: Boolean)
 enum class BackupCodeAction(val code: Int) { Show(0), New(1), Clear(2) }
 
 /** A security key (FIDO) of the account; added only from a browser (WebAuthn). / Una llave de seguridad; solo se añade desde un navegador. */
-data class SecurityKey(val index: Int, val name: String, val type: String?)
+/** index: MeshCentral's keyIndex, an unsigned 32-bit number (did not fit an Int). / El keyIndex de MeshCentral, de 32 bits sin signo. */
+data class SecurityKey(val index: Long, val name: String, val type: String?)
 
 /** The authenticator app to add: its secret and the otpauth:// address. / La app de autenticación por añadir: su secreto y la dirección otpauth://. */
 data class AuthenticatorSetup(val secret: String, val uri: String)
@@ -137,20 +138,27 @@ suspend fun MeshSession.backupCodes(action: BackupCodeAction): List<BackupCode> 
         .map { k -> BackupCode((k.long("p") ?: 0).toString().padStart(8, '0'), !k.bool("u")) }
 }
 
+internal fun securityKeyOf(k: JsonObject) = SecurityKey(k.long("i") ?: 0, k.str("name").orEmpty(), k.str("type"))
+
 suspend fun MeshSession.securityKeys(): List<SecurityKey> {
     val r = request(buildJsonObject { put("action", "otp-hkey-get") }, { it.str("action") == "otp-hkey-get" }, TIMEOUT, LOST)
     return (r["keys"] as? JsonArray).orEmpty().filterIsInstance<JsonObject>()
-        .map { k -> SecurityKey((k.long("i") ?: 0).toInt(), k.str("name").orEmpty(), k.str("type")) }
+        .map(::securityKeyOf)
 }
 
 /** The server never answers otp-hkey-remove: confirmed by its "Removed security key" event (msgid 94). / Se confirma con su aviso. */
 suspend fun MeshSession.removeSecurityKey(key: SecurityKey) {
     checkOwnSettings()
     val me = user.id
-    request(buildJsonObject { put("action", "otp-hkey-remove"); put("index", key.index) },
+    val before = securityKeys().size
+    val m = request(buildJsonObject { put("action", "otp-hkey-remove"); put("index", key.index) },
         { it.str("action") == "event" && (it["event"] as? JsonObject)?.let { e ->
             e.str("action") == "accountchange" && e.long("msgid") == 94L && (e["account"] as? JsonObject)?.str("_id") == me } == true },
         TIMEOUT, LOST)
+    // The server sends the event even when no key has that index: the account's count says whether it went.
+    // El servidor manda el aviso aunque ninguna llave tenga ese índice: el número de la cuenta dice si se fue.
+    val left = ((m["event"] as? JsonObject)?.get("account") as? JsonObject)?.long("otphkeys") ?: 0
+    if (left >= before) throw accountError(MeshFailure.Rejected, "usuarios/cambiar-ajustes/rechazo-remoto", "The server kept the key.")
 }
 
 // ------------------------------------------------------------------ email and SMS / correo y SMS
