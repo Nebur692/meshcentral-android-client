@@ -138,16 +138,23 @@ fun PortSheet(vm: AppViewModel, d: Device) {
     var remote by rememberSaveable { mutableStateOf(if (noAgent && !d.isWindows) "22" else "3389") }
     var host by rememberSaveable { mutableStateOf("") }
     var local by rememberSaveable { mutableStateOf("") }
+    var udp by rememberSaveable { mutableStateOf(false) }
     val r = remote.toIntOrNull()
     val l = local.toIntOrNull() ?: 0
     Sheet(stringResource(R.string.ports_new), d.name, { vm.sheet = null }, buttons = {
         SheetButtons(stringResource(R.string.ports_start), r != null && r in 1..65535 && l in 0..65535, false, { vm.sheet = null }) {
-            if (vm.startMapping(d.id, r!!, host, l)) { vm.sheet = null; vm.show(Screen.Ports) }
+            if (vm.startMapping(d.id, r!!, host, l, udp)) { vm.sheet = null; vm.show(Screen.Ports) }
         }
     }) {
         Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                KnownPort.entries.forEach { k -> FilterChip(remote == k.port.toString(), { remote = k.port.toString() }, label = { Text("${k.label} ${k.port}") }) }
+                KnownPort.entries.forEach { k -> FilterChip(remote == k.port.toString() && !udp, { remote = k.port.toString(); udp = false }, label = { Text("${k.label} ${k.port}") }) }
+            }
+            // TCP (almost everything) or UDP (DNS, SNMP, games…); UDP goes through an agent. / TCP o UDP; UDP va por un agente.
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.ports_protocol), style = MaterialTheme.typography.labelLarge)
+                FilterChip(!udp, { udp = false }, label = { Text("TCP") })
+                FilterChip(udp, { udp = true }, label = { Text("UDP") })
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (noAgent) LocalAddress(d, Modifier.weight(1f))

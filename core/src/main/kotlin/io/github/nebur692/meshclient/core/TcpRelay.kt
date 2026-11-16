@@ -141,24 +141,31 @@ class TcpRelay private constructor() {
          * Adónde va el túnel. Con agente: a su agente. Sin agente: por el agente que hace de relé del grupo hasta su
          * dirección, o (sin relé) localrelay.ashx con una cookie de ese equipo y puerto, y conecta el propio servidor.
          */
-        private suspend fun route(session: MeshSession, nodeId: String, port: Int, host: String?): HttpUrl {
+        private suspend fun route(session: MeshSession, nodeId: String, port: Int, host: String?, udp: Boolean = false): HttpUrl {
+            val p = if (udp) "udp" else "tcp"
             val device = session.knownDevices[nodeId] ?: session.devices().firstOrNull { it.id == nodeId }
             fun viaAgent(agent: String, address: String?): HttpUrl {
                 return session.server.resolve("meshrelay.ashx").newBuilder()
-                    .addQueryParameter("nodeid", agent).addQueryParameter("tcpport", port.toString())
-                    .apply { if (!address.isNullOrBlank()) addQueryParameter("tcpaddr", address.trim()) }
+                    .addQueryParameter("nodeid", agent).addQueryParameter("${p}port", port.toString())
+                    .apply { if (!address.isNullOrBlank()) addQueryParameter("${p}addr", address.trim()) }
                     .build()
             }
             if (device == null || !session.isLocal(device)) return viaAgent(nodeId, host)
             val address = device.address?.takeIf { it.isNotBlank() }
                 ?: throw MeshClientException(MeshFailure.Rejected, "redireccion/llevar-conexion/dato-invalido", "\"${device.name}\" has no address.")
             session.relayOf(device)?.let { return viaAgent(it, address) }
+            if (udp) throw MeshClientException(MeshFailure.Rejected, "redireccion/redirigir-puerto/no-implementado",
+                "UDP to \"${device.name}\" needs an agent in its group to relay it: the server alone carries TCP only.")
             return session.server.resolve("localrelay.ashx").newBuilder().addQueryParameter("auth", session.localCookie(nodeId, port)).build()
         }
 
-        suspend fun open(session: MeshSession, nodeId: String, port: Int, host: String? = null): TcpRelay {
-            if (port !in 1..65535) throw MeshClientException(MeshFailure.Rejected, "redireccion/llevar-conexion/dato-invalido", "$port is not a TCP port (1 to 65535).")
-            var url = route(session, nodeId, port, host)
+        /**
+         * [udp]: a UDP relay instead (udpport/udpaddr): each binary message is one datagram, both ways (OkHttp hands whole
+         * messages). Only through an agent. / Un relé UDP: cada mensaje binario es un datagrama. Solo por un agente.
+         */
+        suspend fun open(session: MeshSession, nodeId: String, port: Int, host: String? = null, udp: Boolean = false): TcpRelay {
+            if (port !in 1..65535) throw MeshClientException(MeshFailure.Rejected, "redireccion/llevar-conexion/dato-invalido", "$port is not a ${if (udp) "UDP" else "TCP"} port (1 to 65535).")
+            var url = route(session, nodeId, port, host, udp)
             // A device without an agent: if the far end refuses, its address or port is what fails. / Sin agente, falla la dirección o el puerto.
             val local = session.knownDevices[nodeId]?.takeIf { session.isLocal(it) }
             if (url.encodedPath.endsWith("meshrelay.ashx")) url = url.newBuilder().addQueryParameter("auth", session.relayCookies().cookie).build()

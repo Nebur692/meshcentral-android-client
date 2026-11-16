@@ -1379,12 +1379,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** The mappings open now; they live until closed or signing out. / Las redirecciones abiertas; viven hasta cerrarlas o salir. */
     val mappings = androidx.compose.runtime.mutableStateListOf<MappingView>()
 
-    fun startMapping(id: String, remotePort: Int, host: String, localPort: Int): Boolean {
+    fun startMapping(id: String, remotePort: Int, host: String, localPort: Int, udp: Boolean = false): Boolean {
         if (session == null) return false
         val d = devices[id] ?: return false
         return try {
             val m = io.github.nebur692.meshclient.core.PortMapping.start({ session },
-                io.github.nebur692.meshclient.core.PortTarget(d.id, d.name, remotePort, host.trim().ifEmpty { null }, localPort))
+                io.github.nebur692.meshclient.core.PortTarget(d.id, d.name, remotePort, host.trim().ifEmpty { null }, localPort, udp))
             mappings += MappingView(m, viewModelScope)
             keepForMappings()
             if (!notificationsAsked) { notificationsAsked = true; askNotifications = true }

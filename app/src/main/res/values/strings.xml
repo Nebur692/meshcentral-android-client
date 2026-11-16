@@ -452,6 +452,7 @@
     <string name="ports_start">Start</string>
     <string name="ports_remote">Port</string>
     <string name="ports_local">Port on this phone</string>
+    <string name="ports_protocol">Protocol</string>
     <string name="ports_local_any">Any free one</string>
     <string name="ports_hint">Only apps on this phone can use it (127.0.0.1). It stays open, with a notification, until you stop it.</string>
     <string name="ports_none">No ports mapped.</string>

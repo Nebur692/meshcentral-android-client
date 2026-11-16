@@ -21,8 +21,9 @@ import kotlinx.coroutines.launch
  * What a port mapping points at. [remoteHost] null is the device itself; [localPort] 0 takes any free one.
  * A dónde apunta una redirección de puerto. [remoteHost] null es el propio equipo; [localPort] 0 toma uno libre.
  */
-data class PortTarget(val nodeId: String, val deviceName: String, val remotePort: Int, val remoteHost: String? = null, val localPort: Int = 0) {
-    val destination: String get() = "${remoteHost?.takeIf { it.isNotBlank() } ?: deviceName}:$remotePort"
+/** [udp]: UDP instead of TCP. / UDP en vez de TCP. */
+data class PortTarget(val nodeId: String, val deviceName: String, val remotePort: Int, val remoteHost: String? = null, val localPort: Int = 0, val udp: Boolean = false) {
+    val destination: String get() = "${remoteHost?.takeIf { it.isNotBlank() } ?: deviceName}:$remotePort" + if (udp) " (UDP)" else ""
 }
 
 /** How a mapping is doing. / Cómo va una redirección. */
@@ -37,7 +38,8 @@ data class PortMappingStats(val active: Int, val total: Int, val bytesUp: Long, 
  * o VNC, un navegador) conecta a 127.0.0.1:[localPort].
  */
 /** [session] is asked for each new connection: after a reconnection the old one is closed. / Se pide en cada conexión nueva. */
-class PortMapping private constructor(private val session: () -> MeshSession?, val target: PortTarget, private val server: ServerSocket) {
+class PortMapping private constructor(private val session: () -> MeshSession?, val target: PortTarget, private val server: ServerSocket?,
+                                      private val datagrams: java.net.DatagramSocket? = null) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val active = AtomicInteger()
     private val total = AtomicInteger()
@@ -47,7 +49,7 @@ class PortMapping private constructor(private val session: () -> MeshSession?, v
     private val _stats = MutableStateFlow(PortMappingStats(0, 0, 0, 0, null))
 
     /** The port actually listening on 127.0.0.1. / El puerto que escucha de verdad en 127.0.0.1. */
-    val localPort: Int = server.localPort
+    val localPort: Int = server?.localPort ?: datagrams!!.localPort
 
     val stats: StateFlow<PortMappingStats> get() = _stats
 
@@ -62,7 +64,7 @@ class PortMapping private constructor(private val session: () -> MeshSession?, v
 
     private fun accept() = scope.launch {
         while (isActive) {
-            val client = try { server.accept() } catch (_: IOException) { return@launch }
+            val client = try { server!!.accept() } catch (_: IOException) { return@launch }
             client.tcpNoDelay = true
             launch { carry(client) }
         }
@@ -87,9 +89,58 @@ class PortMapping private constructor(private val session: () -> MeshSession?, v
         }
     }
 
+    /**
+     * UDP: each local sender (address and port) gets its own relay, as MeshCentral Router does, so answers go back to who
+     * asked; its datagrams queue while the relay opens, and a flow quiet for [UDP_IDLE_MS] is closed.
+     * UDP: cada remitente local tiene su propio relé, para que las respuestas vuelvan a quien preguntó; un flujo callado se cierra.
+     */
+    private fun receiveDatagrams() = scope.launch {
+        val socket = datagrams!!
+        val flows = java.util.concurrent.ConcurrentHashMap<java.net.SocketAddress, kotlinx.coroutines.channels.Channel<ByteArray>>()
+        val buffer = ByteArray(64 * 1024)
+        while (isActive) {
+            val packet = java.net.DatagramPacket(buffer, buffer.size)
+            try { socket.receive(packet) } catch (_: IOException) { return@launch }
+            val from = packet.socketAddress
+            val data = packet.data.copyOfRange(packet.offset, packet.offset + packet.length)
+            val flow = flows.getOrPut(from) {
+                kotlinx.coroutines.channels.Channel<ByteArray>(256, kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST).also { c ->
+                    launch { try { carryDatagrams(from, c) } finally { flows.remove(from); c.close() } }
+                }
+            }
+            flow.trySend(data)
+        }
+    }
+
+    private suspend fun carryDatagrams(peer: java.net.SocketAddress, queue: kotlinx.coroutines.channels.Channel<ByteArray>) = kotlinx.coroutines.coroutineScope {
+        active.incrementAndGet(); total.incrementAndGet(); publish()
+        try {
+            val relay = try {
+                val s = session() ?: throw MeshSession.lost("redireccion/llevar-conexion/conexion-cortada", null)
+                TcpRelay.open(s, target.nodeId, target.remotePort, target.remoteHost, udp = true)
+            } catch (e: MeshClientException) { lastError = e; publish(); return@coroutineScope }
+            val last = AtomicLong(System.currentTimeMillis())
+            relay.onTraffic = { u, d -> up.addAndGet(u.toLong()); down.addAndGet(d.toLong()); last.set(System.currentTimeMillis()); publishSoon() }
+            val upJob = launch { for (d in queue) try { relay.send(d) } catch (_: MeshClientException) { break } }
+            val downJob = launch {
+                while (isActive) {
+                    val d = relay.receive() ?: break
+                    runCatching { datagrams!!.send(java.net.DatagramPacket(d, d.size, peer)) }
+                }
+            }
+            val quietJob = launch { while (isActive) { kotlinx.coroutines.delay(5_000); if (System.currentTimeMillis() - last.get() > UDP_IDLE_MS) break } }
+            kotlinx.coroutines.selects.select<Unit> { upJob.onJoin {}; downJob.onJoin {}; quietJob.onJoin {} }
+            relay.close()
+            upJob.cancel(); downJob.cancel(); quietJob.cancel()
+        } finally {
+            active.decrementAndGet(); publish()
+        }
+    }
+
     /** Stops listening and closes every connection. / Deja de escuchar y cierra todas las conexiones. */
     fun close() {
-        runCatching { server.close() }
+        runCatching { server?.close() }
+        runCatching { datagrams?.close() }
         scope.cancel()
     }
 
@@ -97,9 +148,20 @@ class PortMapping private constructor(private val session: () -> MeshSession?, v
         /** Starts listening; a local port in use fails here, before anything reaches the server. / Un puerto ocupado falla aquí. */
         fun start(session: MeshSession, target: PortTarget): PortMapping = start({ session }, target)
 
+        /** A UDP flow with no traffic this long is closed (UDP has no end of its own). / Sin tráfico este rato, se cierra. */
+        const val UDP_IDLE_MS = 120_000L
+
         fun start(session: () -> MeshSession?, target: PortTarget): PortMapping {
             if (target.remotePort !in 1..65535 || target.localPort !in 0..65535)
                 throw MeshClientException(MeshFailure.Rejected, "redireccion/redirigir-puerto/dato-invalido", "Ports go from 1 to 65535.")
+            if (target.udp) {
+                val socket = try { java.net.DatagramSocket(InetSocketAddress(InetAddress.getByName("127.0.0.1"), target.localPort)) }
+                catch (e: java.net.SocketException) {
+                    throw MeshClientException(MeshFailure.Rejected, "redireccion/redirigir-puerto/conflicto-estado",
+                        "UDP port ${target.localPort} of this phone is already in use by another app.", e)
+                }
+                return PortMapping(session, target, null, socket).also { it.receiveDatagrams() }
+            }
             val server = ServerSocket()
             try {
                 server.reuseAddress = true

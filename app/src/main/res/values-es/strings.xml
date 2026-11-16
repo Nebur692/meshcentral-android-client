@@ -460,6 +460,7 @@
     <string name="ports_start">Empezar</string>
     <string name="ports_remote">Puerto</string>
     <string name="ports_local">Puerto en este móvil</string>
+    <string name="ports_protocol">Protocolo</string>
     <string name="ports_local_any">Uno libre cualquiera</string>
     <string name="ports_hint">Solo lo pueden usar las apps de este móvil (127.0.0.1). Sigue abierto, con un aviso, hasta que lo pares.</string>
     <string name="ports_none">No hay puertos redirigidos.</string>
