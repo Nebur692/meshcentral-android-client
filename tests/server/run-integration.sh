@@ -9,6 +9,9 @@
 #   GRADLE_CACHE: a docker volume or folder for Gradle's cache (default: a throwaway one, removed at the end)
 #   GRADLE_CACHE: un volumen de docker o carpeta para la caché de Gradle (por defecto, uno desechable que se borra)
 set -euo pipefail
+# Test containers and networks carry a label, so the bench's cleaner finds them (PRUEBA = who runs the tests).
+# Contenedores y redes de prueba llevan una etiqueta, para que el limpiador del banco los encuentre.
+PRUEBA_L="--label prueba=${PRUEBA:-meshclient-bench}"
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 HERE="$ROOT/tests/server"
 MESH_IMAGE=${MESH_IMAGE:-ghcr.io/ylianst/meshcentral:latest}
@@ -24,7 +27,7 @@ cleanup() {
   docker stop "$AGENT" "$SRV" "$SINK" >/dev/null 2>&1 || true
   # The agent is not --rm, so its state survives a crash: removed here by name.
   # El agente no es --rm, para que su estado sobreviva a una caída: se borra aquí por su nombre.
-  docker rm -f "$AGENT" >/dev/null 2>&1 || true
+  docker rm -fv "$AGENT" >/dev/null 2>&1 || true  # -v: the image's volumes too / también sus volúmenes
   for _ in $(seq 1 20); do docker inspect "$SRV" >/dev/null 2>&1 || docker inspect "$AGENT" >/dev/null 2>&1 || break; sleep 1; done
   docker network rm "$NET" >/dev/null 2>&1 || true
   [ -n "$OWN_CACHE" ] && docker volume rm "$OWN_CACHE" >/dev/null 2>&1 || true
@@ -35,14 +38,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
-docker network create "$NET" >/dev/null
+docker network create $PRUEBA_L "$NET" >/dev/null
 # The mailbox for email and SMS codes (sink.mjs), before the server that sends to it. / El buzón de correo y SMS, antes que el servidor.
 # Its certificate, made for this run, makes it an ntfy server too (messaging codes). / Su certificado lo hace también servidor ntfy.
 mkdir -p "$WORK/sinkca"
 openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=$SINK" -addext "subjectAltName=DNS:$SINK" \
   -keyout "$WORK/sinkca/sink.key" -out "$WORK/sinkca/sink.crt" >/dev/null 2>&1
 chmod 644 "$WORK/sinkca/sink.key"
-docker run -d --rm --name "$SINK" --network "$NET" --cpus 0.25 --memory 128m -v "$HERE/sink.mjs:/sink.mjs:ro" -v "$WORK/sinkca:/certs:ro" node:22-alpine node /sink.mjs >/dev/null
+docker run -d --rm $PRUEBA_L --name "$SINK" --network "$NET" --cpus 0.25 --memory 128m -v "$HERE/sink.mjs:/sink.mjs:ro" -v "$WORK/sinkca:/certs:ro" node:22-alpine node /sink.mjs >/dev/null
 SINK_HOST="$SINK" SINK_CA="$WORK/sinkca" "$HERE/start-test-server.sh" "$SRV" "$WORK/meshdata" "$NET" "$MESH_IMAGE" >/dev/null
 SRV_IP=$(docker inspect "$SRV" --format "{{(index .NetworkSettings.Networks \"$NET\").IPAddress}}")
 read -r OTP GROUP < <(docker exec -i "$SRV" node - < "$HERE/setup-test-data.js")
@@ -52,7 +55,7 @@ CERT=$(docker exec "$SRV" node -e "const c=require('crypto'),f=require('fs');con
 echo "server $SRV · agent $AGENT · cert ${CERT:0:16}…"
 
 # The tests call the server by its certificate name, as the app would. / Las pruebas llaman al servidor por el nombre de su certificado.
-docker run --rm --network "$NET" --add-host "mesh.test:$SRV_IP" --cpus 2 --memory 3g \
+docker run --rm $PRUEBA_L --network "$NET" --add-host "mesh.test:$SRV_IP" --cpus 2 --memory 3g \
   -e GRADLE_USER_HOME=/gradle -e MESHTEST_URL="https://mesh.test/" -e MESHTEST_CERT_SHA256="$CERT" \
   -e MESHTEST_OTP_SECRET="$OTP" -e MESHTEST_GROUP_ID="$GROUP" -e MESHTEST_DESKTOP=1 -e MESHTEST_AGENT_HOST="$AGENT" -e MESHTEST_SINK="http://$SINK:8025" \
   -v "$ROOT:/src" -v "$GRADLE_CACHE:/gradle" -w /src "$JDK_IMAGE" \
