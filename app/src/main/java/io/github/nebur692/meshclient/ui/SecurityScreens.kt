@@ -148,6 +148,7 @@ fun SecurityScreen(vm: AppViewModel) {
             if (s.serverInfo.messagingTwoFactorAllowed) {
                 Row(R.drawable.ic_chat, stringResource(R.string.ntfy_row), when {
                     vm.ntfyHere -> stringResource(R.string.ntfy_on_here)
+                    me.messagingHandle?.startsWith("ntfy:") == true -> stringResource(R.string.ntfy_other_phone)
                     me.messagingHandle != null -> stringResource(R.string.ntfy_other, me.messagingHandle!!)
                     else -> stringResource(R.string.acc_email_off)
                 }, enabled = !locked && !m.busy) { if (vm.ntfyHere) vm.disableNtfy() else vm.enableNtfy() }
@@ -194,6 +195,7 @@ fun SecurityScreen(vm: AppViewModel) {
         }) { Text(stringResource(R.string.ntfy_missing_get)) } },
         dismissButton = { TextButton(onClick = { vm.ntfyMissing = false }) { Text(stringResource(R.string.cancel)) } },
     )
+    NtfyAsleepDialog(vm)
     // Once the phone is checked the dialog closes by itself. / En cuanto el teléfono queda comprobado, el diálogo se cierra solo.
     LaunchedEffect(me.phone) { if (me.phone != null) addingPhone = false }
     if (addingPhone || m.phoneCheck != null) PhoneDialog(m) { addingPhone = false; m.phoneCheck = null }
@@ -518,4 +520,25 @@ private fun Count(label: String, value: Long) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         Text(value.toString(), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
     }
+}
+
+/**
+ * ntfy did not answer (never opened, or stopped): Android lets it listen only after it is opened once, so the dialog opens
+ * it. Shown in Security (turning the codes on) and when signing in (the code does not come).
+ * ntfy no contestó (nunca abierta, o detenida): Android solo la deja escuchar tras abrirla una vez, así que el diálogo la abre.
+ */
+@Composable
+fun NtfyAsleepDialog(vm: AppViewModel) {
+    val context = LocalContext.current
+    val distributor = vm.ntfyAsleep ?: return
+    AlertDialog(
+        onDismissRequest = { vm.ntfyAsleep = null },
+        title = { Text(stringResource(R.string.ntfy_asleep_title)) },
+        text = { Text(stringResource(R.string.ntfy_asleep_text)) },
+        confirmButton = { TextButton(onClick = {
+            vm.ntfyAsleep = null
+            context.packageManager.getLaunchIntentForPackage(distributor)?.let { runCatching { context.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
+        }) { Text(stringResource(R.string.ntfy_asleep_open)) } },
+        dismissButton = { TextButton(onClick = { vm.ntfyAsleep = null }) { Text(stringResource(R.string.cancel)) } },
+    )
 }

@@ -61,7 +61,14 @@ object NtfyPush {
     /** The ntfy server of an endpoint, to tell the person which one must be the MeshCentral server's. / Su servidor ntfy. */
     fun hostOf(endpoint: String): String? = runCatching { java.net.URI(endpoint).host }.getOrNull()
 
+    private const val TAG = "MeshClientPush"
+
+    /** The catalog key when the check code does not arrive: the distributor is not listening. / ntfy no escucha. */
+    const val NOT_LISTENING = "usuarios/cambiar-ajustes/dependencia-caida"
+    const val NTFY_PACKAGE = "io.heckel.ntfy"
+
     internal fun newEndpoint(context: Context, instance: String, url: String) {
+        android.util.Log.i(TAG, "endpoint for $instance")
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString(instance, url) }
         endpoints.value = endpoints.value + (instance to url)
     }
@@ -78,7 +85,9 @@ object NtfyPush {
      * signing in somewhere else. / Un mensaje del servidor: su código va a la pantalla si la app está delante; si no, a un aviso.
      */
     internal fun message(context: Context, instance: String, text: String) {
-        val code = codeIn(text) ?: return
+        val code = codeIn(text)
+        android.util.Log.i(TAG, "message for $instance, code " + (if (code == null) "none" else "found") + ", collectors " + codes.subscriptionCount.value)
+        if (code == null) return
         codes.tryEmit(Code(instance, code))
         if (inFront) return
         val manager = context.getSystemService(NotificationManager::class.java)

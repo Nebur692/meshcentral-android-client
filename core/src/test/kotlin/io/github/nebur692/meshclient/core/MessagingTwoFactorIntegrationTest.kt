@@ -68,6 +68,8 @@ class MessagingTwoFactorIntegrationTest {
             val before = pushes(topic).size
             val sent = try { connect(PasswordCredentials.MESSAGING_CODE); null } catch (e: MeshClientException) { e }
             assertTrue("the server says it sent it", sent!!.messagingCodeSent)
+            // Asking is not a wrong code: the app keeps asking for the code, it does not say it is not valid. / Pedirlo no es un código malo.
+            assertEquals(MeshFailure.TwoFactorRequired, sent.failure)
             s = connect(code(topic, before))
 
             // Off again: the account signs in with its password alone. / Se quita: vuelve a entrar solo con su contraseña.
@@ -79,8 +81,23 @@ class MessagingTwoFactorIntegrationTest {
             val notTopic = try { s.startNtfy("with spaces"); null } catch (e: MeshClientException) { e }
             assertEquals("usuarios/cambiar-ajustes/dato-invalido", notTopic?.key)
         } finally {
-            runCatching { s.removeMessaging() }
+            if (runCatching { s.removeMessaging() }.isFailure) cleanUp(topic)
             s.close()
         }
+    }
+
+    /**
+     * A test that failed halfway leaves the account with the handle and its session closed: sign in again with the topic's
+     * code and remove it, so the other tests of the "mfa" account do not fail because of this one.
+     * Una prueba que falla a medias deja el canal puesto: se vuelve a entrar con el código del tema y se quita.
+     */
+    private suspend fun cleanUp(topic: String) {
+        val asked = try { connect().close(); return } catch (e: MeshClientException) { e }
+        if (asked.failure != MeshFailure.TwoFactorRequired || !asked.messagingCodeAvailable) return
+        val before = pushes(topic).size
+        runCatching { connect(PasswordCredentials.MESSAGING_CODE).close() }
+        val s = connect(code(topic, before))
+        s.removeMessaging()
+        s.close()
     }
 }

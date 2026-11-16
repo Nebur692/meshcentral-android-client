@@ -58,6 +58,7 @@
     <string name="err_dns">No se encuentra el nombre del servidor. Revisa la dirección y tu conexión.</string>
     <string name="err_unreachable">No se puede llegar al servidor. Revisa la dirección y que tengas conexión.</string>
     <string name="err_timeout">El servidor no ha contestado a tiempo.</string>
+    <string name="err_ntfy_asleep">ntfy no ha contestado: todavía no escucha.</string>
     <string name="err_http">El servidor ha contestado con un error (HTTP %1$d): puede que no sea un servidor MeshCentral o que la dirección esté mal.</string>
     <string name="err_credentials">Usuario o contraseña incorrectos.</string>
     <string name="err_too_many">Demasiados intentos fallidos: el servidor no deja entrar durante un rato.</string>
@@ -816,7 +817,9 @@
     <string name="acc_phone_remove_yes">Quitar</string>
     <!-- This app as the authenticator / La app como autenticador -->
     <string name="tfa_sms">Mandarme el código por SMS</string>
-    <string name="tfa_body_any">Escribe el código de tu doble factor, o pide uno por correo o por SMS.</string>
+    <string name="tfa_body_any">Escribe el código de tu doble factor, o pide al servidor que te mande uno.</string>
+    <string name="tfa_msg">Mandarme el código por ntfy</string>
+    <string name="tfa_msg_sent">El servidor ha mandado el código a tu tema de ntfy: escríbelo aquí.</string>
     <string name="tfa_sms_sent">El servidor ha mandado el código por SMS: escríbelo aquí.</string>
     <string name="tfa_this_app">Poner el código con mi huella</string>
     <string name="auth_here_use">Usar esta app como autenticador</string>
@@ -836,12 +839,16 @@
     <string name="ntfy_row">Códigos a esta app (ntfy)</string>
     <string name="ntfy_on_here">Activados · llegan a esta app</string>
     <string name="ntfy_other">Otro servicio: %1$s</string>
+    <string name="ntfy_other_phone">Activados en otro móvil: actívalos aquí para recibirlos en este</string>
     <string name="ntfy_hint">Al entrar, el código llega solo a esta app por ntfy (instala la app ntfy). El servidor tiene que tener ntfy en su mensajería, en el mismo servidor ntfy que el móvil.</string>
     <string name="ntfy_on_done">Códigos por ntfy activados: llegan a esta app.</string>
     <string name="ntfy_off_done">Códigos por ntfy quitados.</string>
     <string name="ntfy_missing_title">Hace falta ntfy</string>
     <string name="ntfy_missing_text">Los códigos llegan por una app de avisos (UnifiedPush) como ntfy. Instálala, ábrela una vez y vuelve a probar.</string>
     <string name="ntfy_missing_get">Conseguir ntfy</string>
+    <string name="ntfy_asleep_title">ntfy todavía no escucha</string>
+    <string name="ntfy_asleep_text">ntfy no ha contestado: Android no le deja empezar a escuchar hasta que se abre una vez. Abre ntfy, vuelve y prueba otra vez.</string>
+    <string name="ntfy_asleep_open">Abrir ntfy</string>
     <string name="ntfy_channel">Códigos para entrar</string>
     <string name="ntfy_code_title">Código para entrar en %1$s</string>
     <string name="ntfy_for_distributor">Cliente MeshCentral · %1$s</string>

@@ -57,6 +57,7 @@
     <string name="err_dns">The server name could not be found. Check the address and your connection.</string>
     <string name="err_unreachable">Could not reach the server. Check the address and that you have a connection.</string>
     <string name="err_timeout">The server did not answer in time.</string>
+    <string name="err_ntfy_asleep">ntfy did not answer: it is not listening yet.</string>
     <string name="err_http">The server answered with an error (HTTP %1$d): it may not be a MeshCentral server, or the address may be wrong.</string>
     <string name="err_credentials">Wrong username or password.</string>
     <string name="err_too_many">Too many failed attempts: the server is refusing sign-ins for a while.</string>
@@ -793,7 +794,9 @@
     <string name="acc_phone_remove_yes">Remove</string>
     <!-- This app as the authenticator / La app como autenticador -->
     <string name="tfa_sms">Send me the code by SMS</string>
-    <string name="tfa_body_any">Write the code of your second factor, or ask for one by email or SMS.</string>
+    <string name="tfa_body_any">Write the code of your second factor, or ask the server to send you one.</string>
+    <string name="tfa_msg">Send me the code by ntfy</string>
+    <string name="tfa_msg_sent">The server has sent the code to your ntfy topic: write it here.</string>
     <string name="tfa_sms_sent">The server has sent the code by SMS: write it here.</string>
     <string name="tfa_this_app">Fill the code with my fingerprint</string>
     <string name="auth_here_use">Use this app as the authenticator</string>
@@ -812,12 +815,16 @@
     <string name="ntfy_row">Codes to this app (ntfy)</string>
     <string name="ntfy_on_here">On · they come to this app</string>
     <string name="ntfy_other">Another service: %1$s</string>
+    <string name="ntfy_other_phone">On, to another phone: turn it on here to get them in this one</string>
     <string name="ntfy_hint">When signing in, the code comes to this app by itself through ntfy (install the ntfy app). The server must have ntfy in its messaging, on the same ntfy server as the phone.</string>
     <string name="ntfy_on_done">Codes by ntfy on: they come to this app.</string>
     <string name="ntfy_off_done">Codes by ntfy removed.</string>
     <string name="ntfy_missing_title">ntfy is needed</string>
     <string name="ntfy_missing_text">The codes come through a push app (UnifiedPush) such as ntfy. Install it, open it once, and try again.</string>
     <string name="ntfy_missing_get">Get ntfy</string>
+    <string name="ntfy_asleep_title">ntfy is not listening yet</string>
+    <string name="ntfy_asleep_text">ntfy did not answer: Android does not let it start listening until it has been opened once. Open ntfy, come back and try again.</string>
+    <string name="ntfy_asleep_open">Open ntfy</string>
     <string name="ntfy_channel">Sign-in codes</string>
     <string name="ntfy_code_title">Code to sign in to %1$s</string>
     <string name="ntfy_for_distributor">MeshCentral Client · %1$s</string>

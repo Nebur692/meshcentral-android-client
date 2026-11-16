@@ -41,6 +41,7 @@ fun errorText(error: UiError): String =
     if (error.missingFields) stringResource(R.string.err_missing)
     else if (error.key == io.github.nebur692.meshclient.LocalNetwork.KEY) stringResource(R.string.err_local_network)
     else if (error.key == io.github.nebur692.meshclient.core.TcpRelay.UNREACHABLE) stringResource(R.string.err_local_unreachable)
+    else if (error.key == io.github.nebur692.meshclient.NtfyPush.NOT_LISTENING) stringResource(R.string.err_ntfy_asleep)
     else when (error.failure) {
         MeshFailure.NotAllowed -> stringResource(R.string.err_not_allowed)
         MeshFailure.NotFound -> stringResource(R.string.err_not_found)

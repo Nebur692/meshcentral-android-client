@@ -50,6 +50,7 @@ import kotlinx.coroutines.flow.first
 import io.github.nebur692.meshclient.core.startNtfy
 import io.github.nebur692.meshclient.core.confirmMessaging
 import io.github.nebur692.meshclient.core.removeMessaging
+import io.github.nebur692.meshclient.core.twoFactorCookie
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -95,7 +96,9 @@ data class CertificatePrompt(val host: String, val sha256: String, val changed: 
 data class TwoFactorPrompt(val emailAvailable: Boolean, val emailSent: Boolean, val wrong: Boolean,
                            val smsAvailable: Boolean = false, val smsSent: Boolean = false, val fromThisApp: Boolean = false,
                            /** The code is on its way to this app by ntfy, and will be filled by itself. / El código viene a la app por ntfy. */
-                           val viaNtfy: Boolean = false)
+                           val viaNtfy: Boolean = false,
+                           /** The account gets codes by messaging (ntfy) but not to this app: it can ask for one. / Puede pedirlo por mensajería. */
+                           val messagingAvailable: Boolean = false, val messagingSent: Boolean = false)
 
 data class LoginForm(
     val server: String = "",
@@ -552,6 +555,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         const val REMEMBER_DAYS = 90
         // Long enough for switching apps for a moment. / Lo bastante para cambiar de app un momento.
         const val BACKGROUND_GRACE_MS = 60_000L
+        /** How long a sign-in code by ntfy may take before the app says ntfy is not listening. / Cuánto se espera el código por ntfy. */
+        const val NTFY_WAIT_MS = 20_000L
         /** A drop this soon after coming back is the frozen app's. / Un corte tan pronto al volver es de la app congelada. */
         const val JUST_BACK_MS = 10_000L
     }
@@ -585,6 +590,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         ServerAddress.parse(form.server)?.let { attempt(it, c.withCode(PasswordCredentials.SMS_CODE), viaBiometric = unlockedWithBiometric) }
     }
 
+    /** The server sends the code by messaging (ntfy) to the account's topic. / El servidor manda el código al tema de ntfy de la cuenta. */
+    fun messagingCode() {
+        val c = credentials ?: return
+        ServerAddress.parse(form.server)?.let { attempt(it, c.withCode(PasswordCredentials.MESSAGING_CODE), viaBiometric = unlockedWithBiometric) }
+    }
+
     /** The sign-in code from the authenticator this app keeps, behind the fingerprint. / El código del autenticador de esta app, tras la huella. */
     fun codeFromThisApp() {
         val server = savedFor(form.server)?.takeIf { it.hasAuthenticator } ?: return
@@ -604,10 +615,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** This account's messaging codes come to this app by ntfy. / Los códigos por mensajería de la cuenta vienen a esta app. */
     val ntfyHere: Boolean get() = session?.let { s ->
-        NtfyPush.endpointsNow.value[s.server.toString()]?.let(NtfyPush::topicOf)?.let { "ntfy:$it" } == s.user.messagingHandle } == true
+        // Both must exist: an endpoint here and that topic as the account's handle (null == null is not "here").
+        // Tienen que existir los dos: una dirección aquí y ese tema como canal de la cuenta (null == null no es «aquí»).
+        val topic = NtfyPush.endpointsNow.value[s.server.toString()]?.let(NtfyPush::topicOf)
+        topic != null && s.user.messagingHandle == "ntfy:$topic" } == true
 
     /** No UnifiedPush distributor (ntfy) on the phone: the person is told to install one. / Sin distribuidor en el móvil. */
     var ntfyMissing by mutableStateOf(false)
+
+    /** The distributor to open because it was not listening (the check code did not come). / El distribuidor que no escuchaba. */
+    var ntfyAsleep by mutableStateOf<String?>(null)
 
     /**
      * Codes by messaging to this app: UnifiedPush gives an ntfy topic, the server sends its check code there, and the app
@@ -619,19 +636,32 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val instance = s.server.toString()
         val m = ownAccount ?: return
         if (org.unifiedpush.android.connector.UnifiedPush.getDistributors(getApplication()).isEmpty()) { ntfyMissing = true; return }
+        // Always the address the distributor gives now, never a kept one (its topic may be gone). / Siempre la que da ahora.
+        NtfyPush.gone(getApplication(), instance)
         ntfyRequest = instance
         m.runNtfy(R.string.ntfy_on_done) { session ->
-            val endpoint = kotlinx.coroutines.withTimeoutOrNull(30_000) { NtfyPush.endpointsNow.first { it[instance] != null }[instance] }
-                ?: throw io.github.nebur692.meshclient.core.MeshClientException(io.github.nebur692.meshclient.core.MeshFailure.Timeout,
-                    "usuarios/cambiar-ajustes/tiempo-agotado", "The push distributor gave no address.")
+            // A distributor that was never opened is "stopped" for Android and gets nothing: no address either. / Nunca abierto: no contesta.
+            val endpoint = kotlinx.coroutines.withTimeoutOrNull(15_000) { NtfyPush.endpointsNow.first { it[instance] != null }[instance] }
+            if (endpoint == null) {
+                ntfyAsleep = org.unifiedpush.android.connector.UnifiedPush.getDistributors(getApplication()).firstOrNull() ?: NtfyPush.NTFY_PACKAGE
+                throw io.github.nebur692.meshclient.core.MeshClientException(io.github.nebur692.meshclient.core.MeshFailure.Timeout,
+                    NtfyPush.NOT_LISTENING, "The push distributor gave no address (never opened?).")
+            }
+            android.util.Log.i("MeshClientPush", "enable: endpoint ready")
             val topic = NtfyPush.topicOf(endpoint) ?: throw io.github.nebur692.meshclient.core.MeshClientException(io.github.nebur692.meshclient.core.MeshFailure.Rejected,
                 "usuarios/cambiar-ajustes/dato-invalido", "The push address is not an ntfy topic: $endpoint")
             coroutineScope {
                 val code = async { NtfyPush.codesNow.first { it.instance == instance }.code }
                 val check = session.startNtfy(topic)
-                val got = kotlinx.coroutines.withTimeoutOrNull(60_000) { code.await() }
-                    ?: throw io.github.nebur692.meshclient.core.MeshClientException(io.github.nebur692.meshclient.core.MeshFailure.Timeout,
-                        "usuarios/cambiar-ajustes/tiempo-agotado", "The check code did not arrive by ntfy (is the server's ntfy the same as the phone's, ${NtfyPush.hostOf(endpoint)}?)")
+                android.util.Log.i("MeshClientPush", "enable: server sent the check code")
+                // The server sent it at once: if it does not come, the distributor is not listening (Android does not let a
+                // freshly installed ntfy start from the background until it is opened once). / Si no llega, ntfy no escucha.
+                val got = kotlinx.coroutines.withTimeoutOrNull(25_000) { code.await() }
+                if (got == null) {
+                    ntfyAsleep = org.unifiedpush.android.connector.UnifiedPush.getDistributors(getApplication()).firstOrNull() ?: NtfyPush.NTFY_PACKAGE
+                    throw io.github.nebur692.meshclient.core.MeshClientException(io.github.nebur692.meshclient.core.MeshFailure.Timeout,
+                        NtfyPush.NOT_LISTENING, "The check code did not arrive by ntfy (is it listening, and is the server's ntfy the phone's, ${NtfyPush.hostOf(endpoint)}?)")
+                }
                 session.confirmMessaging(check, got)
             }
         }
@@ -643,6 +673,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         ownAccount?.runNtfy(R.string.ntfy_off_done) { session ->
             session.removeMessaging()
             org.unifiedpush.android.connector.UnifiedPush.unregister(getApplication(), instance)
+            // The library does not call onUnregistered when the app itself leaves. / La biblioteca no avisa si se va la propia app.
+            NtfyPush.gone(getApplication(), instance)
         }
     }
 
@@ -673,8 +705,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (signOnFor != address.toString()) discoverSignOn(now = true)
             try {
                 val s = MeshSession.connect(address, creds, CertificateTrust(pendingPin), userAgent = userAgent())
-                // A second-factor code is single-use: a reconnection asks for a new one. / El código es de un solo uso.
-                credentials = creds.withCode(null)
+                // A second-factor code is single-use: to reconnect after the phone drops the connection, the server's
+                // "remember the second factor" cookie, in memory only (otherwise coming back said "connection lost").
+                // El código es de un solo uso: para reconectar cuando el móvil corta la conexión, la cookie de «recordar el
+                // doble factor» del servidor, solo en memoria (si no, al volver salía «se perdió la conexión»).
+                val usedCode = creds.twoFactorCode?.takeIf { it.isNotBlank() && !it.startsWith("**") && !it.startsWith("cookie=") }
+                credentials = when {
+                    usedCode != null -> creds.withCode(runCatching { s.twoFactorCookie() }.getOrNull()?.let { "cookie=$it" })
+                    creds.twoFactorCode?.startsWith("cookie=") == true -> creds
+                    else -> creds.withCode(null)
+                }
                 // A token login keeps the saved account as it is (its name, not the token's user). / Con token, la cuenta guardada se queda igual.
                 val typed = viaToken == null && !viaBiometric
                 if (viaToken == null) saved.remember(address.toString(), creds.username, pendingPin, if (typed && form.remember) form.password else null)
@@ -715,9 +755,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         CertificatePrompt(address.host, it, changed = pendingPin != null && pendingPin != it)
                     }, error = if (e.certificateSha256 == null) UiError(e.failure, e.key) else null)
                     MeshFailure.TwoFactorRequired -> form.copy(busy = false, twoFactor = TwoFactorPrompt(e.emailCodeAvailable, e.emailCodeSent, wrong = false,
-                        e.smsCodeAvailable, e.smsCodeSent, fromThisApp(address), viaNtfy = ntfyFor(address, e))).also { if (!ntfyFor(address, e)) fillFromThisApp(address, e) }
+                        e.smsCodeAvailable, e.smsCodeSent, fromThisApp(address), viaNtfy = ntfyFor(address, e),
+                        messagingAvailable = e.messagingCodeAvailable, messagingSent = e.messagingCodeSent)).also { if (!ntfyFor(address, e)) fillFromThisApp(address, e) }
                     MeshFailure.InvalidTwoFactorCode -> form.copy(busy = false, twoFactor = TwoFactorPrompt(e.emailCodeAvailable, false, wrong = true,
-                        e.smsCodeAvailable, false, fromThisApp(address)))
+                        e.smsCodeAvailable, false, fromThisApp(address), messagingAvailable = e.messagingCodeAvailable))
                     else -> form.copy(busy = false, error = UiError(e.failure, e.key, e.httpStatus))
                 }
             }
@@ -728,13 +769,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun ntfyFor(address: ServerAddress, e: MeshClientException): Boolean {
         val here = NtfyPush.endpointsNow.value[address.toString()] != null && e.messagingCodeAvailable
         // The first time, the app asks for the code by messaging and fills it when it arrives. / La primera vez la pide y la pone al llegar.
-        if (here && !e.messagingCodeSent && ntfyWait?.isActive != true) {
+        // Also when the person asked for it again with the button. / También cuando la persona la vuelve a pedir con el botón.
+        if (here && ntfyWait?.isActive != true) {
             val c = credentials
             ntfyWait = viewModelScope.launch {
-                val code = kotlinx.coroutines.withTimeoutOrNull(120_000) { NtfyPush.codesNow.first { it.instance == address.toString() }.code } ?: return@launch
+                val code = kotlinx.coroutines.withTimeoutOrNull(NTFY_WAIT_MS) { NtfyPush.codesNow.first { it.instance == address.toString() }.code }
+                if (code == null) {
+                    // ntfy is not listening (stopped, never opened): say so and give the button back, not a wait for nothing.
+                    // ntfy no escucha: se dice y se devuelve el botón, en vez de esperar algo que no llega.
+                    val t = form.twoFactor ?: return@launch
+                    ntfyAsleep = org.unifiedpush.android.connector.UnifiedPush.getDistributors(getApplication()).firstOrNull() ?: NtfyPush.NTFY_PACKAGE
+                    form = form.copy(twoFactor = t.copy(viaNtfy = false, messagingAvailable = true, messagingSent = false))
+                    return@launch
+                }
                 if (form.twoFactor != null) submitCode(code)
             }
-            if (c != null) attempt(address, c.withCode(PasswordCredentials.MESSAGING_CODE), viaBiometric = unlockedWithBiometric)
+            if (!e.messagingCodeSent && c != null) attempt(address, c.withCode(PasswordCredentials.MESSAGING_CODE), viaBiometric = unlockedWithBiometric)
         }
         return here
     }

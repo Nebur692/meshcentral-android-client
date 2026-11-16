@@ -42,6 +42,14 @@ class OwnAuthenticatorIntegrationTest {
             s = connect(Totp.code(setup.secret))
             assertTrue(s.user.hasAuthenticator)
 
+            // The "remember the second factor" cookie reconnects without a new code, as the app does coming back.
+            // La cookie de «recordar el doble factor» reconecta sin código nuevo, como hace la app al volver.
+            val cookie = s.twoFactorCookie()
+            assertTrue("the server gives the cookie", !cookie.isNullOrEmpty())
+            connect("cookie=$cookie").close()
+            val forged = try { connect("cookie=${cookie!!.reversed()}"); null } catch (e: MeshClientException) { e }
+            assertTrue("a forged cookie is not a code", forged?.failure == MeshFailure.InvalidTwoFactorCode || forged?.failure == MeshFailure.TwoFactorRequired)
+
             s.removeAuthenticator()
             repeat(20) { if (!s.user.hasAuthenticator) return@repeat; delay(250) }
             assertFalse(s.user.hasAuthenticator)

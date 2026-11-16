@@ -273,6 +273,19 @@ suspend fun MeshSession.removeMessaging() {
     user = user.copy(messagingHandle = null)
 }
 
+/**
+ * The server's "remember the second factor" cookie (twoFactorCookie, 30 days unless the server says otherwise), given
+ * as the code "cookie=<it>" it signs in without asking again. The app keeps it in memory only, to reconnect after the
+ * phone dropped the connection: the code typed at sign-in no longer works then. Null if the server gives none.
+ * La cookie de «recordar el doble factor»; dada como código «cookie=<ella>» entra sin volver a pedirlo. La app la guarda
+ * solo en memoria, para reconectar cuando el móvil cortó la conexión: el código escrito al entrar ya no vale. Null si no da.
+ */
+suspend fun MeshSession.twoFactorCookie(): String? = try {
+    request(buildJsonObject { put("action", "twoFactorCookie") }, { it.str("action") == "twoFactorCookie" }, TIMEOUT, LOST, 5_000).str("cookie")
+} catch (e: MeshClientException) {
+    if (e.failure == MeshFailure.Timeout) null else throw e
+}
+
 /** The first run of 6 digits in a message from the server (its code). / El primer grupo de 6 cifras de un mensaje (su código). */
 fun codeIn(message: String): String? = Regex("""(?<!\d)(\d{6})(?!\d)""").find(message)?.groupValues?.get(1)
 

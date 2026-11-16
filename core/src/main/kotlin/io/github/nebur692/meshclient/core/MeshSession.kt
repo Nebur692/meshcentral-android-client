@@ -392,7 +392,8 @@ class MeshSession private constructor(
             val msg = close.str("msg").orEmpty()
             val cause = close.str("cause").orEmpty()
             val code = credentials.twoFactorCode
-            val sentCode = !code.isNullOrBlank() && code != PasswordCredentials.EMAIL_CODE && code != PasswordCredentials.SMS_CODE
+            // "**email**", "**sms**" and "**msg**" ask for a code, they are not one. / Piden un código, no lo son.
+            val sentCode = !code.isNullOrBlank() && code != PasswordCredentials.EMAIL_CODE && code != PasswordCredentials.SMS_CODE && code != PasswordCredentials.MESSAGING_CODE
             fun e(f: MeshFailure, key: String, text: String) = MeshClientException(f, key, text).apply {
                 serverMessage = msg.ifEmpty { cause }
                 emailCodeAvailable = close.bool("email2fa")
