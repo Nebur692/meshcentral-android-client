@@ -84,7 +84,9 @@ enum class DeviceGroupKind { Unknown, IntelAmtOnly, Agents, LocalDevices, IpKvm 
 data class DeviceGroup(val id: String, val name: String, val description: String?, val kind: DeviceGroupKind, val links: Map<String, Long> = emptyMap(),
                        val settings: GroupSettings = GroupSettings(),
                        /** Local devices: the agent through which the server reaches them (null = the server itself). / El agente por el que llega. */
-                       val relayId: String? = null) {
+                       val relayId: String? = null,
+                       /** The name the server keeps with each member (an account's name, not its id: "~oidc:…" means nothing). / El nombre de cada miembro. */
+                       val memberNames: Map<String, String> = emptyMap()) {
     internal companion object {
         fun from(o: JsonObject) = DeviceGroup(
             o.str("_id") ?: o.str("meshid").orEmpty(), o.str("name").orEmpty(), o.str("desc"),
@@ -92,6 +94,7 @@ data class DeviceGroup(val id: String, val name: String, val description: String
             links(o),
             GroupSettings((o.long("consent") ?: 0).toInt(), (o.long("flags") ?: 0).toInt(), (o.long("expireDevs") ?: 0).toInt()),
             o.str("relayid")?.takeIf { it.startsWith("node/") },
+            (o["links"] as? JsonObject)?.mapNotNull { (id, v) -> (v as? JsonObject)?.str("name")?.takeIf { it.isNotBlank() }?.let { id to it } }?.toMap().orEmpty(),
         )
     }
 }

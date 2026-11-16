@@ -279,8 +279,11 @@ private fun GroupPage(vm: AppViewModel, a: AdminModel, s: MeshSession, g: Device
         }
         Text(stringResource(R.string.admin_members), Modifier.padding(start = 20.dp, top = 20.dp, bottom = 4.dp), style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary)
-        g.links.entries.sortedBy { it.key }.forEach { (who, rights) ->
-            val name = who.substringAfterLast('/') + if (who.startsWith("ugrp/")) " · " + stringResource(R.string.admin_user_group) else ""
+        // Accounts by their name (and email when the accounts are known), not by their id: "~oidc:…" means nothing to a person.
+        // Las cuentas por su nombre (y su correo si se conocen las cuentas), no por su id: «~oidc:…» no le dice nada a nadie.
+        LaunchedEffect(g.id) { a.usersForNames() }
+        g.links.entries.sortedBy { memberName(g, it.key, a.users).lowercase() }.forEach { (who, rights) ->
+            val name = memberName(g, who, a.users) + if (who.startsWith("ugrp/")) " · " + stringResource(R.string.admin_user_group) else ""
             val label = MemberRights.of(rights)?.let { stringResource(it.label) } ?: stringResource(R.string.rights_custom)
             Row2(name, label, onClick = if (can.manageUsers && who != s.user.id) ({ member = who }) else null)
         }
@@ -295,7 +298,7 @@ private fun GroupPage(vm: AppViewModel, a: AdminModel, s: MeshSession, g: Device
     if (settings) GroupSettingsDialog(g, s.serverInfo, a.busy, { settings = false }) { new -> a.saveGroupSettings(g, new) { settings = false } }
     if (adding) { LaunchedEffect(Unit) { a.usersForNames() }; MemberDialog(null, null, { adding = false }, onRemove = null, users = a.users) { name, r -> a.addMember(g, name, r); adding = false } }
     member?.let { who ->
-        MemberDialog(who.substringAfterLast('/'), MemberRights.of(g.links[who] ?: 0), { member = null }, onRemove = { a.removeMember(g, who); member = null }) { _, r ->
+        MemberDialog(memberName(g, who, a.users), MemberRights.of(g.links[who] ?: 0), { member = null }, onRemove = { a.removeMember(g, who); member = null }) { _, r ->
             a.changeMember(g, who, r); member = null
         }
     }
@@ -677,3 +680,10 @@ private fun UserNamesField(value: String, onValue: (String) -> Unit, users: List
         }
     }
 }
+
+/** How a member shows: the account's name and email, or the name the server keeps with it, or (last) the end of its id. / Cómo sale un miembro. */
+private fun memberName(g: DeviceGroup, who: String, users: List<UserInfo>?): String =
+    users?.firstOrNull { it.id == who }?.let { u ->
+        val name = u.realName?.takeIf { it.isNotBlank() } ?: u.name
+        listOfNotNull(name, u.email?.takeIf { it.isNotBlank() && !it.equals(name, ignoreCase = true) }).joinToString(" · ")
+    } ?: g.memberNames[who] ?: who.substringAfterLast('/')
