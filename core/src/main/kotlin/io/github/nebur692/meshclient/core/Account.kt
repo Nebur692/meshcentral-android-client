@@ -68,7 +68,7 @@ private const val LOST = "usuarios/cambiar-ajustes/conexion-cortada"
 /** "Lock account settings": the server ignores password and two-factor changes. / El servidor ignora cambios de contraseña y doble factor. */
 val MeshSession.ownSettingsLocked: Boolean get() = !user.isFullAdministrator && user.siteRights and SiteRights.LOCK_SETTINGS != 0L
 
-private fun MeshSession.checkOwnSettings() {
+internal fun MeshSession.checkOwnSettings() {
     if (ownSettingsLocked) throw accountError(MeshFailure.NotAllowed, "usuarios/cambiar-ajustes/sin-permiso", "The settings of this account are locked by an administrator.")
 }
 
@@ -164,7 +164,7 @@ suspend fun MeshSession.removeSecurityKey(key: SecurityKey) {
 // ------------------------------------------------------------------ email and SMS / correo y SMS
 
 /** An own-account change the server confirms only with its event (msgid). / Un cambio de la cuenta que solo confirma su aviso. */
-private fun MeshSession.ownAccountEvent(msgid: Long): (JsonObject) -> Boolean {
+internal fun MeshSession.ownAccountEvent(msgid: Long): (JsonObject) -> Boolean {
     val me = user.id
     return { it.str("action") == "event" && (it["event"] as? JsonObject)?.let { e ->
         e.str("action") == "accountchange" && e.long("msgid") == msgid && (e["account"] as? JsonObject)?.str("_id") == me } == true }

@@ -5,7 +5,6 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -32,7 +31,7 @@ data class Recording(
         fun from(o: JsonObject): Recording? {
             val f = o.str("filename") ?: return null
             return Recording(f, RecordedKind.of(o.long("protocol")), o.str("nodeid"), o.str("name"), o.str("meshname"),
-                (o["userids"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content }.orEmpty(),
+                (o["userids"] as? JsonArray)?.mapNotNull { it.text }.orEmpty(),
                 o.long("startTime") ?: 0, o.long("lengthTime") ?: 0, o.long("size") ?: 0, o.long("present") == 1L)
         }
     }

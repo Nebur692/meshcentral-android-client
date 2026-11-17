@@ -507,6 +507,9 @@ private fun DeviceSheets(vm: AppViewModel, d: Device, details: DeviceDetails?, c
         DeviceSheet.ConfirmUninstall -> Confirm(vm, R.string.confirm_uninstall_title, R.string.confirm_uninstall_text, d.name, R.string.uninstall) { vm.uninstall(d) }
         DeviceSheet.ConfirmUpdateAgent -> Confirm(vm, R.string.update_agent, R.string.confirm_update_agent_text, d.name, R.string.update_agent_do) { vm.updateAgents(listOf(d)) }
         DeviceSheet.ConfirmRemove -> Confirm(vm, R.string.confirm_remove_title, R.string.confirm_remove_text, d.name, R.string.remove) { vm.remove(d) }
+        DeviceSheet.Share -> ShareSheet(vm, d) { vm.sheet = null }
+        DeviceSheet.Software -> SoftwareSheet(vm, d) { vm.sheet = null }
+        DeviceSheet.Notices -> DeviceNoticesDialog(vm, d) { vm.sheet = null }
         null -> Unit
     }
 }

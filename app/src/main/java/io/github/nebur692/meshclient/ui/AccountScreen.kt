@@ -43,6 +43,7 @@ import io.github.nebur692.meshclient.core.canManageUserGroups
 import io.github.nebur692.meshclient.core.canManageUsers
 import io.github.nebur692.meshclient.core.canSeeServer
 import io.github.nebur692.meshclient.core.canSeeRecordings
+import io.github.nebur692.meshclient.core.canUseServerFiles
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.runtime.mutableStateOf
@@ -97,6 +98,10 @@ fun AccountScreen(vm: AppViewModel) {
                 pinned?.let(CertificateTrust::display) ?: stringResource(R.string.account_certificate_system))
             // Password, second factor and tokens of the account on the server. / Contraseña, doble factor y tokens de la cuenta en el servidor.
             Item(R.drawable.ic_lock, stringResource(R.string.acc_security), stringResource(if (s.user.hasTwoFactor) R.string.acc_security_on else R.string.acc_security_off)) { vm.openSecurity() }
+            var logins by remember { mutableStateOf(false) }
+            Item(R.drawable.ic_shield, stringResource(R.string.logins_item), stringResource(R.string.logins_item_hint)) { logins = true }
+            if (logins) LoginsDialog(vm) { logins = false }
+            if (s.canUseServerFiles) Item(R.drawable.ic_folder, stringResource(R.string.sf_item), stringResource(R.string.sf_item_hint)) { vm.show(Screen.ServerFiles) }
 
             // The administration, as far as this account's rights go. / La administración, hasta donde llegan sus permisos.
             val manageUsers = s.canManageUsers

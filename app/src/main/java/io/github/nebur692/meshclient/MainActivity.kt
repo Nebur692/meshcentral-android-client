@@ -147,6 +147,7 @@ class MainActivity : ComponentActivity() {
                         is Screen.Chat -> io.github.nebur692.meshclient.ui.ChatScreen(vm)
                         Screen.Recordings -> io.github.nebur692.meshclient.ui.RecordingsScreen(vm)
                         Screen.Reports -> io.github.nebur692.meshclient.ui.ReportsScreen(vm)
+                        Screen.ServerFiles -> io.github.nebur692.meshclient.ui.ServerFilesScreen(vm)
                         is Screen.DeviceDetail -> if (twoPanes) io.github.nebur692.meshclient.ui.ListDetail(vm, s.id) else DeviceScreen(vm, s.id)
                         is Screen.Terminal -> TerminalScreen(vm)
                         is Screen.Files -> FilesScreen(vm)

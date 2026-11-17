@@ -1,6 +1,8 @@
 package io.github.nebur692.meshclient.core
 
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -62,6 +64,11 @@ data class UserInfo(
     val phone: String? = null,
     /** Where messaging codes go, as "ntfy:<topic>", "telegram:@…" (msghandle). / Adónde van los códigos por mensajería. */
     val messagingHandle: String? = null,
+    /**
+     * This account's notices by device group or device id (links[group].notify and notify[id]): 16/32 email when a
+     * device connects/disconnects, 128/256 messaging (ntfy…). / Los avisos de esta cuenta por grupo o equipo.
+     */
+    val notify: Map<String, Int> = emptyMap(),
 ) {
     val isFullAdministrator: Boolean get() = siteRights == 0xFFFFFFFFL
     /** It cannot sign in (siteadmin bit 32). / No puede entrar (bit 32 de siteadmin). */
@@ -74,7 +81,14 @@ data class UserInfo(
             o.long("passchange") == -1L,
             listOf("otpsecret", "otpkeys", "otphkeys", "otpekey", "otpduo", "otpdev").any { (o.long(it) ?: 0) > 0 } || !o.str("phone").isNullOrEmpty(),
             (o.long("otpsecret") ?: 0) > 0, (o.long("otpkeys") ?: 0) > 0, (o.long("otphkeys") ?: 0).toInt(),
-            (o.long("otpekey") ?: 0) > 0, o.str("phone")?.takeIf { it.isNotEmpty() }, o.str("msghandle")?.takeIf { it.isNotEmpty() })
+            (o.long("otpekey") ?: 0) > 0, o.str("phone")?.takeIf { it.isNotEmpty() }, o.str("msghandle")?.takeIf { it.isNotEmpty() }, notifyOf(o))
+
+        private fun notifyOf(o: JsonObject): Map<String, Int> {
+            val map = mutableMapOf<String, Int>()
+            (o["links"] as? JsonObject)?.forEach { (id, v) -> (v as? JsonObject)?.long("notify")?.takeIf { it != 0L }?.let { map[id] = it.toInt() } }
+            (o["notify"] as? JsonObject)?.forEach { (id, v) -> (v as? JsonPrimitive)?.let { it.longOrNull ?: it.doubleOrNull?.toLong() }?.takeIf { it != 0L }?.let { map[id] = it.toInt() } }
+            return map
+        }
     }
 }
 
@@ -258,8 +272,8 @@ data class DeviceSecurity(
             val center = (o["wsc"] as? JsonObject) ?: (o["lsc"] as? JsonObject)
             fun ok(k: String) = center?.str(k)?.let { it == "OK" }
             val pending = when (val pr = o["pr"]) {
-                is JsonArray -> pr.mapNotNull { (it as? JsonPrimitive)?.content }
-                is JsonObject -> pr.values.mapNotNull { (it as? JsonPrimitive)?.content }
+                is JsonArray -> pr.mapNotNull { it.text }
+                is JsonObject -> pr.values.mapNotNull { it.text }
                 else -> emptyList()
             }.filter(String::isNotEmpty)
             return DeviceSecurity(
@@ -277,6 +291,9 @@ data class DeviceSecurity(
 /** "links": { id: { rights } } → id → rights. / «links»: { id: { rights } } → id → permisos. */
 internal fun links(o: JsonObject): Map<String, Long> =
     (o["links"] as? JsonObject)?.mapNotNull { (id, v) -> (v as? JsonObject)?.long("rights")?.let { id to it } }?.toMap().orEmpty()
+
+/** A value as text; a JSON null is no text (JsonNull is a JsonPrimitive whose content is "null"). / Un null JSON no es texto. */
+internal val JsonElement.text: String? get() = (this as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content
 
 internal fun JsonObject.str(k: String): String? = (this[k] as? JsonPrimitive)?.takeIf { it.isString }?.content
 internal fun JsonObject.long(k: String): Long? = (this[k] as? JsonPrimitive)?.let { it.longOrNull ?: it.doubleOrNull?.toLong() }

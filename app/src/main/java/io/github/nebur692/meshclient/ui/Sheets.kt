@@ -55,6 +55,8 @@ import io.github.nebur692.meshclient.core.shellFor
 import io.github.nebur692.meshclient.core.TunnelProtocol
 import io.github.nebur692.meshclient.core.rightsOn
 import io.github.nebur692.meshclient.core.canUpdateAgent
+import io.github.nebur692.meshclient.core.canSeeSoftware
+import io.github.nebur692.meshclient.core.canShare
 
 /** A panel from the bottom, with the device's name on top. / Un panel desde abajo, con el nombre del equipo arriba. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -99,6 +101,10 @@ fun MoreSheet(vm: AppViewModel, d: Device, onCopy: () -> Unit) {
         if (vm.canRelay(d)) SheetOption(R.drawable.ic_globe, stringResource(R.string.ports_new), stringResource(R.string.ports_new_hint)) { vm.sheet = DeviceSheet.Port }
         if (vm.session?.canUpdateAgent(d) == true)
             SheetOption(R.drawable.ic_update, stringResource(R.string.update_agent), stringResource(R.string.update_agent_hint)) { vm.sheet = DeviceSheet.ConfirmUpdateAgent }
+        val s = vm.session
+        if (s?.canShare(d) == true) SheetOption(R.drawable.ic_share, stringResource(R.string.share_item), stringResource(R.string.share_item_hint)) { vm.sheet = DeviceSheet.Share }
+        if (s?.canSeeSoftware(d) == true) SheetOption(R.drawable.ic_processes, stringResource(R.string.software_item), stringResource(R.string.software_item_hint)) { vm.sheet = DeviceSheet.Software }
+        if (s != null) SheetOption(R.drawable.ic_mail, stringResource(R.string.notices_item), stringResource(R.string.notices_item_hint)) { vm.sheet = DeviceSheet.Notices }
         if (vm.moveTargets(d).isNotEmpty()) SheetOption(R.drawable.ic_folder, stringResource(R.string.move_device), stringResource(R.string.move_device_hint)) { vm.sheet = DeviceSheet.Move }
         val context = androidx.compose.ui.platform.LocalContext.current
         if (remember { io.github.nebur692.meshclient.Shortcuts.canPin(context) })

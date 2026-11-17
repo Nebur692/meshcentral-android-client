@@ -22,6 +22,7 @@ object SiteRights {
     const val SERVER_BACKUP = 1L
     const val MANAGE_USERS = 2L
     const val SERVER_RESTORE = 4L
+    const val SERVER_FILES = 8L
     const val SERVER_UPDATES = 16L
     const val LOCKED = 32L
     const val NO_NEW_GROUPS = 64L

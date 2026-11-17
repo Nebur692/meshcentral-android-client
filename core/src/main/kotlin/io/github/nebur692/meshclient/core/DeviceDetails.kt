@@ -68,8 +68,8 @@ data class HardwareSummary(
                 disks = (ids?.get("storage_devices") as? JsonArray)?.filterIsInstance<JsonObject>()?.mapNotNull(::disk).orEmpty(),
                 volumes = volumes(windows, linux),
                 graphics = when (val g = ids?.get("gpu_name")) {
-                    is JsonArray -> g.mapNotNull { (it as? JsonPrimitive)?.content }
-                    is JsonPrimitive -> listOf(g.content)
+                    is JsonArray -> g.mapNotNull { it.text }
+                    is JsonPrimitive -> listOfNotNull(g.text)
                     else -> (windows?.get("gpu") as? JsonArray)?.filterIsInstance<JsonObject>()?.mapNotNull { it.str("Name") }.orEmpty()
                 }.mapNotNull(::clean).distinct(),
                 model = clean(ids?.str("product_name")),

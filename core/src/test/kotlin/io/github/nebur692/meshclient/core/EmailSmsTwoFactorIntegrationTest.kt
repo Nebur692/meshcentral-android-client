@@ -37,9 +37,12 @@ class EmailSmsTwoFactorIntegrationTest {
     private suspend fun newestCode(kind: String, since: Int): String {
         val digits = if (kind == "sms") 6 else 8
         repeat(40) {
-            val list = mailbox()[kind] as JsonArray
-            if (list.size > since) {
-                val m = list.last() as JsonObject
+            // Only this account's mail: other tests' notices (a device that connects, by email) share the mailbox.
+            // Solo el correo de esta cuenta: los avisos de otras pruebas (un equipo que se conecta) comparten el buzón.
+            val mine = (mailbox()[kind] as JsonArray).drop(since).filterIsInstance<JsonObject>()
+                .filter { kind == "sms" || (it["to"] as? JsonArray)?.any { t -> t.jsonPrimitive.content == "mfa@mesh.test" } == true }
+            if (mine.isNotEmpty()) {
+                val m = mine.last()
                 val text = if (kind == "sms") m["msg"]!!.jsonPrimitive.content else readable(m["data"]!!.jsonPrimitive.content)
                 Regex("""(?<!\d)(\d{""" + digits + """})(?!\d)""").find(text)?.let { return it.groupValues[1] }
                 error("no code in: ${text.take(400)}")

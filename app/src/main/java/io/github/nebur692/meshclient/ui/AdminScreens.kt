@@ -1,5 +1,10 @@
 package io.github.nebur692.meshclient.ui
 
+import io.github.nebur692.meshclient.core.setGroupNotify
+import io.github.nebur692.meshclient.core.notifyOn
+import io.github.nebur692.meshclient.core.MeshRights
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import android.content.Intent
 import io.github.nebur692.meshclient.core.UserCompletion
 import androidx.compose.ui.window.PopupProperties
@@ -251,6 +256,7 @@ private fun GroupPage(vm: AppViewModel, a: AdminModel, s: MeshSession, g: Device
     var settings by remember { mutableStateOf(false) }
     var member by remember { mutableStateOf<String?>(null) }
     var addingLocal by remember { mutableStateOf(false) }
+    var notices by remember { mutableStateOf(false) }
     val local = g.kind == DeviceGroupKind.LocalDevices
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
         Row2(g.name, g.description)
@@ -262,8 +268,9 @@ private fun GroupPage(vm: AppViewModel, a: AdminModel, s: MeshSession, g: Device
             if (can.addDevices) FilledTonalButton(onClick = { inviting = true }) { Text(stringResource(R.string.admin_invite)) }
             if (s.canAddLocalDevice(g)) FilledTonalButton(onClick = { addingLocal = true }) { Text(stringResource(R.string.local_add)) }
         }
-        if (can.edit) OutlinedButton(onClick = { settings = true }, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
-            Text(stringResource(R.string.group_settings))
+        Row(Modifier.padding(horizontal = 20.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (can.edit) OutlinedButton(onClick = { settings = true }) { Text(stringResource(R.string.group_settings)) }
+            OutlinedButton(onClick = { notices = true }) { Text(stringResource(R.string.group_notices)) }
         }
         GroupSummary(g, s.serverInfo)
         a.inviteLink?.let { link ->
@@ -294,11 +301,12 @@ private fun GroupPage(vm: AppViewModel, a: AdminModel, s: MeshSession, g: Device
             Text(stringResource(R.string.admin_delete_group), color = MaterialTheme.colorScheme.error)
         }
     }
+    if (notices) GroupNoticesDialog(vm, g) { notices = false }
     if (editing) NameDialog(R.string.edit, g.name, g.description.orEmpty(), { editing = false }) { n, d -> a.editGroup(g, n, d); editing = false }
     if (settings) GroupSettingsDialog(g, s.serverInfo, a.busy, { settings = false }) { new -> a.saveGroupSettings(g, new) { settings = false } }
     if (adding) { LaunchedEffect(Unit) { a.usersForNames() }; MemberDialog(null, null, { adding = false }, onRemove = null, users = a.users) { name, r -> a.addMember(g, name, r); adding = false } }
     member?.let { who ->
-        MemberDialog(memberName(g, who, a.users), MemberRights.of(g.links[who] ?: 0), { member = null }, onRemove = { a.removeMember(g, who); member = null }) { _, r ->
+        MemberDialog(memberName(g, who, a.users), g.links[who] ?: 0L, { member = null }, onRemove = { a.removeMember(g, who); member = null }) { _, r ->
             a.changeMember(g, who, r); member = null
         }
     }
@@ -311,11 +319,29 @@ private fun GroupPage(vm: AppViewModel, a: AdminModel, s: MeshSession, g: Device
     }
 }
 
-/** A member's rights as ready-made choices; [name] null means a new member by user name. / Permisos de un miembro. */
+/** Each right of a group member, allowed or limited, as the website's and the Windows app's dialog. / Cada permiso de un miembro. */
+private val allowedRights = listOf(
+    0x1L to R.string.right_edit_group, 0x2L to R.string.right_manage_users, 0x4L to R.string.right_manage_devices,
+    0x8L to R.string.right_remote_control, 0x10L to R.string.right_agent_console, 0x20L to R.string.right_server_files,
+    0x40L to R.string.right_wake, 0x80L to R.string.right_set_notes, 0x100000L to R.string.right_device_details,
+    0x4000L to R.string.right_chat_notify, 0x8000L to R.string.right_uninstall, 0x20000L to R.string.right_remote_command,
+    0x40000L to R.string.right_reset_off, 0x80000L to R.string.right_guest_sharing, 0x200000L to R.string.right_relay,
+)
+private val limitRights = listOf(
+    0x100L to R.string.right_view_only, 0x1000L to R.string.right_limited_input, 0x10000L to R.string.right_no_desktop,
+    0x200L to R.string.right_no_terminal, 0x400L to R.string.right_no_files, 0x800L to R.string.right_no_amt, 0x2000L to R.string.right_limit_events,
+)
+
+/**
+ * A member's rights: ready-made choices, or right by right; [name] null means a new member by user name.
+ * Los permisos de un miembro: ya hechos, o permiso a permiso; [name] null es un miembro nuevo por su nombre de usuario.
+ */
 @Composable
-private fun MemberDialog(name: String?, current: MemberRights?, dismiss: () -> Unit, onRemove: (() -> Unit)?, users: List<UserInfo>? = null, onSave: (String, MemberRights) -> Unit) {
+private fun MemberDialog(name: String?, current: Long?, dismiss: () -> Unit, onRemove: (() -> Unit)?, users: List<UserInfo>? = null, onSave: (String, Long) -> Unit) {
     var userName by rememberSaveable { mutableStateOf("") }
-    var choice by rememberSaveable { mutableStateOf(current ?: MemberRights.RemoteControl) }
+    var rights by rememberSaveable { mutableStateOf(current ?: MemberRights.RemoteControl.rights) }
+    var oneByOne by rememberSaveable { mutableStateOf(current != null && MemberRights.of(current) == null) }
+    val full = rights == MeshRights.FULL
     AlertDialog(
         onDismissRequest = dismiss,
         title = { Text(name ?: stringResource(R.string.admin_add_member)) },
@@ -323,21 +349,60 @@ private fun MemberDialog(name: String?, current: MemberRights?, dismiss: () -> U
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 if (name == null) UserNamesField(userName, { userName = it }, users)
                 MemberRights.entries.forEach { r ->
-                    Row(Modifier.fillMaxWidth().selectable(choice == r, role = Role.RadioButton) { choice = r }.padding(vertical = 6.dp),
+                    Row(Modifier.fillMaxWidth().selectable(rights == r.rights, role = Role.RadioButton) { rights = r.rights }.padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(choice == r, null)
+                        RadioButton(rights == r.rights, null)
                         Column(Modifier.padding(start = 8.dp)) {
                             Text(stringResource(r.label), style = MaterialTheme.typography.bodyLarge)
                             Text(stringResource(r.hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
+                TextButton(onClick = { oneByOne = !oneByOne }) {
+                    Text(stringResource(if (oneByOne) R.string.rights_hide_each else R.string.rights_each))
+                }
+                if (oneByOne) {
+                    @Composable fun Box(bit: Long, label: Int, enabled: Boolean) {
+                        val on = full || rights and bit != 0L
+                        Row(Modifier.fillMaxWidth().toggleable(on, enabled = enabled, role = Role.Checkbox) { rights = if (it) rights or bit else rights and bit.inv() }
+                            .padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(on, null, enabled = enabled)
+                            Text(stringResource(label), Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth().toggleable(full, role = Role.Checkbox) { rights = if (it) MeshRights.FULL else 0L }.padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(full, null)
+                        Text(stringResource(R.string.right_full), Modifier.padding(start = 8.dp), style = MaterialTheme.typography.titleSmall)
+                    }
+                    Text(stringResource(R.string.rights_allowed), Modifier.padding(top = 6.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    allowedRights.forEach { (bit, label) -> Box(bit, label, !full) }
+                    Text(stringResource(R.string.rights_limits), Modifier.padding(top = 6.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    limitRights.forEach { (bit, label) -> Box(bit, label, !full) }
+                }
                 onRemove?.let { TextButton(onClick = it) { Text(stringResource(R.string.admin_remove_member), color = MaterialTheme.colorScheme.error) } }
             }
         },
-        confirmButton = { TextButton(onClick = { onSave(userName, choice) }, enabled = name != null || userName.isNotBlank()) { Text(stringResource(R.string.save)) } },
+        confirmButton = { TextButton(onClick = { onSave(userName, rights) }, enabled = name != null || userName.isNotBlank()) { Text(stringResource(R.string.save)) } },
         dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.cancel)) } },
     )
+}
+
+/** This account's notices for any device of the group, saved on the server. / Los avisos de la cuenta para el grupo. */
+@Composable
+private fun GroupNoticesDialog(vm: AppViewModel, g: DeviceGroup, onDone: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<io.github.nebur692.meshclient.UiError?>(null) }
+    NoticesDialog(stringResource(R.string.notices_group, g.name), vm.session?.notifyOn(g.id) ?: 0, busy, error, onDone) { wanted ->
+        val s = vm.session ?: return@NoticesDialog
+        busy = true; error = null
+        scope.launch {
+            try { s.setGroupNotify(g, wanted); onDone() }
+            catch (e: io.github.nebur692.meshclient.core.MeshClientException) { error = io.github.nebur692.meshclient.UiError(e.failure, e.key, e.httpStatus) }
+            finally { busy = false }
+        }
+    }
 }
 
 // ------------------------------------------------------------------ users / usuarios

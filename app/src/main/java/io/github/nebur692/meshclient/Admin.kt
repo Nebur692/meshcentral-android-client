@@ -164,10 +164,10 @@ class AdminModel(private val session: () -> MeshSession?, private val scope: Cor
     fun saveGroupSettings(g: DeviceGroup, settings: io.github.nebur692.meshclient.core.GroupSettings, then: () -> Unit) =
         change(R.string.done_saved, AdminPage.Groups, then) { it.saveGroupSettings(g, settings) }
     fun deleteGroup(g: DeviceGroup, then: () -> Unit) = change(R.string.done_group_deleted, AdminPage.Groups, then) { it.deleteGroup(g) }
-    fun addMember(g: DeviceGroup, userName: String, rights: MemberRights) =
-        change(R.string.done_member_added, AdminPage.Groups) { it.addGroupMembers(g, userName.split(',', ' ', ';').map(String::trim).filter(String::isNotEmpty), rights.rights) }
-    fun changeMember(g: DeviceGroup, memberId: String, rights: MemberRights) =
-        change(R.string.done_saved, AdminPage.Groups) { it.changeGroupMemberRights(g, memberId, rights.rights) }
+    fun addMember(g: DeviceGroup, userName: String, rights: Long) =
+        change(R.string.done_member_added, AdminPage.Groups) { it.addGroupMembers(g, userName.split(',', ' ', ';').map(String::trim).filter(String::isNotEmpty), rights) }
+    fun changeMember(g: DeviceGroup, memberId: String, rights: Long) =
+        change(R.string.done_saved, AdminPage.Groups) { it.changeGroupMemberRights(g, memberId, rights) }
     fun removeMember(g: DeviceGroup, memberId: String) = change(R.string.done_member_removed, AdminPage.Groups) { it.removeGroupMember(g, memberId) }
     fun invite(g: DeviceGroup, expiry: InviteExpiry) = change(R.string.done_invite, AdminPage.Groups) {
         inviteLink = it.createInviteLink(g, expiry.hours, AgentInstallMode.BackgroundAndInteractive)

@@ -7,18 +7,22 @@ object MeshRights {
     const val MANAGE_DEVICES = 0x4L
     const val REMOTE_CONTROL = 0x8L
     const val AGENT_CONSOLE = 0x10L
+    const val SERVER_FILES = 0x20L
     const val WAKE = 0x40L
     const val SET_NOTES = 0x80L
     const val REMOTE_VIEW_ONLY = 0x100L
     const val NO_TERMINAL = 0x200L
     const val NO_FILES = 0x400L
+    const val LIMITED_INPUT = 0x1000L
     const val LIMIT_EVENTS = 0x2000L
     const val CHAT_NOTIFY = 0x4000L
     const val UNINSTALL = 0x8000L
     const val NO_DESKTOP = 0x10000L
     const val REMOTE_COMMAND = 0x20000L
     const val RESET_OFF = 0x40000L
+    const val GUEST_SHARING = 0x80000L
     const val DEVICE_DETAILS = 0x100000L
+    const val NO_SOFTWARE = 0x800000L
     const val FULL = 0xFFFFFFFFL
 
     /** default.handlebars GetMeshRights. / GetMeshRights de la web. */
