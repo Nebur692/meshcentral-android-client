@@ -50,13 +50,16 @@ SINK_HOST="$SINK" SINK_CA="$WORK/sinkca" "$HERE/start-test-server.sh" "$SRV" "$W
 SRV_IP=$(docker inspect "$SRV" --format "{{(index .NetworkSettings.Networks \"$NET\").IPAddress}}")
 read -r OTP GROUP < <(docker exec -i "$SRV" node - < "$HERE/setup-test-data.js")
 [ -n "${OTP:-}" ] && [ -n "${GROUP:-}" ]
+# The agent on Madrid time, as real devices: agents other than Windows send file times by the device's clock.
+# El agente en hora de Madrid, como los equipos de verdad: los que no son Windows mandan la hora de ficheros por su reloj.
+export AGENT_TZ="${AGENT_TZ:-CET-1CEST,M3.5.0,M10.5.0/3}"
 "$HERE/start-test-agent.sh" "$SRV" "$NET" "$AGENT" "$WORK/agent" "$GROUP" >/dev/null
 CERT=$(docker exec "$SRV" node -e "const c=require('crypto'),f=require('fs');console.log(new c.X509Certificate(f.readFileSync('/opt/meshcentral/meshcentral-data/webserver-cert-public.crt')).fingerprint256.replace(/:/g,''))")
 echo "server $SRV · agent $AGENT · cert ${CERT:0:16}…"
 
 # The tests call the server by its certificate name, as the app would. / Las pruebas llaman al servidor por el nombre de su certificado.
 docker run --rm $PRUEBA_L --network "$NET" --add-host "mesh.test:$SRV_IP" --cpus 2 --memory 3g \
-  -e GRADLE_USER_HOME=/gradle -e MESHTEST_URL="https://mesh.test/" -e MESHTEST_CERT_SHA256="$CERT" \
+  -e TZ=Europe/Madrid -e GRADLE_USER_HOME=/gradle -e MESHTEST_URL="https://mesh.test/" -e MESHTEST_CERT_SHA256="$CERT" \
   -e MESHTEST_OTP_SECRET="$OTP" -e MESHTEST_GROUP_ID="$GROUP" -e MESHTEST_DESKTOP=1 -e MESHTEST_AGENT_HOST="$AGENT" -e MESHTEST_SINK="http://$SINK:8025" \
   -v "$ROOT:/src" -v "$GRADLE_CACHE:/gradle" -w /src "$JDK_IMAGE" \
   ./gradlew -p core test --no-daemon --rerun-tasks || {

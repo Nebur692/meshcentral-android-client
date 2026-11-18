@@ -35,7 +35,7 @@ data class RemoteFolder(val path: String, val entries: List<RemoteEntry>)
  * con JSON en mensajes BINARIOS y los datos con mensajes binarios de 4 bytes de cabecera, así que se distinguen por el
  * primer byte («{» = JSON). Una operación cada vez: los datos de una descarga no llevan identificador.
  */
-class FilesSession private constructor(val tunnel: MeshTunnel, private val timeoutMs: Long) {
+class FilesSession private constructor(val tunnel: MeshTunnel, private val timeoutMs: Long, private val deviceClock: Boolean) {
     private val one = Mutex()
 
     // ------------------------------------------------------------------ listing / listar
@@ -54,7 +54,7 @@ class FilesSession private constructor(val tunnel: MeshTunnel, private val timeo
                 it.str("n").orEmpty(),
                 when (it.long("t")) { 1L -> RemoteEntryKind.Drive; 2L -> RemoteEntryKind.Folder; else -> RemoteEntryKind.File },
                 it.long("s") ?: 0,
-                date(it["d"]),
+                date(it["d"], deviceClock),
                 it.long("f"),
             )
         }.filter { it.name.isNotEmpty() }
@@ -227,15 +227,25 @@ class FilesSession private constructor(val tunnel: MeshTunnel, private val timeo
 
         private fun parse(frame: ByteArray): JsonObject? = runCatching { Json.parseToJsonElement(frame.toString(Charsets.UTF_8)) as? JsonObject }.getOrNull()
 
-        internal fun date(n: kotlinx.serialization.json.JsonElement?): Instant? {
+        /** [deviceClock]: the text is the device's clock reading with a false "Z"; kept as that wall time in this
+         *  phone's zone. / El texto es la hora del reloj del equipo con una «Z» falsa; se deja como esa hora aquí. */
+        internal fun date(n: kotlinx.serialization.json.JsonElement?, deviceClock: Boolean): Instant? {
             val p = n as? JsonPrimitive ?: return null
-            if (p.isString) return runCatching { Instant.parse(p.content) }.getOrNull()
-                ?: runCatching { java.time.OffsetDateTime.parse(p.content).toInstant() }.getOrNull()
+            if (p.isString) {
+                val t = runCatching { Instant.parse(p.content) }.getOrNull()
+                    ?: runCatching { java.time.OffsetDateTime.parse(p.content).toInstant() }.getOrNull() ?: return null
+                return if (deviceClock) java.time.LocalDateTime.ofInstant(t, java.time.ZoneOffset.UTC).atZone(java.time.ZoneId.systemDefault()).toInstant() else t
+            }
             return p.longOrNull?.let(Instant::ofEpochMilli)
         }
 
-        suspend fun open(session: MeshSession, nodeId: String): FilesSession =
-            FilesSession(MeshTunnel.open(session, nodeId, TunnelProtocol.Files), session.timeoutMs)
+        /**
+         * Agents other than Windows send file times as the device's own clock with a false "Z" (measured 18-11 with the
+         * agent on Madrid time); Windows agents send true UTC. So the device is asked for. As the Windows app.
+         * Los agentes que no son de Windows mandan la hora del reloj del equipo con una «Z» falsa; los de Windows, UTC.
+         */
+        suspend fun open(session: MeshSession, device: Device): FilesSession =
+            FilesSession(MeshTunnel.open(session, device.id, TunnelProtocol.Files), session.timeoutMs, !device.isWindows)
     }
 }
 

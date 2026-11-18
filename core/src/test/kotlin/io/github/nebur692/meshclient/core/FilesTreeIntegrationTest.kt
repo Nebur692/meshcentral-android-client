@@ -38,7 +38,7 @@ class FilesTreeIntegrationTest {
     @Test fun `several are deleted, copied and moved with their folders, and never into themselves`() = runBlocking {
         need()
         val s = MeshSession.connect(server, PasswordCredentials("admin", "Admin-Pass-1234"), CertificateTrust(cert))
-        val f = FilesSession.open(s, s.agent().id)
+        val f = FilesSession.open(s, s.agent())
         val root = "/tmp/mcc-tree-${System.nanoTime()}"
         try {
             f.createFolder(root)

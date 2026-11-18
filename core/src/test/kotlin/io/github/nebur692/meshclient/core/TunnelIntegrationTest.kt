@@ -70,7 +70,7 @@ class TunnelIntegrationTest {
     @Test fun `files are listed, uploaded, downloaded the same, renamed and deleted`() = runBlocking {
         need()
         val s = admin()
-        val f = FilesSession.open(s, s.agent().id)
+        val f = FilesSession.open(s, s.agent())
         val folder = "/tmp/mcc-files-${System.nanoTime()}"
         try {
             assertTrue("/ has no tmp", f.list("/").entries.any { it.name == "tmp" && it.kind == RemoteEntryKind.Folder })

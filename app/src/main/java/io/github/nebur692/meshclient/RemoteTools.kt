@@ -248,7 +248,7 @@ class FilesModel(private val session: () -> MeshSession?, val device: Device, pr
 
     private suspend fun files(): FilesSession =
         files?.takeIf { it.tunnel.isOpen } ?: FilesSession.open(
-            session() ?: throw MeshClientException(MeshFailure.ConnectionLost, "tunel/abrir-detalle/conexion-cortada", "no session"), device.id
+            session() ?: throw MeshClientException(MeshFailure.ConnectionLost, "tunel/abrir-detalle/conexion-cortada", "no session"), device
         ).also { files = it }
 
     fun open(to: String = path) {
