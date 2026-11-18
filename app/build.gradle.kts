@@ -17,8 +17,8 @@ android {
         // per-app language 13, predictive back 14). / Android 10 o más nuevo; lo que trae cada versión se usa donde existe.
         minSdk = 29
         targetSdk = 37
-        versionCode = 24
-        versionName = "0.22.0"
+        versionCode = 25
+        versionName = "0.23.0"
     }
 
     buildTypes {

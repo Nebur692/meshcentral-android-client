@@ -257,6 +257,7 @@ private fun GroupPage(vm: AppViewModel, a: AdminModel, s: MeshSession, g: Device
     var member by remember { mutableStateOf<String?>(null) }
     var addingLocal by remember { mutableStateOf(false) }
     var notices by remember { mutableStateOf(false) }
+    var agentFor by remember { mutableStateOf(false) }
     val local = g.kind == DeviceGroupKind.LocalDevices
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
         Row2(g.name, g.description)
@@ -271,6 +272,9 @@ private fun GroupPage(vm: AppViewModel, a: AdminModel, s: MeshSession, g: Device
         Row(Modifier.padding(horizontal = 20.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (can.edit) OutlinedButton(onClick = { settings = true }) { Text(stringResource(R.string.group_settings)) }
             OutlinedButton(onClick = { notices = true }) { Text(stringResource(R.string.group_notices)) }
+        }
+        if (can.addDevices) OutlinedButton(onClick = { agentFor = true }, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
+            Text(stringResource(R.string.agent_for_group_short))
         }
         GroupSummary(g, s.serverInfo)
         a.inviteLink?.let { link ->
@@ -302,6 +306,7 @@ private fun GroupPage(vm: AppViewModel, a: AdminModel, s: MeshSession, g: Device
         }
     }
     if (notices) GroupNoticesDialog(vm, g) { notices = false }
+    if (agentFor) AgentForGroupDialog(vm, g) { agentFor = false }
     if (editing) NameDialog(R.string.edit, g.name, g.description.orEmpty(), { editing = false }) { n, d -> a.editGroup(g, n, d); editing = false }
     if (settings) GroupSettingsDialog(g, s.serverInfo, a.busy, { settings = false }) { new -> a.saveGroupSettings(g, new) { settings = false } }
     if (adding) { LaunchedEffect(Unit) { a.usersForNames() }; MemberDialog(null, null, { adding = false }, onRemove = null, users = a.users) { name, r -> a.addMember(g, name, r); adding = false } }

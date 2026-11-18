@@ -66,6 +66,9 @@ class MeshSession private constructor(
     /** Notifications for this person while connected. / Avisos para esta persona mientras está conectada. */
     val notifications: SharedFlow<ServerNotification> get() = listener.notifications
 
+    /** Text the agents write on their console (answers to [sendConsoleCommand]). / Lo que escriben los agentes en su consola. */
+    val consoleOutput: SharedFlow<ConsoleText> get() = listener.consoleOutput
+
     /** Why it ended, once it has (never set by [close]). / Por qué acabó, cuando acaba (nunca por [close]). */
     val closedReason: StateFlow<MeshClientException?> get() = listener.closedReason
 
@@ -198,6 +201,7 @@ class MeshSession private constructor(
         val changes = MutableSharedFlow<DeviceChange>(extraBufferCapacity = 512)
         val notifications = MutableSharedFlow<ServerNotification>(extraBufferCapacity = 64)
         val serverStats = MutableSharedFlow<JsonObject>(extraBufferCapacity = 8)
+        val consoleOutput = MutableSharedFlow<ConsoleText>(extraBufferCapacity = 256)
         /** Every account change the server tells (the session keeps its own up to date). / Cada cambio de cuenta que cuenta el servidor. */
         @Volatile var onAccount: ((JsonObject) -> Unit)? = null
         val closedReason = MutableStateFlow<MeshClientException?>(null)
@@ -224,6 +228,11 @@ class MeshSession private constructor(
             hit.forEach { it.result.complete(o) }
             if (o.str("action") == "event") (o["event"] as? JsonObject)?.let(::onEvent)
             if (o.str("action") == "serverstats") serverStats.tryEmit(o)
+            // What an agent writes on its console, in as many pieces as it likes. / Lo que escribe un agente en su consola.
+            if (o.str("action") == "msg" && o.str("type") == "console") {
+                val node = o.str("nodeid"); val said = o.str("value")
+                if (!node.isNullOrEmpty() && said != null) consoleOutput.tryEmit(ConsoleText(node, said))
+            }
             // Replies to this app's own requests carry a titleid and are answered where they were asked (as Windows).
             // Las respuestas a peticiones de la propia app llevan titleid y se contestan donde se pidieron (como Windows).
             if (o.str("action") == "msg" && o.str("type") == "notify" && o["titleid"] == null) {

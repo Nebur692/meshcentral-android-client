@@ -57,6 +57,8 @@ import io.github.nebur692.meshclient.core.rightsOn
 import io.github.nebur692.meshclient.core.canUpdateAgent
 import io.github.nebur692.meshclient.core.canSeeSoftware
 import io.github.nebur692.meshclient.core.canShare
+import io.github.nebur692.meshclient.core.canChangeDeviceSettings
+import io.github.nebur692.meshclient.core.canUseAgentConsole
 
 /** A panel from the bottom, with the device's name on top. / Un panel desde abajo, con el nombre del equipo arriba. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -102,6 +104,8 @@ fun MoreSheet(vm: AppViewModel, d: Device, onCopy: () -> Unit) {
         if (vm.session?.canUpdateAgent(d) == true)
             SheetOption(R.drawable.ic_update, stringResource(R.string.update_agent), stringResource(R.string.update_agent_hint)) { vm.sheet = DeviceSheet.ConfirmUpdateAgent }
         val s = vm.session
+        if (s?.canUseAgentConsole(d) == true) SheetOption(R.drawable.ic_terminal, stringResource(R.string.console_item), stringResource(R.string.console_item_hint)) { vm.sheet = null; vm.show(io.github.nebur692.meshclient.Screen.AgentConsole(d.id)) }
+        if (s?.canChangeDeviceSettings(d) == true) SheetOption(R.drawable.ic_edit, stringResource(R.string.device_settings_item), stringResource(R.string.device_settings_item_hint)) { vm.sheet = DeviceSheet.Settings }
         if (s?.canShare(d) == true) SheetOption(R.drawable.ic_share, stringResource(R.string.share_item), stringResource(R.string.share_item_hint)) { vm.sheet = DeviceSheet.Share }
         if (s?.canSeeSoftware(d) == true) SheetOption(R.drawable.ic_processes, stringResource(R.string.software_item), stringResource(R.string.software_item_hint)) { vm.sheet = DeviceSheet.Software }
         if (s != null) SheetOption(R.drawable.ic_mail, stringResource(R.string.notices_item), stringResource(R.string.notices_item_hint)) { vm.sheet = DeviceSheet.Notices }

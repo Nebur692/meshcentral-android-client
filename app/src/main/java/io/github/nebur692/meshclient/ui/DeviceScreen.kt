@@ -510,6 +510,7 @@ private fun DeviceSheets(vm: AppViewModel, d: Device, details: DeviceDetails?, c
         DeviceSheet.Share -> ShareSheet(vm, d) { vm.sheet = null }
         DeviceSheet.Software -> SoftwareSheet(vm, d) { vm.sheet = null }
         DeviceSheet.Notices -> DeviceNoticesDialog(vm, d) { vm.sheet = null }
+        DeviceSheet.Settings -> DeviceSettingsDialog(vm, d) { vm.sheet = null }
         null -> Unit
     }
 }

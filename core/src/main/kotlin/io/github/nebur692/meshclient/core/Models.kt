@@ -127,6 +127,7 @@ object AgentCaps {
     const val DESKTOP = 1
     const val TERMINAL = 2
     const val FILES = 4
+    const val CONSOLE = 8
 }
 
 enum class OsFamily { Windows, Linux, Mac, Android, Other }
@@ -158,7 +159,14 @@ data class Device(
     val hasIntelAmt: Boolean = false,
     /** A device without an agent, reached by its address through the server (a group of local devices). / Un equipo sin agente. */
     val isLocal: Boolean = false,
+    /** The device's own ports when it does not use the usual ones (null = the usual). / Los puertos propios (null = el normal). */
+    val rdpPort: Int? = null, val sshPort: Int? = null, val vncPort: Int? = null, val httpPort: Int? = null, val httpsPort: Int? = null,
+    /** Where someone placed it on the map (servers with geolocation on). / Dónde lo pusieron en el mapa. */
+    val location: DeviceLocation? = null,
 ) {
+    /** The port for a service whose usual port is [usual]: the device's own, or that. / El puerto propio para ese servicio, o el normal. */
+    fun portFor(usual: Int): Int = when (usual) { 3389 -> rdpPort; 22 -> sshPort; 5900 -> vncPort; 80 -> httpPort; 443 -> httpsPort; else -> null } ?: usual
+
     val isOnline: Boolean get() = connectivity != 0
     val hasAgent: Boolean get() = connectivity and Connectivity.AGENT != 0
     val isWindows: Boolean get() = agentId in windowsAgents
@@ -217,11 +225,30 @@ data class Device(
                 agentCore = agent?.str("core"),
                 hasIntelAmt = ((o["intelamt"] as? JsonObject)?.long("state") ?: 0) != 0L,
                 isLocal = o.long("mtype") == 3L,
+                rdpPort = port(o, "rdpport", 3389), sshPort = port(o, "sshport", 22), vncPort = port(o, "rfbport", 5900),
+                httpPort = port(o, "httpport", 80), httpsPort = port(o, "httpsport", 443),
+                location = DeviceLocation.parse(o.str("userloc")),
             )
         }
 
+        // The usual port is no own port: the change event sends rdpport 3389 and rfbport 5900 on purpose when one is removed.
+        // El puerto normal no es un puerto propio: el aviso del cambio manda 3389 y 5900 a propósito al quitar uno.
+        private fun port(o: JsonObject, k: String, usual: Int): Int? = o.long(k)?.takeIf { it in 1..65535 && it != usual.toLong() }?.toInt()
+
         private fun strings(e: kotlinx.serialization.json.JsonElement?): List<String> =
             (e as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content?.takeIf(String::isNotEmpty) }.orEmpty()
+    }
+}
+
+/** A place on the map, as the server keeps it ("lat,long,when"). / Un sitio en el mapa, como lo guarda el servidor. */
+data class DeviceLocation(val latitude: Double, val longitude: Double) {
+    internal companion object {
+        fun parse(userloc: String?): DeviceLocation? {
+            val p = userloc?.split(',') ?: return null
+            val lat = p.getOrNull(0)?.trim()?.toDoubleOrNull() ?: return null
+            val lon = p.getOrNull(1)?.trim()?.toDoubleOrNull() ?: return null
+            return if (lat in -90.0..90.0 && lon in -180.0..180.0) DeviceLocation(lat, lon) else null
+        }
     }
 }
 

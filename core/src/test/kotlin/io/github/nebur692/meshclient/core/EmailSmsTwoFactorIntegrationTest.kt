@@ -44,7 +44,9 @@ class EmailSmsTwoFactorIntegrationTest {
             if (mine.isNotEmpty()) {
                 val m = mine.last()
                 val text = if (kind == "sms") m["msg"]!!.jsonPrimitive.content else readable(m["data"]!!.jsonPrimitive.content)
-                Regex("""(?<!\d)(\d{""" + digits + """})(?!\d)""").find(text)?.let { return it.groupValues[1] }
+                // By email, from its sentence: the headers (Message-ID, boundary) are random and now and then carry 8 digits.
+                // Por correo, de su frase: las cabeceras son al azar y de vez en cuando llevan 8 cifras.
+                Regex(if (kind == "sms") """(?<!\d)(\d{""" + digits + """})(?!\d)""" else """token is:\s*(\d{8})(?!\d)""").find(text)?.let { return it.groupValues[1] }
                 error("no code in: ${text.take(400)}")
             }
             delay(250)

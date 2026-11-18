@@ -66,7 +66,8 @@ fun SshSheet(vm: AppViewModel, d: Device) {
     val place = remember(d.id) { vm.sshPlaces.get(d.id) }
     val local = vm.isLocal(d)
     var host by rememberSaveable { mutableStateOf(if (local) "" else place.host) }
-    var port by rememberSaveable { mutableStateOf(place.port.toString()) }
+    // The device's own SSH port, unless another was used before. / El puerto SSH propio del equipo, salvo que se usara otro.
+    var port by rememberSaveable { mutableStateOf((if (place.port == 22) d.portFor(22) else place.port).toString()) }
     var user by rememberSaveable { mutableStateOf(place.user) }
     var password by remember { mutableStateOf("") }
     var key by remember { mutableStateOf<ByteArray?>(null) }
@@ -135,7 +136,7 @@ fun HostKeyDialog(p: HostKeyPrompt, answer: (Boolean) -> Unit) {
 @Composable
 fun PortSheet(vm: AppViewModel, d: Device) {
     val noAgent = vm.isLocal(d)
-    var remote by rememberSaveable { mutableStateOf(if (noAgent && !d.isWindows) "22" else "3389") }
+    var remote by rememberSaveable { mutableStateOf(d.portFor(if (noAgent && !d.isWindows) 22 else 3389).toString()) }
     var host by rememberSaveable { mutableStateOf("") }
     var local by rememberSaveable { mutableStateOf("") }
     var udp by rememberSaveable { mutableStateOf(false) }
@@ -148,7 +149,7 @@ fun PortSheet(vm: AppViewModel, d: Device) {
     }) {
         Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                KnownPort.entries.forEach { k -> FilterChip(remote == k.port.toString() && !udp, { remote = k.port.toString(); udp = false }, label = { Text("${k.label} ${k.port}") }) }
+                KnownPort.entries.forEach { k -> val p = d.portFor(k.port); FilterChip(remote == p.toString() && !udp, { remote = p.toString(); udp = false }, label = { Text("${k.label} $p") }) }
             }
             // TCP (almost everything) or UDP (DNS, SNMP, games…); UDP goes through an agent. / TCP o UDP; UDP va por un agente.
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

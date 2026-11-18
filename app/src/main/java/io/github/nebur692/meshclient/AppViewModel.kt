@@ -77,6 +77,8 @@ sealed interface Screen {
     data object Reports : Screen
     /** The server's own files ("My files"). / Los ficheros del propio servidor. */
     data object ServerFiles : Screen
+    /** The agent's own console on a device. / La consola del propio agente de un equipo. */
+    data class AgentConsole(val id: String) : Screen
     data class DeviceDetail(val id: String) : Screen
     data class Terminal(val id: String) : Screen
     data class Files(val id: String) : Screen
@@ -135,7 +137,7 @@ sealed interface BiometricRequest {
 enum class BiometricProblem { KeyChanged, Unavailable, Locked, Stale }
 
 /** A panel of the device's sheet. / Un panel de la ficha del equipo. */
-enum class DeviceSheet { Terminal, Power, More, Pin, Move, Ssh, Port, Message, Run, Edit, ConfirmRestart, ConfirmPowerOff, ConfirmUninstall, ConfirmRemove, ConfirmUpdateAgent, Share, Software, Notices }
+enum class DeviceSheet { Terminal, Power, More, Pin, Move, Ssh, Port, Message, Run, Edit, ConfirmRestart, ConfirmPowerOff, ConfirmUninstall, ConfirmRemove, ConfirmUpdateAgent, Share, Software, Notices, Settings }
 
 /** What the agents said after being asked to update: device name and its words (null = nothing). / Lo que dijeron los agentes. */
 data class AgentAnswers(val said: List<Pair<String, String?>>)
