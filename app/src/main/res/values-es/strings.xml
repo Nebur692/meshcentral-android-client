@@ -988,4 +988,15 @@
     <string name="agent_download">Guardar el agente</string>
     <string name="agent_saved">Agente guardado: ábrelo en el equipo Windows.</string>
     <string name="agent_linux">Linux, BSD y macOS: ejecuta esta orden en el equipo</string>
+    <string name="map_title">Equipos en el mapa</string>
+    <string name="map_hint">Dónde está cada equipo, según su ubicación</string>
+    <string name="map_online">En línea</string>
+    <string name="map_offline">Desconectado</string>
+    <string name="map_open">Abrir</string>
+    <string name="map_none">Ningún equipo tiene ubicación todavía: ponla en «Icono, puertos y ubicación» de cada equipo.</string>
+    <string name="map_kind_ip">ubicación aproximada por su dirección</string>
+    <string name="map_kind_wifi">ubicación por wifi</string>
+    <string name="map_kind_gps">ubicación por GPS</string>
+    <string name="map_kind_user">ubicación puesta a mano</string>
+    <string name="map_count">Con ubicación: %1$d / %2$d · Mapa © colaboradores de OpenStreetMap</string>
 </resources>

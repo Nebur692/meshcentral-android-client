@@ -163,6 +163,8 @@ data class Device(
     val rdpPort: Int? = null, val sshPort: Int? = null, val vncPort: Int? = null, val httpPort: Int? = null, val httpsPort: Int? = null,
     /** Where someone placed it on the map (servers with geolocation on). / Dónde lo pusieron en el mapa. */
     val location: DeviceLocation? = null,
+    /** Where it shows on the map, from the best place the server has (null = none). / Dónde sale en el mapa. */
+    val mapPlace: MapPlace? = null,
 ) {
     /** The port for a service whose usual port is [usual]: the device's own, or that. / El puerto propio para ese servicio, o el normal. */
     fun portFor(usual: Int): Int = when (usual) { 3389 -> rdpPort; 22 -> sshPort; 5900 -> vncPort; 80 -> httpPort; 443 -> httpsPort; else -> null } ?: usual
@@ -228,6 +230,7 @@ data class Device(
                 rdpPort = port(o, "rdpport", 3389), sshPort = port(o, "sshport", 22), vncPort = port(o, "rfbport", 5900),
                 httpPort = port(o, "httpport", 80), httpsPort = port(o, "httpsport", 443),
                 location = DeviceLocation.parse(o.str("userloc")),
+                mapPlace = MapPlace.of(o),
             )
         }
 
@@ -249,6 +252,32 @@ data class DeviceLocation(val latitude: Double, val longitude: Double) {
             val lon = p.getOrNull(1)?.trim()?.toDoubleOrNull() ?: return null
             return if (lat in -90.0..90.0 && lon in -180.0..180.0) DeviceLocation(lat, lon) else null
         }
+    }
+}
+
+/** Where a device's place on the map comes from, worst to best, as the website. / De dónde sale su sitio en el mapa. */
+enum class MapPlaceKind(val code: Int) { Ip(1), Wifi(2), Gps(3), User(4) }
+
+/**
+ * A device on the map, as the website's map_parseNodeLoc and the Windows app: set by hand beats GPS, Wi-Fi and the one
+ * guessed from its address; that last one is moved a little by the device id, so devices behind one address do not hide
+ * each other. / Un equipo en el mapa, como la web y la app de Windows.
+ */
+data class MapPlace(val latitude: Double, val longitude: Double, val kind: MapPlaceKind) {
+    internal companion object {
+        fun of(o: JsonObject): MapPlace? {
+            var text: String? = null
+            var kind = MapPlaceKind.Ip
+            for ((field, k) in listOf("iploc" to MapPlaceKind.Ip, "wifiloc" to MapPlaceKind.Wifi, "gpsloc" to MapPlaceKind.Gps, "userloc" to MapPlaceKind.User))
+                o.str(field)?.takeIf { it.isNotEmpty() }?.let { text = it; kind = k }
+            val at = DeviceLocation.parse(text) ?: return null
+            if (kind != MapPlaceKind.Ip) return MapPlace(at.latitude, at.longitude, kind)
+            val id = o.str("_id").orEmpty()
+            return MapPlace(at.latitude + hash(id.take(20)) / 100000000000.0, at.longitude + hash(id.drop(20)) / 100000000000.0, MapPlaceKind.Ip)
+        }
+
+        /** The website's stringToIntHash (32-bit). / El stringToIntHash de la web. */
+        private fun hash(s: String): Int { var h = 0; for (c in s) h = (h shl 5) - h + c.code; return h }
     }
 }
 

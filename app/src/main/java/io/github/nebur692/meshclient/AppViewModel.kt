@@ -77,6 +77,8 @@ sealed interface Screen {
     data object Reports : Screen
     /** The server's own files ("My files"). / Los ficheros del propio servidor. */
     data object ServerFiles : Screen
+    /** The devices on a map. / Los equipos en un mapa. */
+    data object Map : Screen
     /** The agent's own console on a device. / La consola del propio agente de un equipo. */
     data class AgentConsole(val id: String) : Screen
     data class DeviceDetail(val id: String) : Screen

@@ -115,6 +115,7 @@ fun AccountScreen(vm: AppViewModel) {
             Item(R.drawable.ic_folder, stringResource(R.string.admin_groups), stringResource(R.string.admin_groups_hint)) { vm.show(Screen.Admin(AdminPage.Groups)) }
             if (manageUsers) Item(R.drawable.ic_person, stringResource(R.string.admin_users), stringResource(R.string.admin_users_hint)) { vm.show(Screen.Admin(AdminPage.Users)) }
             if (s.canManageUserGroups) Item(R.drawable.ic_person, stringResource(R.string.admin_user_groups), stringResource(R.string.admin_user_groups_hint)) { vm.show(Screen.Admin(AdminPage.UserGroups)) }
+            Item(R.drawable.ic_globe, stringResource(R.string.map_title), stringResource(R.string.map_hint)) { vm.show(Screen.Map) }
             Item(R.drawable.ic_doc, stringResource(R.string.reports), stringResource(R.string.reports_hint)) { vm.openReports() }
             if (s.canSeeRecordings) Item(R.drawable.ic_record, stringResource(R.string.recordings), stringResource(R.string.recordings_hint)) { vm.openRecordings() }
             if (manageUsers) {

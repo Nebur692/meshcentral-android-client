@@ -964,4 +964,15 @@
     <string name="agent_download">Save the agent</string>
     <string name="agent_saved">Agent saved: run it on the Windows device.</string>
     <string name="agent_linux">Linux, BSD and macOS: run this command on the device</string>
+    <string name="map_title">Devices on the map</string>
+    <string name="map_hint">Where each device is, from its place</string>
+    <string name="map_online">Online</string>
+    <string name="map_offline">Offline</string>
+    <string name="map_open">Open</string>
+    <string name="map_none">No device has a place yet: set it in each device\'s Icon, ports and place.</string>
+    <string name="map_kind_ip">place guessed from its address</string>
+    <string name="map_kind_wifi">place by Wi-Fi</string>
+    <string name="map_kind_gps">place by GPS</string>
+    <string name="map_kind_user">place set by hand</string>
+    <string name="map_count">With a place: %1$d / %2$d · Map © OpenStreetMap contributors</string>
 </resources>
