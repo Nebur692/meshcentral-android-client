@@ -67,6 +67,9 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Keeps a remote terminal, file browser or remote desktop session to a device the user opened connected while the user switches to another app; it stops when the user closes it." />
         </service>
+        <receiver
+            android:name=".CodeCopyReceiver"
+            android:exported="false" />
         <!-- UnifiedPush: codes by messaging (ntfy) come to the app itself. / Los códigos por mensajería (ntfy) llegan a la app. -->
         <service
             android:name=".PushServiceImpl"

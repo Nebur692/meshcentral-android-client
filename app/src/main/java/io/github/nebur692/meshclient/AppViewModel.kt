@@ -780,6 +780,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val c = credentials
             ntfyWait = viewModelScope.launch {
                 val code = kotlinx.coroutines.withTimeoutOrNull(NTFY_WAIT_MS) { NtfyPush.codesNow.first { it.instance == address.toString() }.code }
+                    ?.also(NtfyPush::used)
                 if (code == null) {
                     // ntfy is not listening (stopped, never opened): say so and give the button back, not a wait for nothing.
                     // ntfy no escucha: se dice y se devuelve el botón, en vez de esperar algo que no llega.
@@ -792,10 +793,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
             if (!e.messagingCodeSent && c != null) attempt(address, c.withCode(PasswordCredentials.MESSAGING_CODE), viaBiometric = unlockedWithBiometric)
         }
+        if (here) ntfyInstance = address.toString()
         return here
     }
 
     private var ntfyWait: kotlinx.coroutines.Job? = null
+
+    /** The server whose messaging code the sign-in waits for. / El servidor cuyo código por mensajería espera la entrada. */
+    private var ntfyInstance: String? = null
+
+    // A code that arrives after the wait ran out, with the app in front (so no notification): it still goes in.
+    // Un código que llega cuando la espera ya acabó y con la app delante (sin aviso): también entra.
+    init {
+        viewModelScope.launch {
+            NtfyPush.codesNow.collect { c ->
+                if (form.twoFactor != null && c.instance == ntfyInstance && ntfyWait?.isActive != true) NtfyPush.take(c.instance)?.let(::submitCode)
+            }
+        }
+    }
 
     private fun fromThisApp(address: ServerAddress) = biometricsAvailable && savedFor(address.toString())?.hasAuthenticator == true
 
@@ -1162,6 +1177,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         desktop?.onScreen(true)
         backgroundJob?.cancel()
         refreshBiometrics()
+        // Back by a tap on the code's notification (or after the wait ran out): the code goes in. / Vuelta por el aviso: el código entra.
+        if (form.twoFactor != null) ntfyInstance?.let(NtfyPush::take)?.let { ntfyWait?.cancel(); submitCode(it) }
         if (!paused) return
         paused = false
         if (session != null) reconnect()

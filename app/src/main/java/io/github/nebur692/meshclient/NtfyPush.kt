@@ -46,6 +46,28 @@ object NtfyPush {
     /** Whether the app is in front (then the code goes to the screen, not to a notification). / Si la app está delante. */
     @Volatile var inFront = false
 
+    /** The last code, for a while, so a tap on its notification fills it even after the screen stopped waiting.
+     *  El último código, un rato, para que tocar su aviso lo ponga aunque la pantalla ya no lo esperara. */
+    private data class Kept(val code: Code, val atMs: Long, val used: Boolean)
+    @Volatile private var kept: Kept? = null
+    /** How long a kept code is offered (MeshCentral's messaging codes last 5 minutes). / Cuánto se ofrece. */
+    const val KEEP_MS = 4 * 60_000L
+
+    @Synchronized internal fun keep(code: Code, atMs: Long = System.currentTimeMillis()) { kept = Kept(code, atMs, used = false) }
+
+    /** The kept code for [instance], once: null if none, too old or already used. / El código guardado, una sola vez. */
+    @Synchronized fun take(instance: String, nowMs: Long = System.currentTimeMillis()): String? {
+        val k = kept ?: return null
+        if (k.used || k.code.instance != instance || nowMs - k.atMs > KEEP_MS) return null
+        kept = k.copy(used = true)
+        return k.code.code
+    }
+
+    /** The waiting screen got [code] by itself: it is not offered again. / La pantalla ya lo recibió: no se ofrece otra vez. */
+    @Synchronized fun used(code: String) { kept?.takeIf { it.code.code == code }?.let { kept = it.copy(used = true) } }
+
+    internal const val EXTRA_CODE = "io.github.nebur692.meshclient.CODE"
+
     private const val PREFS = "ntfy"
     private const val CHANNEL = "codes"
 
@@ -88,6 +110,7 @@ object NtfyPush {
         val code = codeIn(text)
         android.util.Log.i(TAG, "message for $instance, code " + (if (code == null) "none" else "found") + ", collectors " + codes.subscriptionCount.value)
         if (code == null) return
+        keep(Code(instance, code))
         codes.tryEmit(Code(instance, code))
         if (inFront) return
         val manager = context.getSystemService(NotificationManager::class.java)
@@ -101,8 +124,25 @@ object NtfyPush {
             .setContentText(code.chunked(3).joinToString(" "))
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setAutoCancel(true)
-            .setTimeoutAfter(5 * 60_000)
+            .setTimeoutAfter(KEEP_MS)
+            // A tap opens the app, which fills the code if it is waiting for it; "Copy" is for signing in elsewhere.
+            // Tocar abre la app, que pone el código si lo espera; «Copiar» es para entrar en otro sitio.
+            .setContentIntent(android.app.PendingIntent.getActivity(context, 0,
+                android.content.Intent(context, MainActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT))
+            .addAction(R.drawable.ic_copy, context.getString(R.string.ntfy_copy), android.app.PendingIntent.getBroadcast(context, instance.hashCode(),
+                android.content.Intent(context, CodeCopyReceiver::class.java).putExtra(EXTRA_CODE, code).putExtra(android.content.Intent.EXTRA_UID, instance.hashCode()),
+                android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT))
             .build())
+    }
+}
+
+/** "Copy" on a code's notification: the code to the clipboard, and the notification goes. / «Copiar» en el aviso de un código. */
+class CodeCopyReceiver : android.content.BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: android.content.Intent) {
+        val code = intent.getStringExtra(NtfyPush.EXTRA_CODE) ?: return
+        context.getSystemService(android.content.ClipboardManager::class.java)?.setPrimaryClip(android.content.ClipData.newPlainText("code", code))
+        NotificationManagerCompat.from(context).cancel(intent.getIntExtra(android.content.Intent.EXTRA_UID, 0))
     }
 }
 

@@ -999,4 +999,5 @@
     <string name="map_kind_gps">ubicación por GPS</string>
     <string name="map_kind_user">ubicación puesta a mano</string>
     <string name="map_count">Con ubicación: %1$d / %2$d · Mapa © colaboradores de OpenStreetMap</string>
+    <string name="ntfy_copy">Copiar el código</string>
 </resources>
